@@ -24,13 +24,12 @@ dataset_mapping = Dict(
         load_dataset("nielsr/CelebA-faces", split = "train").with_format("julia"),
     "CELEBAPANG" =>
         load_dataset("nielsr/CelebA-faces", split = "train").with_format("julia"),
-    # "UD_ENGLISH" => MLDatasets.UD_English(),
-    "DARCY_FLOW" => h5open("PDE_data/darcy_32/darcy_train_32.h5")["y"],
 )
 
 # Huggingface datasets loading is lazy, so batch load
 function batch_process(subset; img_resize::Union{Nothing,Tuple{Int,Int}} = (32, 32))
-    subdata = reduce((x, y) -> cat(x, y, dims = 4), map(x -> channelview(x), subset))
+    channel_views = map(x -> channelview(x), subset)
+    subdata = cat(channel_views..., dims = 4)
     return imresize(permutedims(subdata, (2, 3, 1, 4)), img_resize) ./ 255
 end
 
@@ -61,8 +60,11 @@ function get_vision_dataset(
     """
     dataset = begin
         if dataset_name == "DARCY_PERM" || dataset_name == "DARCY_FLOW"
-            data = dataset_mapping[dataset_name][:, :, 1:(N_train+N_test)]
-            (data .- minimum(data)) ./ (maximum(data) - minimum(data))
+            data = h5open("PDE_data/darcy_32/darcy_train_32.h5", "r") do file
+                read(file, "y")
+            end
+            data = data[:, :, 1:(N_train+N_test)]
+            data = (data .- minimum(data)) ./ (maximum(data) - minimum(data))
             data = isnothing(img_resize) ? data : imresize(data, img_resize)
             data
         elseif dataset_name == "CELEBA" || dataset_name == "CELEBAPANG"
@@ -166,7 +168,7 @@ function get_text_dataset(
     indexed_dataset =
         map(sentence -> index_sentence(sentence, sequence_length, vocab), dataset)
 
-    dataset = reduce(hcat, indexed_dataset)
+    dataset = hcat(indexed_dataset...)
     save_dataset = dataset[:, 1:num_generated_samples]
 
     return_data = zeros(full_quant, length(vocab), size(dataset)...)

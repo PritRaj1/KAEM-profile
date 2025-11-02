@@ -85,12 +85,16 @@ function (sampler::autoMALA_sampler)(
         N: The number of iterations.
         rng: The random number generator.
     """
-    # Initialize from prior 
-    z_hq, st_ebm = model.sample_prior(model, size(x)[end], ps, st_kan, st_lux, rng)
+    z_initial, st_ebm = model.sample_prior(model, size(x)[end], ps, st_kan, st_lux, rng)
+    z_samples = Vector{typeof(z_initial)}()
+    sizehint!(z_samples, length(temps))
+    push!(z_samples, z_initial)
+
     for i = 1:(length(temps)-1)
         z_i, st_ebm = model.sample_prior(model, size(x)[end], ps, st_kan, st_lux, rng)
-        z_hq = cat(z_hq, z_i; dims = 3)
+        push!(z_samples, z_i)
     end
+    z_hq = cat(z_samples..., dims = 3)  # Single concatenation instead of multiple
     @reset st_lux.ebm = st_ebm
 
     num_temps, Q, P, S = length(temps), size(z_hq)[1:2]..., size(x)[end]

@@ -37,7 +37,10 @@ def plot_prior_function_grid(dataset, prior, function, grid_size, cmap):
     """Generate and save a single plot for a specific prior-function combination."""
 
     # Only load generated images for individual plots
-    gen_path = f"logs/Vanilla/{dataset}/importance/{prior}_{function}/univariate/generated_images.h5"
+    gen_path = (
+        f"logs/Vanilla/{dataset}/importance/{prior}_{function}/"
+        f"univariate/generated_images.h5"
+    )
 
     try:
         with h5py.File(gen_path, "r") as h5_file:
@@ -90,7 +93,10 @@ def plot_real_images_reference(dataset, grid_size, cmap):
     # Try to find real images from any prior/function combination
     for prior in PRIORS:
         for function in FUNCTIONS:
-            real_path = f"logs/Vanilla/{dataset}/importance/{prior}_{function}/univariate/real_images.h5"
+            real_path = (
+                f"logs/Vanilla/{dataset}/importance/{prior}_{function}/"
+                f"univariate/real_images.h5"
+            )
             try:
                 with h5py.File(real_path, "r") as h5_file:
                     real_images = h5_file["samples"][()]

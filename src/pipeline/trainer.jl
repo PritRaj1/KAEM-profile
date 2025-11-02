@@ -56,21 +56,16 @@ function init_trainer(
     save_model = true,
 )
 
-    # Load dataset
     N_train = parse(Int, retrieve(conf, "TRAINING", "N_train"))
     N_test = parse(Int, retrieve(conf, "TRAINING", "N_test"))
     num_generated_samples = parse(Int, retrieve(conf, "TRAINING", "num_generated_samples"))
     batch_size_for_gen = parse(Int, retrieve(conf, "TRAINING", "batch_size_for_gen"))
-    # cnn = dataset_name == "CIFAR10" || dataset_name == "SVHN" 
     seq = dataset_name == "PTB" || dataset_name == "SMS_SPAM"
-    # cnn = false
     gen_type = seq ? "logits" : "images"
-    # commit!(conf, "CNN", "use_cnn_lkhood", string(cnn))
     cnn = parse(Bool, retrieve(conf, "CNN", "use_cnn_lkhood"))
     sequence_length = seq ? parse(Int, retrieve(conf, "SEQ", "sequence_length")) : 0
     commit!(conf, "SEQ", "sequence_length", string(sequence_length)) # Make sure 0 is set if not sequence
     vocab_size = parse(Int, retrieve(conf, "SEQ", "vocab_size"))
-
     batch_size = parse(Int, retrieve(conf, "TRAINING", "batch_size"))
 
     dataset, x_shape, save_dataset = (
@@ -130,8 +125,7 @@ function init_trainer(
     file_loc = isnothing(file_loc) ? "logs/$(model_type)/" : file_loc
     mkpath(file_loc)
 
-    # Initialize model
-    println("Initializing model")
+    println("Initializing model...")
     model = init_T_KAM(dataset, conf, x_shape; file_loc = file_loc, rng = rng)
     x, loader_state = iterate(model.train_loader)
     x = pu(x)
@@ -310,12 +304,13 @@ function train!(t::T_KAM_trainer; train_idx::Int = 1)
             train_loss = 0
             grid_updated = 0
 
-            # Save images
-            gen_data = zeros(half_quant, t.model.lkhood.x_shape..., 0)
-            idx = length(t.model.lkhood.x_shape) + 1
-            ps_hq = half_quant.(t.ps)
-            for i = 1:(fld(t.num_generated_samples, 10)//t.batch_size_for_gen) # Save 1/10 of the samples to conserve space
-                batch, st_ebm, st_gen = CUDA.@fastmath t.model(
+            # Save images - collect batches first then concatenate once to avoid O(n²) allocations
+            num_batches_to_save = fld(t.num_generated_samples, 10) ÷ t.batch_size_for_gen # Save 1/10 of the samples to conserve space
+            if num_batches_to_save > 0
+                concat_dim = length(t.model.lkhood.x_shape) + 1
+                ps_hq = half_quant.(t.ps)
+                # Get first batch to determine type
+                first_batch, st_ebm, st_gen = CUDA.@fastmath t.model(
                     ps_hq,
                     t.st_kan,
                     Lux.testmode(t.st_lux),
@@ -324,7 +319,25 @@ function train!(t::T_KAM_trainer; train_idx::Int = 1)
                 )
                 @reset t.st_lux.ebm = st_ebm
                 @reset t.st_lux.gen = st_gen
-                gen_data = cat(gen_data, cpu_device()(batch), dims = idx)
+                batches_to_cat = Vector{typeof(cpu_device()(first_batch))}()
+                sizehint!(batches_to_cat, num_batches_to_save)
+                push!(batches_to_cat, cpu_device()(first_batch))
+
+                for i = 2:num_batches_to_save
+                    batch, st_ebm, st_gen = CUDA.@fastmath t.model(
+                        ps_hq,
+                        t.st_kan,
+                        Lux.testmode(t.st_lux),
+                        t.batch_size_for_gen;
+                        rng = t.rng,
+                    )
+                    @reset t.st_lux.ebm = st_ebm
+                    @reset t.st_lux.gen = st_gen
+                    push!(batches_to_cat, cpu_device()(batch))
+                end
+                gen_data = cat(batches_to_cat..., dims = concat_dim)
+            else
+                gen_data = zeros(half_quant, t.model.lkhood.x_shape..., 0)
             end
 
             if (t.gen_every > 0 && epoch % t.gen_every == 0)
@@ -403,10 +416,21 @@ function train!(t::T_KAM_trainer; train_idx::Int = 1)
     )
 
     # Generate samples
-    gen_data = zeros(half_quant, t.model.lkhood.x_shape..., 0)
-    idx = length(t.model.lkhood.x_shape) + 1
+    num_batches = t.num_generated_samples ÷ t.batch_size_for_gen
+    concat_dim = length(t.model.lkhood.x_shape) + 1
     ps_hq = half_quant.(t.ps)
-    for i = 1:(t.num_generated_samples//t.batch_size_for_gen)
+    first_batch, st_ebm, st_gen = CUDA.@fastmath t.model(
+        ps_hq,
+        t.st_kan,
+        Lux.testmode(t.st_lux),
+        t.batch_size_for_gen;
+        rng = t.rng,
+    )
+    batches_to_cat = Vector{typeof(cpu_device()(first_batch))}()
+    sizehint!(batches_to_cat, num_batches)
+    push!(batches_to_cat, cpu_device()(first_batch))
+
+    for i = 2:num_batches
         batch, st_ebm, st_gen = CUDA.@fastmath t.model(
             ps_hq,
             t.st_kan,
@@ -414,8 +438,9 @@ function train!(t::T_KAM_trainer; train_idx::Int = 1)
             t.batch_size_for_gen;
             rng = t.rng,
         )
-        gen_data = cat(gen_data, cpu_device()(batch), dims = idx)
+        push!(batches_to_cat, cpu_device()(batch))
     end
+    gen_data = cat(batches_to_cat..., dims = concat_dim)
 
     if !t.model.lkhood.SEQ && !t.model.lkhood.CNN && t.model.use_pca
         gen_data = reconstruct(t.model.PCA_model, gen_data)
@@ -429,14 +454,6 @@ function train!(t::T_KAM_trainer; train_idx::Int = 1)
         rm(t.model.file_loc * "generated_$(t.gen_type).h5")
         h5write(t.model.file_loc * "generated_$(t.gen_type).h5", "samples", gen_data)
     end
-
-    t.save_model && jldsave(
-        t.model.file_loc * "saved_model.jld2";
-        params = t.ps |> cpu_device(),
-        kan_state = t.st_kan |> cpu_device(),
-        lux_state = t.st_lux |> cpu_device(),
-        train_idx = train_idx,
-    )
 
     t.save_model && jldsave(
         t.model.file_loc * "saved_model.jld2";
