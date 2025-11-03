@@ -38,8 +38,9 @@ function SplineMUL(
 )::AbstractArray{T,3} where {T<:half_quant}
     x_act = l.base_activation(x)
     w_base, w_sp = ps.w_base, ps.w_sp
-    I, S, O = size(x_act), size(w_base, 2)
-    return @. reshape(w_base, I, O, 1) * reshape(x_act, I, 1, S) + reshape(w_sp, I, O, 1) * y
+    I, S, O = size(x_act)..., size(w_base, 2)
+    return reshape(w_base, I, O, 1) .* reshape(x_act, I, 1, S) .+
+           reshape(w_sp, I, O, 1) .* y
 end
 
 struct B_spline_basis <: AbstractBasis
@@ -69,7 +70,7 @@ function (b::B_spline_basis)(
 )::AbstractArray{T,3} where {T<:half_quant}
     I, S, G = size(x)..., size(grid, 2)
     x = reshape(x, I, 1, S)
-    
+
     # B0
     grid_1 = @view grid[:, 1:(end-1)]
     grid_2 = @view grid[:, 2:end]
@@ -87,15 +88,14 @@ function (b::B_spline_basis)(
 
         denom1 = g3 .- g1
         denom2 = g4 .- g2
-        
+
         mask1 = T.(denom1 .!= 0)
         mask2 = T.(denom2 .!= 0)
-        
+
         numer1 = x .- g1
         numer2 = g4 .- x
-        
-        B = @. ((numer1 / denom1) * B1 * mask1 +
-                (numer2 / denom2) * B2 * mask2)
+
+        B = @. ((numer1 / denom1) * B1 * mask1 + (numer2 / denom2) * B2 * mask2)
     end
 
     return B
@@ -181,7 +181,7 @@ function (b::FFT_basis)(
     σ::AbstractArray{T,1},
 )::Tuple{AbstractArray{T,3},AbstractArray{T,3}} where {T<:half_quant}
     I, S, G = size(x)..., size(grid, 2)
-    
+
     x_3d = reshape(x, I, 1, S)
     grid_3d = reshape(grid, I, G, 1)
     freq = @. x_3d * grid_3d * T(2π) * σ
@@ -198,12 +198,12 @@ function coef2curve_FFT(
     even, odd = b(x_eval, grid, σ)
     even_coef = @view coef[1, :, :, :]
     odd_coef = @view coef[2, :, :, :]
-    
+
     even_coef_perm = permutedims(even_coef, (2, 3, 1))
     odd_coef_perm = permutedims(odd_coef, (2, 3, 1))
     even_perm = permutedims(even, (2, 3, 1))
     odd_perm = permutedims(odd, (2, 3, 1))
-    
+
     y_even = NNlib.batched_mul(even_coef_perm, even_perm)  # [O, S, I]
     y_odd = NNlib.batched_mul(odd_coef_perm, odd_perm) # [O, S, I]
     return permutedims(y_even .+ y_odd, (3, 1, 2))
