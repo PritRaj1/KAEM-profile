@@ -13,18 +13,16 @@ export extend_grid,
 
 using CUDA, Lux, ComponentArrays
 using LinearAlgebra, NNlib
-using Tullio, KernelAbstractions
 
 using ..Utils
 
-## Basis functions with Stencil loops ##
 function extend_grid(
-        grid::AbstractArray{T, 2};
-        k_extend::Int = 0,
-    )::AbstractArray{T, 2} where {T <: half_quant}
+    grid::AbstractArray{T,2};
+    k_extend::Int = 0,
+)::AbstractArray{T,2} where {T<:half_quant}
     h = (grid[:, end] - grid[:, 1]) / (size(grid, 2) - 1)
 
-    for i in 1:k_extend
+    for i = 1:k_extend
         grid = hcat(grid[:, 1:1] .- h, grid)
         grid = hcat(grid, grid[:, end:end] .+ h)
     end
@@ -33,15 +31,15 @@ function extend_grid(
 end
 
 function SplineMUL(
-        l::Lux.AbstractLuxLayer,
-        ps::ComponentArray{T},
-        x::AbstractArray{T, 2},
-        y::AbstractArray{T, 3},
-    )::AbstractArray{T, 3} where {T <: half_quant}
-    """Top-level function for KAN with spline basis functions."""
-    x = l.base_activation(x)
+    l::Lux.AbstractLuxLayer,
+    ps::ComponentArray{T},
+    x::AbstractArray{T,2},
+    y::AbstractArray{T,3},
+)::AbstractArray{T,3} where {T<:half_quant}
+    x_act = l.base_activation(x)
     w_base, w_sp = ps.w_base, ps.w_sp
-    return @tullio out[i, o, s] := w_base[i, o] * x[i, s] + w_sp[i, o] * y[i, o, s]
+    I, S, O = size(x_act), size(w_base, 2)
+    return @. reshape(w_base, I, O, 1) * reshape(x_act, I, 1, S) + reshape(w_sp, I, O, 1) * y
 end
 
 struct B_spline_basis <: AbstractBasis
@@ -60,107 +58,102 @@ struct Cheby_basis <: AbstractBasis
 end
 
 function Cheby_basis(degree::Int)
-    lin = collect(half_quant, 0:degree) |> pu
+    lin = collect(half_quant, 0:degree)' |> pu
     return Cheby_basis(degree, lin)
 end
 
 function (b::B_spline_basis)(
-        x::AbstractArray{T, 2},
-        grid::AbstractArray{T, 2},
-        σ::AbstractArray{T, 1}
-    )::AbstractArray{T, 3} where {T <: half_quant}
+    x::AbstractArray{T,2},
+    grid::AbstractArray{T,2},
+    σ::AbstractArray{T,1};
+)::AbstractArray{T,3} where {T<:half_quant}
     I, S, G = size(x)..., size(grid, 2)
-
-    # Initialize degree 0, piecewise const
-    grid_1 = grid[:, 1:(end - 1)]
-    grid_2 = grid[:, 2:end]
-    @tullio term1[i, g, s] := x[i, s] >= grid_1[i, g]
-    @tullio term2[i, g, s] := x[i, s] < grid_2[i, g]
-    B = T.(term1 .* term2)
+    x = reshape(x, I, 1, S)
+    
+    # B0
+    grid_1 = @view grid[:, 1:(end-1)]
+    grid_2 = @view grid[:, 2:end]
+    B = T.((x .>= grid_1) .* (x .< grid_2))
 
     # Iteratively build up to degree k
-    for d in 1:b.degree
+    for d = 1:b.degree
         gmax = G - d - 1
-        B1 = B[:, 1:gmax, :]
-        B2 = B[:, 2:(gmax + 1), :]
-        grid_1 = grid[:, 1:gmax]
-        grid_2 = grid[:, 2:(gmax + 1)]
-        grid_3 = grid[:, (d + 1):(d + gmax)]
-        grid_4 = grid[:, (d + 2):(d + gmax + 1)]
+        B1 = @view B[:, 1:gmax, :]
+        B2 = @view B[:, 2:(gmax+1), :]
+        g1 = @view grid[:, 1:gmax, :]
+        g2 = @view grid[:, 2:(gmax+1), :]
+        g3 = @view grid[:, (d+1):(d+gmax), :]
+        g4 = @view grid[:, (d+2):(d+gmax+1), :]
 
-        @tullio numer1[i, g, s] := x[i, s] - grid_1[i, g]
-        @tullio denom1[i, g] := grid_3[i, g] - grid_1[i, g]
-        @tullio numer2[i, g, s] := grid_4[i, g] - x[i, s]
-        @tullio denom2[i, g] := grid_4[i, g] - grid_2[i, g]
-        @tullio mask1[i, g] := denom1[i, g] != 0
-        @tullio mask2[i, g] := denom2[i, g] != 0
-        mask1 = T.(mask1)
-        mask2 = T.(mask2)
-
-        # Re-allocate memory for B since G (size) is changing
-        @tullio B[i, g, s] :=
-            (numer1[i, g, s] / denom1[i, g]) * B1[i, g, s] * mask1[i, g] +
-            (numer2[i, g, s] / denom2[i, g]) * B2[i, g, s] * mask2[i, g]
+        denom1 = g3 .- g1
+        denom2 = g4 .- g2
+        
+        mask1 = T.(denom1 .!= 0)
+        mask2 = T.(denom2 .!= 0)
+        
+        numer1 = x .- g1
+        numer2 = g4 .- x
+        
+        B = @. ((numer1 / denom1) * B1 * mask1 +
+                (numer2 / denom2) * B2 * mask2)
     end
 
     return B
 end
 
 function (b::RBF_basis)(
-        x::AbstractArray{T, 2},
-        grid::AbstractArray{T, 2},
-        σ::AbstractArray{T, 1},
-    )::AbstractArray{T, 3} where {T <: half_quant}
-    σ = b.scale .* σ
-    @tullio B[i, g, s] := exp(-(((x[i, s] - grid[i, g]) / σ[d])^2) / 2)
-    return B
+    x::AbstractArray{T,2},
+    grid::AbstractArray{T,2},
+    σ::AbstractArray{T,1},
+)::AbstractArray{T,3} where {T<:half_quant}
+    I, S, G = size(x)..., size(grid, 2)
+    x_3d = reshape(x, I, 1, S)
+    grid_3d = reshape(grid, I, G, 1)
+    return @. exp(-((x_3d - grid_3d) * (b.scale * σ))^2 / 2)
 end
 
 function (b::RSWAF_basis)(
-        x::AbstractArray{T, 2},
-        grid::AbstractArray{T, 2},
-        σ::AbstractArray{T, 1},
-    )::AbstractArray{T, 3} where {T <: half_quant}
-    @tullio diff[i, g, s] := x[i, s] - grid[i, g]
-    diff = NNlib.tanh_fast(diff ./ σ)
-    @tullio B[i, g, s] := 1 - diff[i, g, s]^2
-    return B
+    x::AbstractArray{T,2},
+    grid::AbstractArray{T,2},
+    σ::AbstractArray{T,1},
+)::AbstractArray{T,3} where {T<:half_quant}
+    I, S, G = size(x)..., size(grid, 2)
+    diff = NNlib.tanh_fast((reshape(x, I, 1, S) .- grid) ./ σ)
+    return @. one(T) - diff^2
 end
 
 function (b::Cheby_basis)(
-        x::AbstractArray{T, 2},
-        grid::AbstractArray{T, 2},
-        σ::AbstractArray{T, 1},
-    )::AbstractArray{T, 3} where {T <: half_quant}
-    lin = b.lin
-    x = NNlib.tanh_fast(x) ./ σ # Scale > 1 to place well within [-1, 1]
-    @tullio B[i, g, s] := cos(lin[g] * acos(x[i, s]))
-    return B
+    x::AbstractArray{T,2},
+    grid::AbstractArray{T,2},
+    σ::AbstractArray{T,1},
+)::AbstractArray{T,3} where {T<:half_quant}
+    I, S = size(x)
+    z = acos.(NNlib.tanh_fast(x) ./ σ)
+    return cos.(reshape(z, I, 1, S) .* b.lin)
 end
 
 function coef2curve_Spline(
-        b::AbstractBasis,
-        x_eval::AbstractArray{T, 2},
-        grid::AbstractArray{T, 2},
-        coef::AbstractArray{T, 3},
-        σ::AbstractArray{T, 1},
-    )::AbstractArray{T, 3} where {T <: half_quant}
-    """Top-level function for coef multiplication for all splines."""
-    I, S, O, G = size(x_eval)..., size(coef)[2:3]...
-    G = b == Cheby_basis ? b.degree : G
+    b::AbstractBasis,
+    x_eval::AbstractArray{T,2},
+    grid::AbstractArray{T,2},
+    coef::AbstractArray{T,3},
+    σ::AbstractArray{T,1},
+)::AbstractArray{T,3} where {T<:half_quant}
     spl = b(x_eval, grid, σ)
-    @tullio y[i, o, s] := spl[i, g, s] * coef[i, o, g]
-    return y
+    I, G, S, O = size(spl)..., size(coef, 2)
+    coef_perm = permutedims(coef, (2, 3, 1)) # [O, G, I]
+    spl_perm = permutedims(spl, (2, 3, 1)) # [G, S, I]
+    y_perm = NNlib.batched_mul(coef_perm, spl_perm)
+    return permutedims(y_perm, (3, 1, 2)) # [I, O, S]
 end
 
 function curve2coef(
-        b::AbstractBasis,
-        x::AbstractArray{T, 2},
-        y::AbstractArray{T, 3},
-        grid::AbstractArray{T, 2},
-        σ::AbstractArray{T, 1},
-    )::AbstractArray{T, 3} where {T <: half_quant}
-    """Least sqaures fit of coefs from spline curves, (only for spline-types)."""
+    b::AbstractBasis,
+    x::AbstractArray{T,2},
+    y::AbstractArray{T,3},
+    grid::AbstractArray{T,2},
+    σ::AbstractArray{T,1},
+)::AbstractArray{T,3} where {T<:half_quant}
     J, S, O = size(x)..., size(y, 2)
 
     B = b(x, grid, σ) .|> full_quant
@@ -170,8 +163,8 @@ function curve2coef(
     B = permutedims(B, [1, 3, 2]) # in_dim x b_size x n_grid
 
     coef = Array{full_quant}(undef, J, O, G) |> pu
-    for i in 1:J
-        for o in 1:O
+    for i = 1:J
+        for o = 1:O
             coef[i, o, :] .= B[i, :, :] \ y[i, o, :]
         end
     end
@@ -179,32 +172,41 @@ function curve2coef(
     return T.(coef)
 end
 
-## Specific implementation for FFT basis functions ###
+## FFT basis functions ###
 struct FFT_basis <: AbstractBasis end
 
 function (b::FFT_basis)(
-        x::AbstractArray{T, 2},
-        grid::AbstractArray{T, 2},
-        σ::AbstractArray{T, 1},
-    )::Tuple{AbstractArray{T, 3}, AbstractArray{T, 3}} where {T <: half_quant}
-    I, S = size(x)
-    σ = T(2π) .* σ
-    @tullio freq[i, g, s] := x[i, s] * grid[i, g] * σ[d]
+    x::AbstractArray{T,2},
+    grid::AbstractArray{T,2},
+    σ::AbstractArray{T,1},
+)::Tuple{AbstractArray{T,3},AbstractArray{T,3}} where {T<:half_quant}
+    I, S, G = size(x)..., size(grid, 2)
+    
+    x_3d = reshape(x, I, 1, S)
+    grid_3d = reshape(grid, I, G, 1)
+    freq = @. x_3d * grid_3d * T(2π) * σ
     return cos.(freq), sin.(freq)
 end
 
 function coef2curve_FFT(
-        b::AbstractBasis,
-        x_eval::AbstractArray{T, 2},
-        grid::AbstractArray{T, 2},
-        coef::AbstractArray{T, 4},
-        σ::AbstractArray{T, 1},
-    )::AbstractArray{T, 3} where {T <: half_quant}
+    b::AbstractBasis,
+    x_eval::AbstractArray{T,2},
+    grid::AbstractArray{T,2},
+    coef::AbstractArray{T,4},
+    σ::AbstractArray{T,1},
+)::AbstractArray{T,3} where {T<:half_quant}
     even, odd = b(x_eval, grid, σ)
-    even_coef, odd_coef = coef[1, :, :, :], coef[2, :, :, :]
-    @tullio y[i, o, s] :=
-        even[i, g, s] * even_coef[i, o, g] + odd[i, g, s] * odd_coef[i, o, g]
-    return y
+    even_coef = @view coef[1, :, :, :]
+    odd_coef = @view coef[2, :, :, :]
+    
+    even_coef_perm = permutedims(even_coef, (2, 3, 1))
+    odd_coef_perm = permutedims(odd_coef, (2, 3, 1))
+    even_perm = permutedims(even, (2, 3, 1))
+    odd_perm = permutedims(odd, (2, 3, 1))
+    
+    y_even = NNlib.batched_mul(even_coef_perm, even_perm)  # [O, S, I]
+    y_odd = NNlib.batched_mul(odd_coef_perm, odd_perm) # [O, S, I]
+    return permutedims(y_even .+ y_odd, (3, 1, 2))
 end
 
 end
