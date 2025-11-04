@@ -93,8 +93,8 @@ function (lp::LogPriorUnivariate)(
     f = reshape(f, Q, Q, P, S)
     I_q = Array{T}(I, Q, Q) |> pu
 
-    f_diag = dropdims(sum(f .* I_q; dims = 2, init = zero(T)); dims = 2)  # (Q, P, S)
-    log_p = dropdims(sum(f_diag .+ log_π0; dims = (1, 2), init = zero(T)); dims = (1, 2))
+    f_diag = dropdims(sum(f .* I_q; dims = 2); dims = 2)
+    log_p = dropdims(sum(f_diag .+ log_π0; dims = (1, 2)); dims = (1, 2))
     return log_p, st_lyrnorm_new
 end
 

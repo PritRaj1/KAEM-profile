@@ -8,9 +8,9 @@ CONDA_ACTIVATE := $(shell if [ -f "$(CONDA_BASE)/etc/profile.d/conda.sh" ]; then
 DATASET ?= MNIST
 MODE ?= thermo
 
-# Sometimes found trouble sourcing cuDNN libraries, so path exported here
-LD_LIB_PATH := $(HOME)/.julia/artifacts/2eb570b35b597d106228383c5cfa490f4bf538ee/lib:$(LD_LIBRARY_PATH)
-export LD_LIBRARY_PATH := $(LD_LIB_PATH)
+# # Sometimes found trouble sourcing cuDNN libraries, so path exported here
+# LD_LIB_PATH := $(HOME)/.julia/artifacts/2eb570b35b597d106228383c5cfa490f4bf538ee/lib:$(LD_LIBRARY_PATH)
+# export LD_LIBRARY_PATH := $(LD_LIB_PATH)
 
 help:
 	@echo "Available targets:"
