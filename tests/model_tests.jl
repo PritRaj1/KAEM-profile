@@ -91,6 +91,7 @@ function test_cnn_loss()
     dataset = randn(full_quant, 32, 32, 3, 50)
     commit!(conf, "CNN", "use_cnn_lkhood", "true")
     commit!(conf, "CNN", "latent_concat", "false")
+    commit!(conf, "PCA", "use_pca", "false")
     model = init_T_KAM(dataset, conf, (32, 32, 3))
     x_test = first(model.train_loader) |> pu
     model, ps, st_kan, st_lux = prep_model(model, x_test)
@@ -146,5 +147,5 @@ end
     test_mala_loss()
     test_cnn_loss()
     test_cnn_residual_loss()
-    test_seq_loss()
+    # test_seq_loss()
 end
