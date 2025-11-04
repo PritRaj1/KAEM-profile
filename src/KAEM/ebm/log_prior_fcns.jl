@@ -82,23 +82,20 @@ function (lp::LogPriorUnivariate)(
         The unnormalized log-probability of the ebm-prior.
         The updated states of the ebm-prior.
     """
-
     Q, P, S = size(z)
     log_π0 = ebm.π_pdf(z, ps.dist.π_μ, ps.dist.π_σ; log_bool = true)
 
-    # Pre-allocate
-    log_p = zeros(T, S) |> pu
     log_π0 =
         lp.normalize && !ula ?
         log_π0 .- log_norm(first(ebm.quad(ebm, ps, st_kan, st_lyrnorm)), lp.ε) : log_π0
 
-    @inbounds @simd for q = 1:Q
-        f, st = ebm(ps, st_kan, st_lyrnorm, view(z,q,:,:))
-        log_p =
-            log_p + dropdims(sum(view(f,q,:,:) .+ view(log_π0,q,:,:); dims = 1); dims = 1)
-    end
+    f, st_lyrnorm_new = ebm(ps, st_kan, st_lyrnorm, reshape(z, P, Q * S))
+    f = reshape(f, Q, Q, P, S)
+    I_q = Array{T}(I, Q, Q) |> pu
 
-    return log_p, st_lyrnorm
+    f_diag = dropdims(sum(f .* I_q; dims = 2, init = zero(T)); dims = 2)  # (Q, P, S)
+    log_p = dropdims(sum(f_diag .+ log_π0; dims = (1, 2), init = zero(T)); dims = (1, 2))
+    return log_p, st_lyrnorm_new
 end
 
 function dotprod_attn(
