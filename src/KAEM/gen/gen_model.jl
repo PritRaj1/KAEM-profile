@@ -19,7 +19,7 @@ using .KAN_Model
 using .CNN_Model
 using .Transformer_Model
 
-struct σ_conf{T<:half_quant}
+struct σ_conf{T <: half_quant}
     noise::T
     llhood::T
 end
@@ -39,7 +39,7 @@ const gen_model_map = Dict(
     "SEQ" => init_SEQ_Generator,
 )
 
-struct GenModel{T<:half_quant} <: Lux.AbstractLuxLayer
+struct GenModel{T <: half_quant} <: Lux.AbstractLuxLayer
     generator::Any
     σ::σ_conf{T}
     output_activation::Function
@@ -51,10 +51,10 @@ struct GenModel{T<:half_quant} <: Lux.AbstractLuxLayer
 end
 
 function init_GenModel(
-    conf::ConfParse,
-    x_shape::Tuple{Vararg{Int}};
-    rng::AbstractRNG = Random.default_rng(),
-)
+        conf::ConfParse,
+        x_shape::Tuple{Vararg{Int}};
+        rng::AbstractRNG = Random.default_rng(),
+    )
     CNN = parse(Bool, retrieve(conf, "CNN", "use_cnn_lkhood"))
     sequence_length = parse(Int, retrieve(conf, "SEQ", "sequence_length"))
 
@@ -70,12 +70,12 @@ function init_GenModel(
 
     resample_fcn =
         (weights, rng) -> importance_resampler(
-            weights;
-            rng = rng,
-            ESS_threshold = ESS_threshold,
-            resampler = resampler,
-            verbose = verbose,
-        )
+        weights;
+        rng = rng,
+        ESS_threshold = ESS_threshold,
+        resampler = resampler,
+        verbose = verbose,
+    )
 
     output_activation =
         sequence_length > 1 ? (x -> softmax(x, dims = 1)) :
@@ -106,16 +106,16 @@ function init_GenModel(
     )
 end
 
-function Lux.initialparameters(rng::AbstractRNG, lkhood::GenModel{T}) where {T<:half_quant}
+function Lux.initialparameters(rng::AbstractRNG, lkhood::GenModel{T}) where {T <: half_quant}
     fcn_ps = NamedTuple(
         symbol_map[i] => Lux.initialparameters(rng, lkhood.generator.Φ_fcns[i]) for
-        i = 1:lkhood.generator.depth
+            i in 1:lkhood.generator.depth
     )
     layernorm_ps = (a = [zero(T)], b = [zero(T)])
     if lkhood.generator.bool_config.layernorm && length(lkhood.generator.layernorms) > 0
         layernorm_ps = NamedTuple(
             symbol_map[i] => Lux.initialparameters(rng, lkhood.generator.layernorms[i])
-            for i = 1:length(lkhood.generator.layernorms)
+                for i in 1:length(lkhood.generator.layernorms)
         )
     end
 
@@ -123,7 +123,7 @@ function Lux.initialparameters(rng::AbstractRNG, lkhood::GenModel{T}) where {T<:
     if lkhood.generator.bool_config.batchnorm && length(lkhood.generator.batchnorms) > 0
         batchnorm_ps = NamedTuple(
             symbol_map[i] => Lux.initialparameters(rng, lkhood.generator.batchnorms[i])
-            for i = 1:length(lkhood.generator.batchnorms)
+                for i in 1:length(lkhood.generator.batchnorms)
         )
     end
 
@@ -144,10 +144,10 @@ function Lux.initialparameters(rng::AbstractRNG, lkhood::GenModel{T}) where {T<:
     )
 end
 
-function Lux.initialstates(rng::AbstractRNG, lkhood::GenModel{T}) where {T<:half_quant}
+function Lux.initialstates(rng::AbstractRNG, lkhood::GenModel{T}) where {T <: half_quant}
     fcn_st = NamedTuple(
         symbol_map[i] => Lux.initialstates(rng, lkhood.generator.Φ_fcns[i]) |> hq for
-        i = 1:lkhood.generator.depth
+            i in 1:lkhood.generator.depth
     )
 
     st_lyrnorm = (a = [zero(T)], b = [zero(T)])
@@ -155,7 +155,7 @@ function Lux.initialstates(rng::AbstractRNG, lkhood::GenModel{T}) where {T<:half
         st_lyrnorm = NamedTuple(
             symbol_map[i] =>
                 Lux.initialstates(rng, lkhood.generator.layernorms[i]) |> hq for
-            i = 1:length(lkhood.generator.layernorms)
+                i in 1:length(lkhood.generator.layernorms)
         )
     end
 
@@ -164,7 +164,7 @@ function Lux.initialstates(rng::AbstractRNG, lkhood::GenModel{T}) where {T<:half
         batchnorm_st = NamedTuple(
             symbol_map[i] =>
                 Lux.initialstates(rng, lkhood.generator.batchnorms[i]) |> hq for
-            i = 1:length(lkhood.generator.batchnorms)
+                i in 1:length(lkhood.generator.batchnorms)
         )
     end
 
@@ -179,12 +179,12 @@ function Lux.initialstates(rng::AbstractRNG, lkhood::GenModel{T}) where {T<:half
 
     if lkhood.CNN || lkhood.SEQ
         return (a = [one(T)], b = [one(T)]),
-        (
-            fcn = fcn_st,
-            layernorm = st_lyrnorm,
-            batchnorm = batchnorm_st,
-            attention = attention_st,
-        )
+            (
+                fcn = fcn_st,
+                layernorm = st_lyrnorm,
+                batchnorm = batchnorm_st,
+                attention = attention_st,
+            )
     else
         return fcn_st, st_lyrnorm
     end

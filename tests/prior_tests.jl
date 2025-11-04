@@ -20,7 +20,7 @@ p_size = first(parse.(Int, retrieve(conf, "EbmModel", "layer_widths")))
 q_size = last(parse.(Int, retrieve(conf, "EbmModel", "layer_widths")))
 
 Random.seed!(42)
-dataset = randn(full_quant, 32, 32, 1, b_size*10)
+dataset = randn(full_quant, 32, 32, 1, b_size * 10)
 model = init_T_KAM(dataset, conf, (32, 32, 1))
 x_test = first(model.train_loader) |> pu
 model, ps, st_kan, st_lux = prep_model(model, x_test)
@@ -28,7 +28,7 @@ ps = half_quant.(ps)
 
 function test_shapes()
     @test model.prior.p_size == p_size
-    @test model.prior.q_size == q_size
+    return @test model.prior.q_size == q_size
 end
 
 function test_uniform_prior()
@@ -46,7 +46,7 @@ function test_uniform_prior()
 
     @test !any(isnan, z_test)
     @test size(log_p) == (b_size,)
-    @test !any(isnan, log_p)
+    return @test !any(isnan, log_p)
 end
 
 function test_gaussian_prior()
@@ -64,7 +64,7 @@ function test_gaussian_prior()
 
     @test !any(isnan, z_test)
     @test size(log_p) == (b_size,)
-    @test !any(isnan, log_p)
+    return @test !any(isnan, log_p)
 end
 
 function test_lognormal_prior()
@@ -82,7 +82,7 @@ function test_lognormal_prior()
 
     @test !any(isnan, z_test)
     @test size(log_p) == (b_size,)
-    @test !any(isnan, log_p)
+    return @test !any(isnan, log_p)
 end
 
 function test_learnable_gaussian_prior()
@@ -100,7 +100,7 @@ function test_learnable_gaussian_prior()
 
     @test !any(isnan, z_test)
     @test size(log_p) == (b_size,)
-    @test !any(isnan, log_p)
+    return @test !any(isnan, log_p)
 end
 
 function test_ebm_prior()
@@ -118,7 +118,7 @@ function test_ebm_prior()
 
     @test !any(isnan, z_test)
     @test size(log_p) == (b_size,)
-    @test !any(isnan, log_p)
+    return @test !any(isnan, log_p)
 end
 
 @testset "Mixture Prior Tests" begin

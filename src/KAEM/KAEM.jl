@@ -26,12 +26,12 @@ using .GeneratorModel
 include("ebm/log_prior_fcns.jl")
 using .LogPriorFCNs
 
-struct LossScaler{T<:half_quant,U<:full_quant}
+struct LossScaler{T <: half_quant, U <: full_quant}
     reduced::T
     full::U
 end
 
-struct T_KAM{T<:half_quant,U<:full_quant} <: Lux.AbstractLuxLayer
+struct T_KAM{T <: half_quant, U <: full_quant} <: Lux.AbstractLuxLayer
     prior::EbmModel
     lkhood::GenModel
     train_loader::DataLoader
@@ -47,7 +47,7 @@ struct T_KAM{T<:half_quant,U<:full_quant} <: Lux.AbstractLuxLayer
     sample_prior::Function
     posterior_sampler::Any
     loss_fcn::Any
-    loss_scaling::LossScaler{T,U}
+    loss_scaling::LossScaler{T, U}
     ε::T
     file_loc::AbstractString
     max_samples::Int
@@ -55,17 +55,17 @@ struct T_KAM{T<:half_quant,U<:full_quant} <: Lux.AbstractLuxLayer
     conf::ConfParse
     log_prior::AbstractLogPrior
     use_pca::Bool
-    PCA_model::Union{PCA,Nothing}
+    PCA_model::Union{PCA, Nothing}
     original_data_size::Tuple
 end
 
 function init_T_KAM(
-    dataset::AbstractArray{full_quant},
-    conf::ConfParse,
-    x_shape::Tuple;
-    file_loc::AbstractString = "logs/",
-    rng::AbstractRNG = Random.default_rng(),
-)::T_KAM{half_quant,full_quant}
+        dataset::AbstractArray{full_quant},
+        conf::ConfParse,
+        x_shape::Tuple;
+        file_loc::AbstractString = "logs/",
+        rng::AbstractRNG = Random.default_rng(),
+    )::T_KAM{half_quant, full_quant}
 
     batch_size = parse(Int, retrieve(conf, "TRAINING", "batch_size"))
     IS_samples = parse(Int, retrieve(conf, "TRAINING", "importance_sample_size"))
@@ -80,8 +80,8 @@ function init_T_KAM(
 
     train_data = seq ? dataset[:, :, 1:N_train] : dataset[:, :, :, 1:N_train]
     test_data =
-        seq ? dataset[:, :, (N_train+1):(N_train+N_test)] :
-        dataset[:, :, :, (N_train+1):(N_train+N_test)]
+        seq ? dataset[:, :, (N_train + 1):(N_train + N_test)] :
+        dataset[:, :, :, (N_train + 1):(N_train + N_test)]
 
     original_data_size = x_shape
     use_pca = parse(Bool, retrieve(conf, "PCA", "use_pca"))
@@ -111,7 +111,7 @@ function init_T_KAM(
     loss_scaling = parse(full_quant, retrieve(conf, "MIXED_PRECISION", "loss_scaling"))
     out_dim = (
         cnn ? size(dataset, 3) :
-        (seq ? size(dataset, 1) : size(dataset, 1) * size(dataset, 2))
+            (seq ? size(dataset, 1) : size(dataset, 1) * size(dataset, 2))
     )
 
     lkhood_fcn = retrieve(conf, "GeneratorModel", "spline_function")
@@ -144,13 +144,13 @@ function init_T_KAM(
         num_param_updates =
             parse(Int, retrieve(conf, "TRAINING", "N_epochs")) * length(train_loader)
 
-        x = range(0, stop = 2*π*(num_cycles+0.5), length = num_param_updates+1)
+        x = range(0, stop = 2 * π * (num_cycles + 0.5), length = num_param_updates + 1)
         p = initial_p .+ (end_p - initial_p) .* 0.5 .* (1 .- cos.(x)) .|> full_quant
     end
 
     sample_prior =
         (m, n, p, sk, sl, r) ->
-            sample_univariate(m.prior, n, p.ebm, sk.ebm, sl.ebm; rng = r, ε = m.ε)
+    sample_univariate(m.prior, n, p.ebm, sk.ebm, sl.ebm; rng = r, ε = m.ε)
 
     verbose && println("Using $(Threads.nthreads()) threads.")
 
@@ -194,9 +194,9 @@ function init_from_file(file_loc::AbstractString, ckpt::Int)
 end
 
 function Lux.initialparameters(
-    rng::AbstractRNG,
-    model::T_KAM{T,U},
-) where {T<:half_quant,U<:full_quant}
+        rng::AbstractRNG,
+        model::T_KAM{T, U},
+    ) where {T <: half_quant, U <: full_quant}
     return ComponentArray(
         ebm = Lux.initialparameters(rng, model.prior),
         gen = Lux.initialparameters(rng, model.lkhood),
@@ -204,9 +204,9 @@ function Lux.initialparameters(
 end
 
 function Lux.initialstates(
-    rng::AbstractRNG,
-    model::T_KAM{T,U},
-) where {T<:half_quant,U<:full_quant}
+        rng::AbstractRNG,
+        model::T_KAM{T, U},
+    ) where {T <: half_quant, U <: full_quant}
 
     ebm_kan, ebm_lux = Lux.initialstates(rng, model.prior)
     gen_kan, gen_lux = Lux.initialstates(rng, model.lkhood)
@@ -214,13 +214,13 @@ function Lux.initialstates(
     return ComponentArray(ebm = ebm_kan, gen = gen_kan), (ebm = ebm_lux, gen = gen_lux)
 end
 
-function (model::T_KAM{T,U})(
-    ps::ComponentArray{T},
-    st_kan::ComponentArray{T},
-    st_lux::NamedTuple,
-    num_samples::Int;
-    rng::AbstractRNG = Random.default_rng(),
-)::Tuple{AbstractArray{T},NamedTuple,NamedTuple} where {T<:half_quant,U<:full_quant}
+function (model::T_KAM{T, U})(
+        ps::ComponentArray{T},
+        st_kan::ComponentArray{T},
+        st_lux::NamedTuple,
+        num_samples::Int;
+        rng::AbstractRNG = Random.default_rng(),
+    )::Tuple{AbstractArray{T}, NamedTuple, NamedTuple} where {T <: half_quant, U <: full_quant}
     """
     Inference pass to generate a batch of data from the model.
     This is the same for both the standard and thermodynamic models.

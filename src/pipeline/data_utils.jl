@@ -1,4 +1,3 @@
-
 module DataUtils
 
 export get_vision_dataset, get_text_dataset
@@ -27,21 +26,21 @@ dataset_mapping = Dict(
 )
 
 # Huggingface datasets loading is lazy, so batch load
-function batch_process(subset; img_resize::Union{Nothing,Tuple{Int,Int}} = (32, 32))
+function batch_process(subset; img_resize::Union{Nothing, Tuple{Int, Int}} = (32, 32))
     channel_views = map(x -> channelview(x), subset)
     subdata = cat(channel_views..., dims = 4)
     return imresize(permutedims(subdata, (2, 3, 1, 4)), img_resize) ./ 255
 end
 
 function get_vision_dataset(
-    dataset_name::String,
-    N_train::Int,
-    N_test::Int,
-    num_generated_samples::Int;
-    img_resize::Union{Nothing,Tuple{Int,Int}} = nothing,
-    cnn::Bool = false,
-    batch_size::Int = 100,
-)
+        dataset_name::String,
+        N_train::Int,
+        N_test::Int,
+        num_generated_samples::Int;
+        img_resize::Union{Nothing, Tuple{Int, Int}} = nothing,
+        cnn::Bool = false,
+        batch_size::Int = 100,
+    )
     """
     Load a vision dataset and resize it if necessary.
 
@@ -63,22 +62,22 @@ function get_vision_dataset(
             data = h5open("PDE_data/darcy_32/darcy_train_32.h5", "r") do file
                 read(file, "y")
             end
-            data = data[:, :, 1:(N_train+N_test)]
+            data = data[:, :, 1:(N_train + N_test)]
             data = (data .- minimum(data)) ./ (maximum(data) - minimum(data))
             data = isnothing(img_resize) ? data : imresize(data, img_resize)
             data
         elseif dataset_name == "CELEBA" || dataset_name == "CELEBAPANG"
             celeba = dataset_mapping[dataset_name]
-            num_iters = fld(N_train+N_test, batch_size)
-            data = zeros(full_quant, img_resize..., 3, N_train+N_test)
-            for i = 1:num_iters
+            num_iters = fld(N_train + N_test, batch_size)
+            data = zeros(full_quant, img_resize..., 3, N_train + N_test)
+            for i in 1:num_iters
                 start_idx = (i - 1) * batch_size + 1
-                end_idx = min(i * batch_size, N_train+N_test)
+                end_idx = min(i * batch_size, N_train + N_test)
                 data[:, :, :, start_idx:end_idx] =
                     batch_process(
-                        celeba[start_idx:end_idx]["image"];
-                        img_resize = img_resize,
-                    ) .|> full_quant
+                    celeba[start_idx:end_idx]["image"];
+                    img_resize = img_resize,
+                ) .|> full_quant
 
                 if i % 10 == 0
                     GC.gc()
@@ -87,14 +86,14 @@ function get_vision_dataset(
 
             data
         else
-            data = dataset_mapping[dataset_name][1:(N_train+N_test)].features
+            data = dataset_mapping[dataset_name][1:(N_train + N_test)].features
             data = isnothing(img_resize) ? data : imresize(data, img_resize)
             data
         end
     end
 
     dataset = dataset .|> full_quant
-    img_shape = size(dataset)[1:(end-1)]
+    img_shape = size(dataset)[1:(end - 1)]
 
     img_shape =
         (
@@ -120,7 +119,7 @@ function get_vision_dataset(
     return dataset, img_shape, save_dataset
 end
 
-function index_sentence(sentence::Vector{String}, max_length::Int, vocab::Dict{String,Int})
+function index_sentence(sentence::Vector{String}, max_length::Int, vocab::Dict{String, Int})
     indexed = fill(vocab["<pad>"], max_length, 1)
     for (i, token) in enumerate(sentence[1:min(length(sentence), max_length)])
         if token in keys(vocab)
@@ -132,14 +131,14 @@ function index_sentence(sentence::Vector{String}, max_length::Int, vocab::Dict{S
     return indexed
 end
 function get_text_dataset(
-    dataset_name::String,
-    N_train::Int,
-    N_test::Int,
-    num_generated_samples::Int;
-    sequence_length::Int = 100,
-    vocab_size::Int = 1000,
-    batch_size::Int = 100,
-)
+        dataset_name::String,
+        N_train::Int,
+        N_test::Int,
+        num_generated_samples::Int;
+        sequence_length::Int = 100,
+        vocab_size::Int = 1000,
+        batch_size::Int = 100,
+    )
     """
     Load a text dataset.
 
@@ -155,7 +154,7 @@ function get_text_dataset(
         The dataset to save.
         The length of the vocabulary.
     """
-    dataset = dataset_mapping[dataset_name][1:(N_train+N_test)].features # Already tokenized
+    dataset = dataset_mapping[dataset_name][1:(N_train + N_test)].features # Already tokenized
     emb = load_embeddings(GloVe) # Pre-trained embeddings
 
     vocab = Dict(word => i for (i, word) in enumerate(emb.vocab[1:vocab_size]))
@@ -175,7 +174,7 @@ function get_text_dataset(
     num_iters = fld(size(dataset, 2), batch_size)
 
     # Had some issues, so batched
-    for i = 1:num_iters
+    for i in 1:num_iters
         start_idx = (i - 1) * batch_size + 1
         end_idx = min(i * batch_size, size(dataset, 2))
         return_data[:, :, start_idx:end_idx] =

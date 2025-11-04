@@ -9,11 +9,11 @@ using ..UnivariateFunctions
 using ..UnivariateFunctions.spline_functions
 
 function update_fcn_grid(
-    l::univariate_function{T,U},
-    ps::ComponentArray{T},
-    st::ComponentArray{T},
-    x::AbstractArray{T,2},
-)::Tuple{AbstractArray{T,2},AbstractArray{T,3}} where {T<:half_quant,U<:full_quant}
+        l::univariate_function{T, U},
+        ps::ComponentArray{T},
+        st::ComponentArray{T},
+        x::AbstractArray{T, 2},
+    )::Tuple{AbstractArray{T, 2}, AbstractArray{T, 3}} where {T <: half_quant, U <: full_quant}
     """
     Adapt the function's grid to the distribution of the input data.
 
@@ -38,8 +38,8 @@ function update_fcn_grid(
         coef2curve_Spline(l.basis_function, x_sort, st.grid, coef, τ) .|> half_quant
 
     # Adaptive grid - concentrate grid points around regions of higher density
-    num_interval = size(st.grid, 2) - 2*l.spline_degree - 1
-    ids = [div(sample_size * i, num_interval) + 1 for i = 0:(num_interval-1)]'
+    num_interval = size(st.grid, 2) - 2 * l.spline_degree - 1
+    ids = [div(sample_size * i, num_interval) + 1 for i in 0:(num_interval - 1)]'
     grid_adaptive = reduce(hcat, map(i -> view(x_sort, :, i:i), ids))
     grid_adaptive = hcat(grid_adaptive, x_sort[:, end:end])
     grid_adaptive = grid_adaptive

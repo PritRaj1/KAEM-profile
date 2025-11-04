@@ -29,7 +29,7 @@ using .LangevinUpdates
     "ebm" => (p, b, rng) -> randn(rng, p, 1, b),
 )
 
-struct ULA_sampler{U<:full_quant}
+struct ULA_sampler{U <: full_quant}
     prior_sampling_bool::Bool
     N::Int
     RE_frequency::Int
@@ -37,24 +37,24 @@ struct ULA_sampler{U<:full_quant}
 end
 
 function initialize_ULA_sampler(;
-    η::U = full_quant(1e-3),
-    prior_sampling_bool::Bool = false,
-    N::Int = 20,
-    RE_frequency::Int = 10,
-) where {U<:full_quant}
+        η::U = full_quant(1.0e-3),
+        prior_sampling_bool::Bool = false,
+        N::Int = 20,
+        RE_frequency::Int = 10,
+    ) where {U <: full_quant}
 
     return ULA_sampler(prior_sampling_bool, N, RE_frequency, η)
 end
 
 function (sampler::ULA_sampler)(
-    model::T_KAM{T,U},
-    ps::ComponentArray{T},
-    st_kan::ComponentArray{T},
-    st_lux::NamedTuple,
-    x::AbstractArray{T};
-    temps::AbstractArray{T} = [one(T)],
-    rng::AbstractRNG = Random.default_rng(),
-)::Tuple{AbstractArray{T},NamedTuple} where {T<:half_quant,U<:full_quant}
+        model::T_KAM{T, U},
+        ps::ComponentArray{T},
+        st_kan::ComponentArray{T},
+        st_lux::NamedTuple,
+        x::AbstractArray{T};
+        temps::AbstractArray{T} = [one(T)],
+        rng::AbstractRNG = Random.default_rng(),
+    )::Tuple{AbstractArray{T}, NamedTuple} where {T <: half_quant, U <: full_quant}
     """
     Unadjusted Langevin Algorithm (ULA) sampler to generate posterior samples.
 
@@ -89,7 +89,7 @@ function (sampler::ULA_sampler)(
             sizehint!(z_samples, length(temps))
             push!(z_samples, z_initial)
 
-            for i = 1:(length(temps)-1)
+            for i in 1:(length(temps) - 1)
                 z_i, st_ebm =
                     model.sample_prior(model, size(x)[end], ps, st_kan, st_lux, rng)
                 push!(z_samples, z_i)
@@ -109,38 +109,38 @@ function (sampler::ULA_sampler)(
     temps_gpu = pu(repeat(temps, S))
 
     # Pre-allocate for both precisions
-    z_fq = U.(reshape(z_hq, Q, P, S*num_temps))
+    z_fq = U.(reshape(z_hq, Q, P, S * num_temps))
     ∇z_fq = zero(U) .* z_fq
     z_copy = similar(z_hq[:, :, :, 1]) |> pu
     z_t, z_t1 = z_copy, z_copy
 
     x_t = (
         model.lkhood.SEQ ? repeat(x, 1, 1, num_temps) :
-        (model.use_pca ? repeat(x, 1, num_temps) : repeat(x, 1, 1, 1, num_temps))
+            (model.use_pca ? repeat(x, 1, num_temps) : repeat(x, 1, 1, 1, num_temps))
     )
 
     # Pre-allocate noise
-    noise = randn(rng, U, Q, P, S*num_temps, sampler.N)
-    log_u_swap = log.(rand(rng, U, num_temps-1, sampler.N))
+    noise = randn(rng, U, Q, P, S * num_temps, sampler.N)
+    log_u_swap = log.(rand(rng, U, num_temps - 1, sampler.N))
     ll_noise = randn(rng, T, model.lkhood.x_shape..., S, 2, num_temps, sampler.N) |> pu
-    swap_replica_idxs = num_temps > 1 ? rand(rng, 1:(num_temps-1), sampler.N) : nothing
+    swap_replica_idxs = num_temps > 1 ? rand(rng, 1:(num_temps - 1), sampler.N) : nothing
 
-    for i = 1:sampler.N
+    for i in 1:sampler.N
         ξ = pu(noise[:, :, :, i])
         ∇z_fq .=
             U.(
-                unadjusted_logpos_grad(
-                    T.(z_fq),
-                    zero(T) .* T.(z_fq),
-                    x_t,
-                    temps_gpu,
-                    model,
-                    ps,
-                    st_kan,
-                    st_lux,
-                    sampler.prior_sampling_bool,
-                ),
-            ) ./ model.loss_scaling.full
+            unadjusted_logpos_grad(
+                T.(z_fq),
+                zero(T) .* T.(z_fq),
+                x_t,
+                temps_gpu,
+                model,
+                ps,
+                st_kan,
+                st_lux,
+                sampler.prior_sampling_bool,
+            ),
+        ) ./ model.loss_scaling.full
 
         all(iszero.(∇z_fq)) && error("All zero ULA grad")
         any(isnan.(∇z_fq)) && error("NaN in ULA grad")
@@ -151,7 +151,7 @@ function (sampler::ULA_sampler)(
         if i % sampler.RE_frequency == 0 && num_temps > 1 && !sampler.prior_sampling_bool
             t = swap_replica_idxs[i] # Randomly pick two adjacent temperatures to swap
             z_t = copy(z_hq[:, :, :, t])
-            z_t1 = copy(z_hq[:, :, :, t+1])
+            z_t1 = copy(z_hq[:, :, :, t + 1])
 
             noise_1 =
                 model.lkhood.SEQ ? ll_noise[:, :, :, 1, t, i] :
@@ -181,13 +181,13 @@ function (sampler::ULA_sampler)(
                 ε = model.ε,
             )
 
-            log_swap_ratio = (temps[t+1] - temps[t]) .* (sum(ll_t) - sum(ll_t1))
+            log_swap_ratio = (temps[t + 1] - temps[t]) .* (sum(ll_t) - sum(ll_t1))
             swap = T(log_u_swap[t, i] < log_swap_ratio)
             @reset st_lux.gen = st_gen
 
             z_hq[:, :, :, t] .= swap .* z_t1 .+ (1 - swap) .* z_t
-            z_hq[:, :, :, t+1] .= (1 - swap) .* z_t1 .+ swap .* z_t
-            z_fq .= U.(reshape(z_hq, Q, P, S*num_temps))
+            z_hq[:, :, :, t + 1] .= (1 - swap) .* z_t1 .+ swap .* z_t
+            z_fq .= U.(reshape(z_hq, Q, P, S * num_temps))
         end
     end
 

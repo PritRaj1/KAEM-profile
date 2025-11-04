@@ -4,13 +4,8 @@ ENV_NAME = KAEM
 CONDA_BASE := $(shell conda info --base 2>/dev/null || echo "")
 CONDA_ACTIVATE := $(shell if [ -f "$(CONDA_BASE)/etc/profile.d/conda.sh" ]; then echo "$(CONDA_BASE)/etc/profile.d/conda.sh"; elif [ -f "$(CONDA_BASE)/Scripts/activate" ]; then echo "$(CONDA_BASE)/Scripts/activate"; else echo ""; fi)
 
-# Default values for training
 DATASET ?= MNIST
 MODE ?= thermo
-
-# # Sometimes found trouble sourcing cuDNN libraries, so path exported here
-# LD_LIB_PATH := $(HOME)/.julia/artifacts/2eb570b35b597d106228383c5cfa490f4bf538ee/lib:$(LD_LIBRARY_PATH)
-# export LD_LIBRARY_PATH := $(LD_LIB_PATH)
 
 help:
 	@echo "Available targets:"
@@ -27,8 +22,6 @@ help:
 	@echo "  plot-results- Run only results plotting scripts"
 	@echo "  logs        - View latest test log"
 	@echo "  clear-logs  - Remove all log files"
-	@echo "  format      - Format code"
-	@echo "  lint        - Run linting"
 	@echo "  julia-setup - Install Julia dependencies"
 	@echo "  help        - Show this help"
 	@echo ""
@@ -126,14 +119,6 @@ plot-results:
 	@echo "Running results plotting scripts..."
 	@export LD_LIBRARY_PATH=$(LD_LIB_PATH) && $(call conda_run,find plotting/results/ -name "*.py" -exec python {} \; 2>&1 | tee logs/plotting_results_$(shell date +%Y%m%d_%H%M%S).log)
 	@echo "Results plotting completed! Log file: logs/plotting_results_$(shell date +%Y%m%d_%H%M%S).log"
-
-format:
-	$(call conda_run,black src/ tests/ plotting/)
-	$(call conda_run,isort src/ tests/ plotting/)
-	@julia --project=. -e 'using JuliaFormatter; format(".")'
-
-lint:
-	$(call conda_run,flake8 src/ tests/ plotting/)
 
 julia-setup:
 	@echo "Installing Julia dependencies..."

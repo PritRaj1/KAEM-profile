@@ -46,7 +46,7 @@ function test_posterior_sampling()
         @test size(z_posterior) == (10, 5, 10, 4)
     end
     @test size(temps) == (4,)
-    @test !any(isnan, z_posterior)
+    return @test !any(isnan, z_posterior)
 end
 
 function test_model_derivative()
@@ -61,7 +61,7 @@ function test_model_derivative()
     loss, ∇, st_ebm, st_gen =
         model.loss_fcn(ps, ∇, st_kan, st_lux, model, x_test; rng = Random.default_rng())
     @test norm(∇) != 0
-    @test !any(isnan, ∇)
+    return @test !any(isnan, ∇)
 end
 
 @testset "Thermodynamic Integration Tests" begin

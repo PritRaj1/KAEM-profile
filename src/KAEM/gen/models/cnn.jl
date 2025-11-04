@@ -21,9 +21,9 @@ struct CNN_Generator <: Lux.AbstractLuxLayer
 end
 
 function upsample_to_match(
-    input_tensor::AbstractArray{T,4},
-    target_tensor::AbstractArray{T,4},
-)::AbstractArray{T,4} where {T<:half_quant}
+        input_tensor::AbstractArray{T, 4},
+        target_tensor::AbstractArray{T, 4},
+    )::AbstractArray{T, 4} where {T <: half_quant}
     input_h, input_w = size(input_tensor, 1), size(input_tensor, 2)
     target_h, target_w = size(target_tensor, 1), size(target_tensor, 2)
     h_factor = div(target_h, input_h)
@@ -33,16 +33,16 @@ function upsample_to_match(
 end
 
 function forward_with_latent_concat(
-    gen::CNN_Generator,
-    z::AbstractArray{T,4},
-    ps::ComponentArray{T},
-    st_lux::NamedTuple,
-)::Tuple{AbstractArray{T,4},NamedTuple} where {T<:half_quant}
+        gen::CNN_Generator,
+        z::AbstractArray{T, 4},
+        ps::ComponentArray{T},
+        st_lux::NamedTuple,
+    )::Tuple{AbstractArray{T, 4}, NamedTuple} where {T <: half_quant}
 
     original_z = z
     current_z = z .* one(T)
 
-    for i = 1:(gen.depth)
+    for i in 1:(gen.depth)
         if i > 1
             upsampled_z = upsample_to_match(original_z .* one(T), current_z .* one(T))
             current_z = cat(current_z, upsampled_z, dims = 3)
@@ -72,14 +72,14 @@ function forward_with_latent_concat(
 end
 
 function forward(
-    gen::CNN_Generator,
-    z::AbstractArray{T,4},
-    ps::ComponentArray{T},
-    st_lux::NamedTuple,
-    current_layer::Int = 1,
-    skip_input::Union{AbstractArray{T,4},Nothing} = nothing,
-)::Tuple{AbstractArray{T,4},NamedTuple} where {T<:half_quant}
-    for i = 1:(gen.depth)
+        gen::CNN_Generator,
+        z::AbstractArray{T, 4},
+        ps::ComponentArray{T},
+        st_lux::NamedTuple,
+        current_layer::Int = 1,
+        skip_input::Union{AbstractArray{T, 4}, Nothing} = nothing,
+    )::Tuple{AbstractArray{T, 4}, NamedTuple} where {T <: half_quant}
+    for i in 1:(gen.depth)
         z, st_new =
             Lux.apply(gen.Φ_fcns[i], z, ps.fcn[symbol_map[i]], st_lux.fcn[symbol_map[i]])
         @ignore_derivatives @reset st_lux.fcn[symbol_map[i]] = st_new
@@ -101,10 +101,10 @@ function forward(
 end
 
 function init_CNN_Generator(
-    conf::ConfParse,
-    x_shape::Tuple,
-    rng::AbstractRNG = Random.default_rng(),
-)
+        conf::ConfParse,
+        x_shape::Tuple,
+        rng::AbstractRNG = Random.default_rng(),
+    )
 
     prior_widths = (
         try
@@ -126,16 +126,18 @@ function init_CNN_Generator(
 
     widths = (widths..., last(x_shape))
 
-    first(widths) !== q_size && (error(
-        "First expert Φ_hidden_widths must be equal to the hidden dimension of the prior.",
-        widths,
-        " != ",
-        q_size,
-    ))
+    first(widths) !== q_size && (
+        error(
+            "First expert Φ_hidden_widths must be equal to the hidden dimension of the prior.",
+            widths,
+            " != ",
+            q_size,
+        )
+    )
 
     channels = parse.(Int, retrieve(conf, "CNN", "hidden_feature_dims"))
     hidden_c = (q_size, channels...)
-    depth = length(hidden_c)-1
+    depth = length(hidden_c) - 1
     strides = parse.(Int, retrieve(conf, "CNN", "strides"))
     k_size = parse.(Int, retrieve(conf, "CNN", "kernel_sizes"))
     paddings = parse.(Int, retrieve(conf, "CNN", "paddings"))
@@ -154,12 +156,12 @@ function init_CNN_Generator(
         (error("Number of paddings must be equal to the number of hidden layers + 1."))
 
     prev_c = 0
-    for i in eachindex(hidden_c[1:(end-1)])
+    for i in eachindex(hidden_c[1:(end - 1)])
         push!(
             Φ_functions,
             Lux.ConvTranspose(
                 (k_size[i], k_size[i]),
-                hidden_c[i] + prev_c => hidden_c[i+1],
+                hidden_c[i] + prev_c => hidden_c[i + 1],
                 identity;
                 stride = strides[i],
                 pad = paddings[i],
@@ -167,7 +169,7 @@ function init_CNN_Generator(
         )
 
         if batchnorm_bool
-            push!(batchnorms_temp, Lux.BatchNorm(hidden_c[i+1], act))
+            push!(batchnorms_temp, Lux.BatchNorm(hidden_c[i + 1], act))
         end
 
         prev_c = (i == 1 && skip_bool) ? hidden_c[1] : prev_c
@@ -194,11 +196,11 @@ function init_CNN_Generator(
 end
 
 function (gen::CNN_Generator)(
-    ps::ComponentArray{T},
-    st_kan::ComponentArray{T},
-    st_lux::NamedTuple,
-    z::AbstractArray{T,3},
-)::Tuple{AbstractArray{T,4},NamedTuple} where {T<:half_quant}
+        ps::ComponentArray{T},
+        st_kan::ComponentArray{T},
+        st_lux::NamedTuple,
+        z::AbstractArray{T, 3},
+    )::Tuple{AbstractArray{T, 4}, NamedTuple} where {T <: half_quant}
     """
     Generate data from the CNN likelihood model.
 

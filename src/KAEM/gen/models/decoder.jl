@@ -25,10 +25,10 @@ struct SEQ_Generator <: Lux.AbstractLuxLayer
 end
 
 function init_SEQ_Generator(
-    conf::ConfParse,
-    x_shape::Tuple,
-    rng::AbstractRNG = Random.default_rng(),
-)
+        conf::ConfParse,
+        x_shape::Tuple,
+        rng::AbstractRNG = Random.default_rng(),
+    )
     prior_widths = (
         try
             parse.(Int, retrieve(conf, "EbmModel", "layer_widths"))
@@ -49,12 +49,14 @@ function init_SEQ_Generator(
 
     widths = (widths..., first(x_shape))
 
-    first(widths) !== q_size && (error(
-        "First expert Φ_hidden_widths must be equal to the hidden dimension of the prior.",
-        widths,
-        " != ",
-        q_size,
-    ))
+    first(widths) !== q_size && (
+        error(
+            "First expert Φ_hidden_widths must be equal to the hidden dimension of the prior.",
+            widths,
+            " != ",
+            q_size,
+        )
+    )
 
     Φ_functions = Vector{Lux.AbstractLuxLayer}(undef, 0)
     layernorms = Vector{Lux.LayerNorm}(undef, 0)
@@ -95,11 +97,11 @@ function init_SEQ_Generator(
 end
 
 function scaled_dotprod_attn(
-    Q::AbstractArray{T,3},
-    K::AbstractArray{T,3},
-    V::AbstractArray{T,3},
-    d_model::Int,
-)::AbstractArray{T,3} where {T<:half_quant}
+        Q::AbstractArray{T, 3},
+        K::AbstractArray{T, 3},
+        V::AbstractArray{T, 3},
+        d_model::Int,
+    )::AbstractArray{T, 3} where {T <: half_quant}
     D, L, B = size(Q)
     I = size(K, 2)
     scale = sqrt(T(d_model))
@@ -111,11 +113,11 @@ function scaled_dotprod_attn(
 end
 
 function (gen::SEQ_Generator)(
-    ps::ComponentArray{T},
-    st_kan::ComponentArray{T},
-    st_lux::NamedTuple,
-    z::AbstractArray{T,3},
-)::Tuple{AbstractArray{T,3},NamedTuple} where {T<:half_quant}
+        ps::ComponentArray{T},
+        st_kan::ComponentArray{T},
+        st_lux::NamedTuple,
+        z::AbstractArray{T, 3},
+    )::Tuple{AbstractArray{T, 3}, NamedTuple} where {T <: half_quant}
     """
     Generate data from the Transformer decoder.
 
@@ -137,7 +139,7 @@ function (gen::SEQ_Generator)(
     @ignore_derivatives @reset st_lux.layernorm[:a] = st_new
 
     z_prev = z
-    for t = 2:gen.seq_length
+    for t in 2:gen.seq_length
 
         # Self-attention
         Q, st_new = Lux.apply(gen.attention[1], z, ps.attention[:Q], st_lux.attention[:Q])

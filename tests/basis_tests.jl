@@ -16,7 +16,7 @@ function test_extend_grid()
     Random.seed!(42)
     grid = rand(half_quant, i, g) |> pu
     extended_grid = extend_grid(grid; k_extend = degree)
-    @test size(extended_grid, 2) == size(grid, 2) + 2 * degree
+    return @test size(extended_grid, 2) == size(grid, 2) + 2 * degree
 end
 
 function test_B_spline_basis()
@@ -37,7 +37,7 @@ function test_B_spline_basis()
     @test size(recovered_coef) == size(coef)
     y_reconstructed =
         coef2curve_Spline(basis_function, x_eval, extended_grid, recovered_coef, σ)
-    @test norm(y - y_reconstructed) < half_quant(0.1)
+    return @test norm(y - y_reconstructed) < half_quant(0.1)
 end
 
 function test_RBF_basis()
@@ -56,8 +56,8 @@ function test_RBF_basis()
 
     recovered_coef = curve2coef(basis_function, x_eval, y, grid, σ)
     @test size(recovered_coef) == size(coef)
-    y_reconstructed = coef2curve_Spline(basis_function, x_eval, grid, recovered_coef, σ;)
-    @test norm(y - y_reconstructed) < half_quant(0.1)
+    y_reconstructed = coef2curve_Spline(basis_function, x_eval, grid, recovered_coef, σ)
+    return @test norm(y - y_reconstructed) < half_quant(0.1)
 end
 
 function test_RSWAF_basis()
@@ -76,7 +76,7 @@ function test_RSWAF_basis()
     recovered_coef = curve2coef(basis_function, x_eval, y, grid, σ)
     @test size(recovered_coef) == size(coef)
     y_reconstructed = coef2curve_Spline(basis_function, x_eval, grid, recovered_coef, σ)
-    @test norm(y - y_reconstructed) < half_quant(0.1)
+    return @test norm(y - y_reconstructed) < half_quant(0.1)
 end
 
 function test_FFT_basis()
@@ -90,7 +90,7 @@ function test_FFT_basis()
 
     y = coef2curve_FFT(basis_function, x_eval, grid, coef, σ)
     @test size(y) == (i, o, b)
-    @test !any(isnan.(y))
+    return @test !any(isnan.(y))
 end
 
 function test_Cheby_basis()
@@ -98,7 +98,7 @@ function test_Cheby_basis()
     x_eval = rand(half_quant, i, b) |> pu
     Random.seed!(42)
     grid = rand(half_quant, i, g) |> pu
-    coef = rand(half_quant, i, o, degree+1) |> pu
+    coef = rand(half_quant, i, o, degree + 1) |> pu
 
     basis_function = Cheby_basis(degree)
 
@@ -109,7 +109,7 @@ function test_Cheby_basis()
     recovered_coef = curve2coef(basis_function, x_eval, y, grid, σ)
     @test size(recovered_coef) == size(coef)
     y_reconstructed = coef2curve_Spline(basis_function, x_eval, grid, recovered_coef, σ)
-    @test norm(y - y_reconstructed) < half_quant(0.1)
+    return @test norm(y - y_reconstructed) < half_quant(0.1)
 end
 
 @testset "Spline Tests" begin

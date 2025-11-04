@@ -24,7 +24,7 @@ include("data_utils.jl")
 using .optimization
 using .DataUtils: get_vision_dataset, get_text_dataset
 
-mutable struct T_KAM_trainer{T<:half_quant,U<:full_quant}
+mutable struct T_KAM_trainer{T <: half_quant, U <: full_quant}
     model::Any
     cnn::Bool
     o::opt
@@ -33,7 +33,7 @@ mutable struct T_KAM_trainer{T<:half_quant,U<:full_quant}
     st_kan::ComponentArray{T}
     st_lux::NamedTuple
     N_epochs::Int
-    train_loader_state::Tuple{Any,Int}
+    train_loader_state::Tuple{Any, Int}
     x::AbstractArray{T}
     num_generated_samples::Int
     batch_size_for_gen::Int
@@ -48,13 +48,13 @@ mutable struct T_KAM_trainer{T<:half_quant,U<:full_quant}
 end
 
 function init_trainer(
-    rng::AbstractRNG,
-    conf::ConfParse,
-    dataset_name;
-    img_resize = nothing,
-    file_loc = nothing,
-    save_model = true,
-)
+        rng::AbstractRNG,
+        conf::ConfParse,
+        dataset_name;
+        img_resize = nothing,
+        file_loc = nothing,
+        save_model = true,
+    )
 
     N_train = parse(Int, retrieve(conf, "TRAINING", "N_train"))
     N_test = parse(Int, retrieve(conf, "TRAINING", "N_test"))
@@ -70,23 +70,23 @@ function init_trainer(
 
     dataset, x_shape, save_dataset = (
         seq ?
-        get_text_dataset(
-            dataset_name,
-            N_train,
-            N_test,
-            num_generated_samples;
-            sequence_length = sequence_length,
-            vocab_size = vocab_size,
-            batch_size = batch_size,
-        ) :
-        get_vision_dataset(
-            dataset_name,
-            N_train,
-            N_test,
-            num_generated_samples;
-            img_resize = img_resize,
-            cnn = cnn,
-        )
+            get_text_dataset(
+                dataset_name,
+                N_train,
+                N_test,
+                num_generated_samples;
+                sequence_length = sequence_length,
+                vocab_size = vocab_size,
+                batch_size = batch_size,
+            ) :
+            get_vision_dataset(
+                dataset_name,
+                N_train,
+                N_test,
+                num_generated_samples;
+                img_resize = img_resize,
+                cnn = cnn,
+            )
     )
 
     println("Dataset loaded")
@@ -192,6 +192,7 @@ function train!(t::T_KAM_trainer; train_idx::Int = 1)
                 end
             end
         end
+        return
     end
 
     # Gradient for a single batch
@@ -201,8 +202,8 @@ function train!(t::T_KAM_trainer; train_idx::Int = 1)
 
         # Grid updating for likelihood model
         if (
-            train_idx == 1 || (train_idx - t.last_grid_update >= t.grid_update_frequency)
-        ) && (t.model.update_llhood_grid || t.model.update_prior_grid)
+                train_idx == 1 || (train_idx - t.last_grid_update >= t.grid_update_frequency)
+            ) && (t.model.update_llhood_grid || t.model.update_prior_grid)
             t.model, ps_hq, t.st_kan, t.st_lux = update_model_grid(
                 t.model,
                 t.x,
@@ -323,7 +324,7 @@ function train!(t::T_KAM_trainer; train_idx::Int = 1)
                 sizehint!(batches_to_cat, num_batches_to_save)
                 push!(batches_to_cat, cpu_device()(first_batch))
 
-                for i = 2:num_batches_to_save
+                for i in 2:num_batches_to_save
                     batch, st_ebm, st_gen = CUDA.@fastmath t.model(
                         ps_hq,
                         t.st_kan,
@@ -430,7 +431,7 @@ function train!(t::T_KAM_trainer; train_idx::Int = 1)
     sizehint!(batches_to_cat, num_batches)
     push!(batches_to_cat, cpu_device()(first_batch))
 
-    for i = 2:num_batches
+    for i in 2:num_batches
         batch, st_ebm, st_gen = CUDA.@fastmath t.model(
             ps_hq,
             t.st_kan,
@@ -455,7 +456,7 @@ function train!(t::T_KAM_trainer; train_idx::Int = 1)
         h5write(t.model.file_loc * "generated_$(t.gen_type).h5", "samples", gen_data)
     end
 
-    t.save_model && jldsave(
+    return t.save_model && jldsave(
         t.model.file_loc * "saved_model.jld2";
         params = t.ps |> cpu_device(),
         kan_state = t.st_kan |> cpu_device(),

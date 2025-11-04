@@ -46,11 +46,11 @@ if use_thermo || N_t > 1
     train!(t)
 else
     if dataset == "CIFAR10" ||
-       dataset == "SVHN" ||
-       dataset == "CIFAR10PANG" ||
-       dataset == "SVHNPANG" ||
-       dataset == "CELEBA" ||
-       dataset == "CELEBAPANG"
+            dataset == "SVHN" ||
+            dataset == "CIFAR10PANG" ||
+            dataset == "SVHNPANG" ||
+            dataset == "CELEBA" ||
+            dataset == "CELEBAPANG"
         t = init_trainer(rng, conf, dataset; img_resize = im_resize)
         train!(t)
     else

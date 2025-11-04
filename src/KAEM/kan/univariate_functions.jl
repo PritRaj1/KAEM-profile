@@ -18,7 +18,7 @@ const SplineBasis_mapping = Dict(
     "Cheby" => degree -> Cheby_basis(degree),
 )
 
-struct univariate_function{T<:half_quant,U<:full_quant} <: Lux.AbstractLuxLayer
+struct univariate_function{T <: half_quant, U <: full_quant} <: Lux.AbstractLuxLayer
     in_dim::Int
     out_dim::Int
     base_activation::Function
@@ -28,7 +28,7 @@ struct univariate_function{T<:half_quant,U<:full_quant} <: Lux.AbstractLuxLayer
     init_grid::AbstractArray{T}
     grid_size::Int
     grid_update_ratio::T
-    grid_range::Tuple{T,T}
+    grid_range::Tuple{T, T}
     ε_scale::T
     σ_base::AbstractArray{U}
     σ_spline::U
@@ -37,20 +37,20 @@ struct univariate_function{T<:half_quant,U<:full_quant} <: Lux.AbstractLuxLayer
 end
 
 function init_function(
-    in_dim::Int,
-    out_dim::Int;
-    spline_degree::Int = 3,
-    base_activation::AbstractString = "silu",
-    spline_function::AbstractString = "B-spline",
-    grid_size::Int = 5,
-    grid_update_ratio::T = half_quant(0.02),
-    grid_range::Tuple{T,T} = (zero(half_quant), one(half_quant)),
-    ε_scale::T = half_quant(0.1),
-    σ_base::AbstractArray{U} = [full_quant(NaN)],
-    σ_spline::U = one(full_quant),
-    init_τ::U = one(full_quant),
-    τ_trainable::Bool = true,
-) where {T<:half_quant,U<:full_quant}
+        in_dim::Int,
+        out_dim::Int;
+        spline_degree::Int = 3,
+        base_activation::AbstractString = "silu",
+        spline_function::AbstractString = "B-spline",
+        grid_size::Int = 5,
+        grid_update_ratio::T = half_quant(0.02),
+        grid_range::Tuple{T, T} = (zero(half_quant), one(half_quant)),
+        ε_scale::T = half_quant(0.1),
+        σ_base::AbstractArray{U} = [full_quant(NaN)],
+        σ_spline::U = one(full_quant),
+        init_τ::U = one(full_quant),
+        τ_trainable::Bool = true,
+    ) where {T <: half_quant, U <: full_quant}
     spline_degree =
         (spline_function == "B-spline" || spline_function == "Cheby") ? spline_degree : 0
     grid_size = spline_function == "Cheby" ? 1 : grid_size
@@ -93,29 +93,29 @@ function init_function(
 end
 
 function Lux.initialparameters(
-    rng::AbstractRNG,
-    l::univariate_function{T,U},
-) where {T<:half_quant,U<:full_quant}
+        rng::AbstractRNG,
+        l::univariate_function{T, U},
+    ) where {T <: half_quant, U <: full_quant}
 
     w_base = glorot_normal(rng, U, l.in_dim, l.out_dim) .* l.σ_base
     w_sp = glorot_normal(rng, U, l.in_dim, l.out_dim) .* l.σ_spline
 
     coef = nothing
     if l.spline_string == "FFT"
-        grid_norm_factor = collect(U, 1:(l.grid_size+1)) .^ 2
+        grid_norm_factor = collect(U, 1:(l.grid_size + 1)) .^ 2
         coef =
-            glorot_normal(rng, U, 2, l.in_dim, l.out_dim, l.grid_size+1) ./
+            glorot_normal(rng, U, 2, l.in_dim, l.out_dim, l.grid_size + 1) ./
             (sqrt(l.in_dim) .* permutedims(grid_norm_factor[:, :, :, :], [2, 3, 4, 1]))
     elseif !(l.spline_string == "Cheby")
         ε =
             (
-                (rand(rng, T, l.in_dim, l.out_dim, l.grid_size + 1) .- T(0.5)) .*
+            (rand(rng, T, l.in_dim, l.out_dim, l.grid_size + 1) .- T(0.5)) .*
                 l.ε_scale ./ l.grid_size
-            ) |> pu
+        ) |> pu
         coef = cpu_device()(
             curve2coef(
                 l.basis_function,
-                l.init_grid[:, (l.spline_degree+1):(end-l.spline_degree)],
+                l.init_grid[:, (l.spline_degree + 1):(end - l.spline_degree)],
                 ε,
                 l.init_grid,
                 pu(T.(l.init_τ)),
@@ -126,29 +126,29 @@ function Lux.initialparameters(
     if l.spline_string == "Cheby"
         return (
             coef = glorot_normal(rng, U, l.in_dim, l.out_dim, l.spline_degree + 1) .*
-                   (1 / (l.in_dim * (l.spline_degree + 1))),
+                (1 / (l.in_dim * (l.spline_degree + 1))),
             basis_τ = l.init_τ,
         )
     else
         return l.τ_trainable ?
-               (w_base = w_base, w_sp = w_sp, coef = coef, basis_τ = l.init_τ) :
-               (w_base = w_base, w_sp = w_sp, coef = coef)
+            (w_base = w_base, w_sp = w_sp, coef = coef, basis_τ = l.init_τ) :
+            (w_base = w_base, w_sp = w_sp, coef = coef)
     end
 end
 
 function Lux.initialstates(
-    rng::AbstractRNG,
-    l::univariate_function{T,U},
-) where {T<:half_quant,U<:full_quant}
+        rng::AbstractRNG,
+        l::univariate_function{T, U},
+    ) where {T <: half_quant, U <: full_quant}
     return (grid = T.(cpu_device()(l.init_grid)), basis_τ = T.(l.init_τ))
 
 end
 
-function (l::univariate_function{T,U})(
-    x::AbstractArray{T,2},
-    ps::ComponentArray{T},
-    st::ComponentArray{T}, # Unlike standard Lux, states are a ComponentArray
-)::AbstractArray{T,3} where {T<:half_quant,U<:full_quant}
+function (l::univariate_function{T, U})(
+        x::AbstractArray{T, 2},
+        ps::ComponentArray{T},
+        st::ComponentArray{T}, # Unlike standard Lux, states are a ComponentArray
+    )::AbstractArray{T, 3} where {T <: half_quant, U <: full_quant}
     basis_τ = l.τ_trainable ? ps.basis_τ : st.basis_τ
     y =
         l.spline_string == "FFT" ?

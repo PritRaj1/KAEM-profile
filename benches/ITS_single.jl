@@ -47,7 +47,7 @@ function setup_model(N_t)
 end
 
 function benchmark_prior(model, params, st_kan, st_lux)
-    first(
+    return first(
         model.sample_prior(model, model.grid_updates_samples, params, st_kan, st_lux, rng),
     )
 end
@@ -75,8 +75,8 @@ for N_t in [1]
         results,
         (
             N_t,
-            b.times[end] / 1e9,  # Convert to seconds (median time)
-            std(b.times) / 1e9,  # Standard deviation
+            b.times[end] / 1.0e9,  # Convert to seconds (median time)
+            std(b.times) / 1.0e9,  # Standard deviation
             b.memory / (1024^3),  # Convert to GiB
             b.allocs,
             b.gctimes[end] / b.times[end] * 100,  # Convert to percentage

@@ -9,21 +9,21 @@ using ..T_KAM_model
 using ..LangevinUpdates
 
 function safe_step_size_update(
-    η::AbstractArray{U,1},
-    δ::AbstractArray{Int},
-    Δη::U,
-) where {U<:full_quant}
+        η::AbstractArray{U, 1},
+        δ::AbstractArray{Int},
+        Δη::U,
+    ) where {U <: full_quant}
     η_new = η .* Δη .^ δ
     return ifelse.(isfinite.(η_new), η_new, η)
 end
 
 function check_reversibility(
-    ẑ::AbstractArray{U,3},
-    z::AbstractArray{U,3},
-    η::AbstractArray{U,1},
-    η_prime::AbstractArray{U,1};
-    tol::U = full_quant(1e-3),
-)::AbstractArray{Bool,1} where {U<:full_quant}
+        ẑ::AbstractArray{U, 3},
+        z::AbstractArray{U, 3},
+        η::AbstractArray{U, 1},
+        η_prime::AbstractArray{U, 1};
+        tol::U = full_quant(1.0e-3),
+    )::AbstractArray{Bool, 1} where {U <: full_quant}
     # Check both position differences and step size differences for detailed balance
     pos_diff =
         dropdims(maximum(abs.(ẑ - z); dims = (1, 2)); dims = (1, 2)) .<
@@ -33,32 +33,32 @@ function check_reversibility(
 end
 
 function select_step_size(
-    log_a::AbstractArray{U,1},
-    log_b::AbstractArray{U,1},
-    z::AbstractArray{U,3},
-    ∇z::AbstractArray{U,3},
-    x::AbstractArray{T},
-    temps::AbstractArray{T,1},
-    logpos_z::AbstractArray{U,1},
-    momentum::AbstractArray{U,3},
-    M::AbstractArray{U,2},
-    η_init::AbstractArray{U,1},
-    Δη::U,
-    model::T_KAM{T,U},
-    ps::ComponentArray{T},
-    st_kan::ComponentArray{T},
-    st_lux::NamedTuple;
-    η_min::U = full_quant(1e-5),
-    η_max::U = one(full_quant),
-)::Tuple{
-    AbstractArray{U,3},
-    AbstractArray{U,1},
-    AbstractArray{U,3},
-    AbstractArray{U,3},
-    AbstractArray{U,1},
-    AbstractArray{U,1},
-    NamedTuple,
-} where {T<:half_quant,U<:full_quant}
+        log_a::AbstractArray{U, 1},
+        log_b::AbstractArray{U, 1},
+        z::AbstractArray{U, 3},
+        ∇z::AbstractArray{U, 3},
+        x::AbstractArray{T},
+        temps::AbstractArray{T, 1},
+        logpos_z::AbstractArray{U, 1},
+        momentum::AbstractArray{U, 3},
+        M::AbstractArray{U, 2},
+        η_init::AbstractArray{U, 1},
+        Δη::U,
+        model::T_KAM{T, U},
+        ps::ComponentArray{T},
+        st_kan::ComponentArray{T},
+        st_lux::NamedTuple;
+        η_min::U = full_quant(1.0e-5),
+        η_max::U = one(full_quant),
+    )::Tuple{
+        AbstractArray{U, 3},
+        AbstractArray{U, 1},
+        AbstractArray{U, 3},
+        AbstractArray{U, 3},
+        AbstractArray{U, 1},
+        AbstractArray{U, 1},
+        NamedTuple,
+    } where {T <: half_quant, U <: full_quant}
 
     ẑ, logpos_ẑ, ∇ẑ, p̂, log_r, st_lux =
         leapfrog(z, ∇z, x, temps, logpos_z, momentum, M, η_init, model, ps, st_kan, st_lux)
@@ -73,7 +73,7 @@ function select_step_size(
         η_init[active_chains] = η_init[active_chains] .* (Δη .^ δ[active_chains])
         x_active = (
             model.lkhood.SEQ ? x[:, :, active_chains] :
-            (model.use_pca ? x[:, active_chains] : x[:, :, :, active_chains])
+                (model.use_pca ? x[:, active_chains] : x[:, :, :, active_chains])
         )
         ẑ_active, logpos_ẑ_active, ∇ẑ_active, p̂_active, log_r_active, st_lux = leapfrog(
             z[:, :, active_chains],
@@ -118,31 +118,31 @@ function select_step_size(
 end
 
 function autoMALA_step(
-    log_a::AbstractArray{U,1},
-    log_b::AbstractArray{U,1},
-    z::AbstractArray{U,3},
-    ∇z::AbstractArray{U,3},
-    x::AbstractArray{T},
-    temps::AbstractArray{T,1},
-    logpos_z::AbstractArray{U,1},
-    momentum::AbstractArray{U,3},
-    M::AbstractArray{U,2},
-    model::T_KAM{T,U},
-    ps::ComponentArray{T},
-    st_kan::ComponentArray{T},
-    st_lux::NamedTuple,
-    η_init::AbstractArray{U,1},
-    Δη::U,
-    η_min::U,
-    η_max::U,
-)::Tuple{
-    AbstractArray{U,3},
-    AbstractArray{U,1},
-    AbstractArray{U,1},
-    AbstractArray{U,1},
-    AbstractArray{U,1},
-    NamedTuple,
-} where {T<:half_quant,U<:full_quant}
+        log_a::AbstractArray{U, 1},
+        log_b::AbstractArray{U, 1},
+        z::AbstractArray{U, 3},
+        ∇z::AbstractArray{U, 3},
+        x::AbstractArray{T},
+        temps::AbstractArray{T, 1},
+        logpos_z::AbstractArray{U, 1},
+        momentum::AbstractArray{U, 3},
+        M::AbstractArray{U, 2},
+        model::T_KAM{T, U},
+        ps::ComponentArray{T},
+        st_kan::ComponentArray{T},
+        st_lux::NamedTuple,
+        η_init::AbstractArray{U, 1},
+        Δη::U,
+        η_min::U,
+        η_max::U,
+    )::Tuple{
+        AbstractArray{U, 3},
+        AbstractArray{U, 1},
+        AbstractArray{U, 1},
+        AbstractArray{U, 1},
+        AbstractArray{U, 1},
+        NamedTuple,
+    } where {T <: half_quant, U <: full_quant}
 
     z_before, η_before = copy(z), copy(η_init)
     ẑ, logpos_ẑ, ∇ẑ, p̂, η, log_r, st_lux = select_step_size(

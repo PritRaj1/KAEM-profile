@@ -76,7 +76,7 @@ function create_opt(conf::ConfParse)
         "adam" => ADAM(LR),
         "adamw" => ADAMW(LR),
         "sgd" => Descent(LR),
-        "rms" => RMSProp(LR, 9.0f-1, full_quant(1e-8)),
+        "rms" => RMSProp(LR, 9.0f-1, full_quant(1.0e-8)),
     )
 
     init_fcn = () -> optimiser_map[opt_type]

@@ -31,12 +31,12 @@ dataset, img_size = get_vision_dataset(
     "MNIST",
     parse(Int, retrieve(conf, "TRAINING", "N_train")),
     parse(Int, retrieve(conf, "TRAINING", "N_test")),
-    parse(Int, retrieve(conf, "TRAINING", "num_generated_samples"));
+    parse(Int, retrieve(conf, "TRAINING", "num_generated_samples"))
 )[1:2]
 
 function setup_model(n_z)
-    commit!(conf, "EbmModel", "layer_widths", "$(n_z), $(2*n_z+1)")
-    commit!(conf, "GeneratorModel", "widths", "$(2*n_z+1), $(4*n_z+2)")
+    commit!(conf, "EbmModel", "layer_widths", "$(n_z), $(2 * n_z + 1)")
+    commit!(conf, "GeneratorModel", "widths", "$(2 * n_z + 1), $(4 * n_z + 2)")
 
     model = init_T_KAM(dataset, conf, img_size; rng = rng)
     x_test, loader_state = iterate(model.train_loader)
@@ -57,7 +57,7 @@ results = DataFrame(
 )
 
 function benchmark_latent_dim(params, ∇, st_kan, st_lux, model, x_test)
-    model.loss_fcn(params, ∇, st_kan, st_lux, model, x_test)
+    return model.loss_fcn(params, ∇, st_kan, st_lux, model, x_test)
 end
 
 for n_z in [10, 20, 30, 40, 50]
@@ -74,8 +74,8 @@ for n_z in [10, 20, 30, 40, 50]
         results,
         (
             n_z,
-            b.times[end] / 1e9,  # Convert to seconds (median time)
-            std(b.times) / 1e9,  # Standard deviation
+            b.times[end] / 1.0e9,  # Convert to seconds (median time)
+            std(b.times) / 1.0e9,  # Standard deviation
             b.memory / (1024^3),  # Convert to GiB
             b.allocs,
             b.gctimes[end] / b.times[end] * 100,  # GC percentage

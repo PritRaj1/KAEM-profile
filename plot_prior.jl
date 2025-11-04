@@ -63,7 +63,7 @@ for fcn_type in ["RBF", "FFT"]
 
             no_grid = (
                 prior.fcns_qp[1].spline_string == "FFT" ||
-                prior.fcns_qp[1].spline_string == "Cheby"
+                    prior.fcns_qp[1].spline_string == "Cheby"
             )
 
             if no_grid
@@ -77,8 +77,8 @@ for fcn_type in ["RBF", "FFT"]
             f, _ = prior(ps, st_kan, st_lux, z)
             f = exp.(f) .* permutedims(π_0, (3, 1, 2))
             z, f, π_0 = z |> cpu_device(),
-            softmax(f; dims = 3) |> cpu_device(),
-            softmax(π_0; dims = 2) |> cpu_device()
+                softmax(f; dims = 3) |> cpu_device(),
+                softmax(π_0; dims = 2) |> cpu_device()
 
             # Components to plot (q, p)
             plot_components = [(1, 1), (1, 2), (1, 3)]
