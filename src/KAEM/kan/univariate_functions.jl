@@ -57,8 +57,8 @@ function init_function(
     grid =
         spline_function == "FFT" ? collect(T, 0:grid_size) :
         range(grid_range[1], grid_range[2], length = grid_size + 1)
-    grid = T.(grid) |> collect |> x -> reshape(x, 1, length(x)) |> pu
-    grid = repeat(grid, in_dim, 1)
+    grid = T.(grid) |> collect |> x -> reshape(x, 1, length(x))
+    grid = repeat(grid, in_dim, 1) |> pu
     grid =
         !(spline_function == "Cheby" || spline_function == "FFT") ?
         extend_grid(grid; k_extend = spline_degree) : grid

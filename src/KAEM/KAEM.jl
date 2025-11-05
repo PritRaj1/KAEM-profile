@@ -150,7 +150,7 @@ function init_T_KAM(
 
     sample_prior =
         (m, n, p, sk, sl, r) ->
-    sample_univariate(m.prior, n, p.ebm, sk.ebm, sl.ebm; rng = r, ε = m.ε)
+    sample_univariate(m.prior, n, p.ebm, sk.ebm, sl.ebm; rng = r)
 
     verbose && println("Using $(Threads.nthreads()) threads.")
 

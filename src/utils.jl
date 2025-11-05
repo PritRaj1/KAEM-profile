@@ -13,13 +13,16 @@ export pu,
     AbstractQuadrature,
     AbstractBoolConfig
 
-using Lux, LinearAlgebra, Statistics, Random, Accessors, BFloat16s, CUDA, LuxCUDA, NNlib
+using Lux, LinearAlgebra, Statistics, Random, Accessors, BFloat16s, CUDA, LuxCUDA, NNlib, Reactant
 
 const pu =
     (CUDA.has_cuda() && parse(Bool, get(ENV, "GPU", "false"))) ? gpu_device() : cpu_device()
 
 if CUDA.has_cuda() && parse(Bool, get(ENV, "GPU", "false"))
     CUDA.allowscalar(false)
+    Reactant.set_default_backend("gpu")
+else
+    Reactant.set_default_backend("cpu")
 end
 
 # # Mixed precision - sometimes unstable, use FP16 when Tensor Cores are available

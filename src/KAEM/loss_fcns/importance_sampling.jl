@@ -1,6 +1,6 @@
 module ImportanceSampling
 
-using CUDA, ComponentArrays, Random, Zygote
+using CUDA, ComponentArrays, Random, Enzyme, Reactant
 using Statistics, Lux, LuxCUDA
 using NNlib: softmax
 
@@ -161,7 +161,8 @@ function closure(
     )
 end
 
-function grad_importance_llhood(
+function grad_importance_llhood!(
+        ∇::ComponentArray{T},
         ps::ComponentArray{T},
         z_posterior::AbstractArray{T, 3},
         z_prior::AbstractArray{T, 3},
@@ -173,11 +174,49 @@ function grad_importance_llhood(
         st_lux_ebm::NamedTuple,
         st_lux_gen::NamedTuple,
         noise::AbstractArray{T},
-    )::AbstractArray{T} where {T <: half_quant}
+    )::Nothing where {T <: half_quant}
 
-    f =
-        p -> closure(
-        p,
+    Enzyme.autodiff(
+        Enzyme.set_runtime_activity(Enzyme.Reverse),
+        Enzyme.Const(closure),
+        Enzyme.Active,
+        Enzyme.Duplicated(ps, ∇),
+        Enzyme.Const(z_posterior),
+        Enzyme.Const(z_prior),
+        Enzyme.Const(x),
+        Enzyme.Const(weights_resampled),
+        Enzyme.Const(resampled_idxs),
+        Enzyme.Const(model),
+        Enzyme.Const(st_kan),
+        Enzyme.Const(st_lux_ebm),
+        Enzyme.Const(st_lux_gen),
+        Enzyme.Const(noise),
+    )
+
+    return nothing
+end
+
+struct ImportanceLoss
+    compiled_loss
+    compiled_grad!
+end
+
+function ImportanceLoss(
+        ps::ComponentArray{T},
+        st_kan::ComponentArray{T},
+        st_lux::NamedTuple,
+        model::T_KAM{T, full_quant},
+        x::AbstractArray{T};
+        rng::AbstractRNG = Random.default_rng(),
+    )::ImportanceLoss where {T <: half_quant}
+    ∇ = Enzyme.make_zero(ps)
+
+    z_posterior, z_prior, st_lux_ebm, st_lux_gen, weights_resampled, resampled_idxs, noise =
+        sample_importance(ps, st_kan, Lux.testmode(st_lux), model, x; rng = rng)
+
+    compiled_grad = Reactant.@compile grad_importance_llhood!(
+        ∇,
+        ps,
         z_posterior,
         z_prior,
         x,
@@ -185,15 +224,31 @@ function grad_importance_llhood(
         resampled_idxs,
         model,
         st_kan,
-        st_lux_ebm,
-        st_lux_gen,
+        Lux.trainmode(st_lux_ebm),
+        Lux.trainmode(st_lux_gen),
         noise,
     )
 
-    return CUDA.@fastmath first(Zygote.gradient(f, ps))
+    compiled_loss = Reactant.@compile marginal_llhood(
+        ps,
+        z_posterior,
+        z_prior,
+        x,
+        weights_resampled,
+        resampled_idxs,
+        model,
+        st_kan,
+        Lux.trainmode(st_lux_ebm),
+        Lux.trainmode(st_lux_gen),
+        noise,
+    )
+
+    return ImportanceLoss(
+        compiled_loss,
+        compiled_grad
+    )
 end
 
-struct ImportanceLoss end
 
 function (l::ImportanceLoss)(
         ps::ComponentArray{T},
@@ -209,7 +264,8 @@ function (l::ImportanceLoss)(
     z_posterior, z_prior, st_lux_ebm, st_lux_gen, weights_resampled, resampled_idxs, noise =
         sample_importance(ps, st_kan, Lux.testmode(st_lux), model, x; rng = rng)
 
-    ∇ .= grad_importance_llhood(
+    l.compiled_grad!(
+        ∇,
         ps,
         z_posterior,
         z_prior,
@@ -226,7 +282,7 @@ function (l::ImportanceLoss)(
     all(iszero.(∇)) && error("All zero importance grad")
     any(isnan.(∇)) && error("NaN in importance grad")
 
-    loss, st_lux_ebm, st_lux_gen = marginal_llhood(
+    loss, st_lux_ebm, st_lux_gen = l.compiled_loss(
         ps,
         z_posterior,
         z_prior,

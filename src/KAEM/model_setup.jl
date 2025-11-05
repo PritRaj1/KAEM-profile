@@ -51,7 +51,14 @@ function move_to_hq(model::T_KAM{T, U}) where {T <: half_quant, U <: full_quant}
     return model
 end
 
-function setup_training(model::T_KAM{T, U}) where {T <: half_quant, U <: full_quant}
+function setup_training(
+        ps::ComponentArray{T},
+        st_kan::ComponentArray{T},
+        st_lux::NamedTuple,
+        model::T_KAM{T, U},
+        x::AbstractArray{T};
+        rng::AbstractRNG = Random.default_rng()
+    ) where {T <: half_quant, U <: full_quant}
     conf = model.conf
     autoMALA_bool = parse(Bool, retrieve(conf, "POST_LANGEVIN", "use_autoMALA"))
 
@@ -71,9 +78,10 @@ function setup_training(model::T_KAM{T, U}) where {T <: half_quant, U <: full_qu
     batch_size = parse(Int, retrieve(conf, "TRAINING", "batch_size"))
     zero_vec = pu(zeros(half_quant, model.lkhood.x_shape..., model.IS_samples, batch_size))
     max_samples = max(model.IS_samples, batch_size)
+    x = zeros(half_quant, model.lkhood.x_shape..., max_samples) |> pu
 
     # Defaults
-    @reset model.loss_fcn = ImportanceLoss()
+    @reset model.loss_fcn = ImportanceLoss(ps, st_kan, st_lux, model, x; rng = rng)
     @reset model.posterior_sampler = initialize_ULA_sampler(;
         η = η_init,
         N = num_steps,
@@ -103,8 +111,6 @@ function setup_training(model::T_KAM{T, U}) where {T <: half_quant, U <: full_qu
             N = num_steps_prior,
             prior_sampling_bool = true,
         )
-
-        x = zeros(half_quant, model.lkhood.x_shape..., max_samples) |> pu
 
         @reset model.sample_prior =
             (m, n, p, sk, sl, r) -> prior_sampler(m, p, sk, Lux.testmode(sl), x; rng = r)
@@ -154,7 +160,7 @@ function prep_model(
     ps, st_kan, st_lux =
         ps |> ComponentArray |> pu, st_kan |> ComponentArray |> pu, st_lux |> pu
     model = move_to_hq(model::T_KAM{T, U})
-    model = setup_training(model::T_KAM{T, U})
+    model = setup_training(hq(ps), st_kan, st_lux, model::T_KAM{T, U}, x; rng = rng)
     return model, full_quant.(ps), T.(st_kan), st_lux
 end
 
