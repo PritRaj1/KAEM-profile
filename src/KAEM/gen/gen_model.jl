@@ -42,7 +42,7 @@ const gen_model_map = Dict(
 struct GenModel{T <: half_quant} <: Lux.AbstractLuxLayer
     generator::Any
     σ::σ_conf{T}
-    output_activation::Function
+    output_activation::AbstractActivation
     x_shape::Tuple{Vararg{Int}}
     resample_z::Function
     CNN::Bool

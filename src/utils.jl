@@ -7,6 +7,7 @@ export pu,
     fq,
     symbol_map,
     activation_mapping,
+    AbstractActivation,
     AbstractBasis,
     AbstractPrior,
     AbstractLogPrior,
@@ -40,19 +41,64 @@ const fq = get(LUX_QUANT_MAP, uppercase(get(ENV, "FULL_QUANT", "FP32")), Lux.f32
 # Num layers must be flexible, yet static, so this is used to index into params/state
 const symbol_map = (:a, :b, :c, :d, :e, :f, :g, :h, :i)
 
-const activation_mapping = Dict(
-    "relu" => NNlib.relu,
-    "leakyrelu" => NNlib.leakyrelu,
-    "tanh" => NNlib.tanh_fast,
-    "sigmoid" => NNlib.sigmoid_fast,
-    "swish" => NNlib.hardswish,
-    "gelu" => NNlib.gelu,
-    "selu" => NNlib.selu,
-    "tanh" => NNlib.tanh_fast,
-    "silu" => x -> x .* NNlib.sigmoid_fast(x),
-    "elu" => NNlib.elu,
-    "celu" => NNlib.celu,
-    "none" => x -> x .* zero(half_quant),
+abstract type AbstractActivation end
+
+struct ReluActivation <: AbstractActivation end
+(::ReluActivation)(x::AbstractArray{T})::AbstractArray{T} where {T <: half_quant} =
+    NNlib.relu(x)
+
+struct LeakyReluActivation <: AbstractActivation end
+(::LeakyReluActivation)(x::AbstractArray{T})::AbstractArray{T} where {T <: half_quant} =
+    NNlib.leakyrelu(x)
+
+struct TanhActivation <: AbstractActivation end
+(::TanhActivation)(x::AbstractArray{T})::AbstractArray{T} where {T <: half_quant} =
+    NNlib.tanh_fast(x)
+
+struct SigmoidActivation <: AbstractActivation end
+(::SigmoidActivation)(x::AbstractArray{T})::AbstractArray{T} where {T <: half_quant} =
+    NNlib.sigmoid_fast(x)
+
+struct SwishActivation <: AbstractActivation end
+(::SwishActivation)(x::AbstractArray{T})::AbstractArray{T} where {T <: half_quant} =
+    NNlib.hardswish(x)
+
+struct GeluActivation <: AbstractActivation end
+(::GeluActivation)(x::AbstractArray{T})::AbstractArray{T} where {T <: half_quant} =
+    NNlib.gelu(x)
+
+struct SeluActivation <: AbstractActivation end
+(::SeluActivation)(x::AbstractArray{T})::AbstractArray{T} where {T <: half_quant} =
+    NNlib.selu(x)
+
+struct SiluActivation <: AbstractActivation end
+(::SiluActivation)(x::AbstractArray{T})::AbstractArray{T} where {T <: half_quant} =
+    x .* NNlib.sigmoid_fast(x)
+
+struct EluActivation <: AbstractActivation end
+(::EluActivation)(x::AbstractArray{T})::AbstractArray{T} where {T <: half_quant} =
+    NNlib.elu(x)
+
+struct CeluActivation <: AbstractActivation end
+(::CeluActivation)(x::AbstractArray{T})::AbstractArray{T} where {T <: half_quant} =
+    NNlib.celu(x)
+
+struct NoneActivation <: AbstractActivation end
+(::NoneActivation)(x::AbstractArray{T})::AbstractArray{T} where {T <: half_quant} =
+    x .* zero(T)
+
+const activation_mapping::Dict{String, AbstractActivation} = Dict(
+    "relu" => ReluActivation(),
+    "leakyrelu" => LeakyReluActivation(),
+    "tanh" => TanhActivation(),
+    "sigmoid" => SigmoidActivation(),
+    "swish" => SwishActivation(),
+    "gelu" => GeluActivation(),
+    "selu" => SeluActivation(),
+    "silu" => SiluActivation(),
+    "elu" => EluActivation(),
+    "celu" => CeluActivation(),
+    "none" => NoneActivation(),
 )
 
 abstract type AbstractBasis end
