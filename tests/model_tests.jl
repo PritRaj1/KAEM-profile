@@ -1,9 +1,9 @@
 using Test, Random, LinearAlgebra, Lux, ConfParser, ComponentArrays
 using MultivariateStats: reconstruct
 
-ENV["GPU"] = true
+ENV["GPU"] = false
 ENV["FULL_QUANT"] = "FP32"
-ENV["HALF_QUANT"] = "FP16"
+ENV["HALF_QUANT"] = "FP32"
 
 include("../src/utils.jl")
 using .Utils

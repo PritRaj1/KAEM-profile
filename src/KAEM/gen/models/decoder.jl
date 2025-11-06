@@ -3,10 +3,8 @@ module Transformer_Model
 export SEQ_Generator, init_SEQ_Generator
 
 using CUDA, Lux, LuxCUDA, ComponentArrays, Accessors, Random, ConfParser
-using NNlib: softmax, gelu
+using NNlib: softmax, gelu, batched_mul
 using ChainRules.ChainRulesCore: @ignore_derivatives
-using KernelAbstractions, Tullio
-
 using ..Utils
 
 struct BoolConfig <: AbstractBoolConfig
@@ -16,9 +14,9 @@ end
 
 struct SEQ_Generator <: Lux.AbstractLuxLayer
     depth::Int
-    Φ_fcns::Vector{Lux.Dense}
-    layernorms::Vector{Lux.LayerNorm}
-    attention::Vector{Lux.Dense}
+    Φ_fcns::Tuple{Vararg{Lux.Dense}}
+    layernorms::Tuple{Vararg{Lux.LayerNorm}}
+    attention::Tuple{Vararg{Lux.Dense}}
     seq_length::Int
     d_model::Int
     bool_config::BoolConfig
@@ -87,9 +85,9 @@ function init_SEQ_Generator(
 
     return SEQ_Generator(
         depth,
-        Φ_functions,
-        layernorms,
-        attention,
+        Tuple(Φ_functions),
+        Tuple(layernorms),
+        Tuple(attention),
         sequence_length,
         d_model,
         BoolConfig(true, false),
@@ -102,13 +100,13 @@ function scaled_dotprod_attn(
         V::AbstractArray{T, 3},
         d_model::Int,
     )::AbstractArray{T, 3} where {T <: half_quant}
-    D, L, B = size(Q)
-    I = size(K, 2)
     scale = sqrt(T(d_model))
 
-    @tullio QK[t, i, b] := Q[d, t, b] * K[d, i, b]
+    QK = batched_mul(permutedims(Q, (2, 1, 3)), K)
+    QK ./= scale
     QK = softmax(QK, dims = 2)
-    @tullio attn[d, t, b] := QK[t, i, b] * V[d, i, b]
+
+    attn = batched_mul(V, permutedims(QK, (2, 1, 3)))
     return attn
 end
 

@@ -15,8 +15,8 @@ end
 
 struct KAN_Generator{T <: half_quant, U <: full_quant} <: Lux.AbstractLuxLayer
     depth::Int
-    Φ_fcns::Vector{univariate_function{T, U}}
-    layernorms::Vector{Lux.LayerNorm}
+    Φ_fcns::Tuple{Vararg{univariate_function{T, U}}}
+    layernorms::Tuple{Vararg{Lux.LayerNorm}}
     bool_config::BoolConfig
     x_shape::Tuple
 end
@@ -109,8 +109,8 @@ function init_KAN_Generator(
 
     return KAN_Generator(
         depth,
-        Φ_functions,
-        layernorms,
+        Tuple(Φ_functions),
+        Tuple(layernorms),
         BoolConfig(layernorm_bool, false),
         x_shape,
     )

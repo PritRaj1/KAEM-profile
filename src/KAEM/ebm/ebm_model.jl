@@ -31,8 +31,8 @@ struct BoolConfig <: AbstractBoolConfig
 end
 
 struct EbmModel{T <: half_quant, U <: full_quant} <: Lux.AbstractLuxLayer
-    fcns_qp::Vector{univariate_function{T, U}}
-    layernorms::Vector{Lux.LayerNorm}
+    fcns_qp::Tuple{Vararg{univariate_function{T, U}}}
+    layernorms::Tuple{Vararg{Lux.LayerNorm}}
     bool_config::BoolConfig
     depth::Int
     prior_type::AbstractString
@@ -146,8 +146,8 @@ function init_EbmModel(conf::ConfParse; rng::AbstractRNG = Random.default_rng())
     train_props = parse(Bool, retrieve(conf, "MixtureModel", "train_proportions"))
 
     return EbmModel(
-        functions,
-        layernorms,
+        Tuple(functions),
+        Tuple(layernorms),
         BoolConfig(
             layernorm_bool,
             contrastive_div,
