@@ -57,7 +57,7 @@ results = DataFrame(
 )
 
 function benchmark_temps(params, ∇, st_kan, st_lux, model, x_test)
-    model.loss_fcn(params, ∇, st_kan, st_lux, model, x_test)
+    return model.loss_fcn(params, ∇, st_kan, st_lux, model, x_test)
 end
 
 for N_t in [2, 4, 6, 8, 10, 12]
@@ -74,8 +74,8 @@ for N_t in [2, 4, 6, 8, 10, 12]
         results,
         (
             N_t,
-            b.times[end] / 1e9,  # Convert to seconds (median time)
-            std(b.times) / 1e9,  # Standard deviation
+            b.times[end] / 1.0e9,  # Convert to seconds (median time)
+            std(b.times) / 1.0e9,  # Standard deviation
             b.memory / (1024^3),  # Convert to GiB
             b.allocs,
             b.gctimes[end] / b.times[end] * 100,  # Convert to percentage

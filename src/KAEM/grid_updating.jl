@@ -1,4 +1,3 @@
-
 module ModelGridUpdating
 
 export update_model_grid
@@ -13,19 +12,19 @@ include("kan/grid_updating.jl")
 using .GridUpdating
 
 function update_model_grid(
-    model::T_KAM{T,U},
-    x::AbstractArray{T},
-    ps::ComponentArray{T},
-    st_kan::ComponentArray{T},
-    st_lux::NamedTuple;
-    train_idx::Int = 1,
-    rng::AbstractRNG = Random.default_rng(),
-)::Tuple{
-    Any,
-    ComponentArray{T},
-    ComponentArray{T},
-    NamedTuple,
-} where {T<:half_quant,U<:full_quant}
+        model::T_KAM{T, U},
+        x::AbstractArray{T},
+        ps::ComponentArray{T},
+        st_kan::ComponentArray{T},
+        st_lux::NamedTuple;
+        train_idx::Int = 1,
+        rng::AbstractRNG = Random.default_rng(),
+    )::Tuple{
+        Any,
+        ComponentArray{T},
+        ComponentArray{T},
+        NamedTuple,
+    } where {T <: half_quant, U <: full_quant}
     """
     Update the grid of the likelihood model using samples from the prior.
 
@@ -49,7 +48,7 @@ function update_model_grid(
     if model.update_prior_grid
 
         if model.N_t > 1
-            temps = collect(T, [(k / model.N_t)^model.p[train_idx] for k = 1:model.N_t])
+            temps = collect(T, [(k / model.N_t)^model.p[train_idx] for k in 1:model.N_t])
             z = first(
                 model.posterior_sampler(
                     model,
@@ -95,26 +94,26 @@ function update_model_grid(
         # Must update domain for inverse transform sampling
         if (model.MALA || model.N_t > 1 || model.prior.bool_config.ula)
             min_z, max_z = minimum(z), maximum(z)
-            new_domain = (min_z*T(0.9), max_z*T(1.1))
+            new_domain = (min_z * T(0.9), max_z * T(1.1))
             @reset model.prior.fcns_qp[1].grid_range = new_domain
         end
 
         if !(
-            model.prior.fcns_qp[1].spline_string == "FFT" ||
-            model.prior.fcns_qp[1].spline_string == "Cheby"
-        )
+                model.prior.fcns_qp[1].spline_string == "FFT" ||
+                    model.prior.fcns_qp[1].spline_string == "Cheby"
+            )
             Q, P = (
                 (model.prior.bool_config.ula || model.prior.bool_config.mixture_model) ?
-                reverse(size(z)[1:2]) : size(z)[1:2]
+                    reverse(size(z)[1:2]) : size(z)[1:2]
             )
             z = reshape(z, P, Q, :)
             B = size(z, 3)
-            z = reshape(z, P, Q*B)
+            z = reshape(z, P, Q * B)
 
-            for i = 1:model.prior.depth
+            for i in 1:model.prior.depth
                 if model.prior.bool_config.layernorm && i != 1
                     z, st_ebm = Lux.apply(
-                        model.prior.layernorms[i-1],
+                        model.prior.layernorms[i - 1],
                         z,
                         ps.ebm.layernorm[symbol_map[i]],
                         st_lux.ebm[symbol_map[i]],
@@ -155,7 +154,7 @@ function update_model_grid(
         return model, T.(ps), st_kan, st_lux
 
     if model.N_t > 1
-        temps = collect(T, [(k / model.N_t)^model.p[train_idx] for k = 1:model.N_t])
+        temps = collect(T, [(k / model.N_t)^model.p[train_idx] for k in 1:model.N_t])
         z = first(
             model.posterior_sampler(model, ps, st_kan, st_lux, x; temps = temps, rng = rng),
         )[
@@ -185,7 +184,7 @@ function update_model_grid(
 
     z = dropdims(sum(z; dims = 2); dims = 2)
 
-    for i = 1:model.lkhood.generator.depth
+    for i in 1:model.lkhood.generator.depth
         if model.lkhood.generator.bool_config.layernorm
             z, st_gen = Lux.apply(
                 model.lkhood.generator.layernorms[i],
@@ -197,9 +196,9 @@ function update_model_grid(
         end
 
         if !(
-            model.lkhood.generator.Φ_fcns[i].spline_string == "FFT" ||
-            model.lkhood.generator.Φ_fcns[i].spline_string == "Cheby"
-        )
+                model.lkhood.generator.Φ_fcns[i].spline_string == "FFT" ||
+                    model.lkhood.generator.Φ_fcns[i].spline_string == "Cheby"
+            )
             new_grid, new_coef = update_fcn_grid(
                 model.lkhood.generator.Φ_fcns[i],
                 ps.gen.fcn[symbol_map[i]],

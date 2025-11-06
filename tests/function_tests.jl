@@ -24,7 +24,7 @@ function test_fwd()
     st = st |> ComponentArray |> pu
 
     y = f(x, ps, st)
-    @test size(y) == (5, 2, 3)
+    return @test size(y) == (5, 2, 3)
 end
 
 function test_grid_update()
@@ -37,7 +37,7 @@ function test_grid_update()
 
     y = f(x, ps, st)
     grid, coef = update_fcn_grid(f, ps, st, x)
-    @test size(grid) == (5, 12)
+    return @test size(grid) == (5, 12)
 end
 
 @testset "Univariate Funtion Tests" begin

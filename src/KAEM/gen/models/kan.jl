@@ -1,4 +1,3 @@
-
 module KAN_Model
 
 export KAN_Generator, init_KAN_Generator
@@ -14,19 +13,19 @@ struct BoolConfig <: AbstractBoolConfig
     batchnorm::Bool
 end
 
-struct KAN_Generator{T<:half_quant,U<:full_quant} <: Lux.AbstractLuxLayer
+struct KAN_Generator{T <: half_quant, U <: full_quant} <: Lux.AbstractLuxLayer
     depth::Int
-    Φ_fcns::Vector{univariate_function{T,U}}
+    Φ_fcns::Vector{univariate_function{T, U}}
     layernorms::Vector{Lux.LayerNorm}
     bool_config::BoolConfig
     x_shape::Tuple
 end
 
 function init_KAN_Generator(
-    conf::ConfParse,
-    x_shape::Tuple,
-    rng::AbstractRNG = Random.default_rng(),
-)
+        conf::ConfParse,
+        x_shape::Tuple,
+        rng::AbstractRNG = Random.default_rng(),
+    )
 
     prior_widths = (
         try
@@ -47,12 +46,14 @@ function init_KAN_Generator(
     )
 
     widths = (widths..., prod(x_shape))
-    first(widths) !== q_size && (error(
-        "First expert Φ_hidden_widths must be equal to the hidden dimension of the prior.",
-        widths,
-        " != ",
-        q_size,
-    ))
+    first(widths) !== q_size && (
+        error(
+            "First expert Φ_hidden_widths must be equal to the hidden dimension of the prior.",
+            widths,
+            " != ",
+            q_size,
+        )
+    )
 
     spline_degree = parse(Int, retrieve(conf, "GeneratorModel", "spline_degree"))
     layernorm_bool = parse(Bool, retrieve(conf, "GeneratorModel", "layernorm"))
@@ -70,36 +71,36 @@ function init_KAN_Generator(
     τ_trainable = parse(Bool, retrieve(conf, "GeneratorModel", "τ_trainable"))
     τ_trainable = spline_function == "B-spline" ? false : τ_trainable
 
-    depth = length(widths)-1
+    depth = length(widths) - 1
 
     initialize_function =
         (in_dim, out_dim, base_scale) -> init_function(
-            in_dim,
-            out_dim;
-            spline_degree = spline_degree,
-            base_activation = base_activation,
-            spline_function = spline_function,
-            grid_size = grid_size,
-            grid_update_ratio = grid_update_ratio,
-            grid_range = Tuple(grid_range),
-            ε_scale = ε_scale,
-            σ_base = base_scale,
-            σ_spline = σ_spline,
-            init_τ = init_τ,
-            τ_trainable = τ_trainable,
-        )
-    Φ_functions = Vector{univariate_function{half_quant,full_quant}}(undef, 0)
+        in_dim,
+        out_dim;
+        spline_degree = spline_degree,
+        base_activation = base_activation,
+        spline_function = spline_function,
+        grid_size = grid_size,
+        grid_update_ratio = grid_update_ratio,
+        grid_range = Tuple(grid_range),
+        ε_scale = ε_scale,
+        σ_base = base_scale,
+        σ_spline = σ_spline,
+        init_τ = init_τ,
+        τ_trainable = τ_trainable,
+    )
+    Φ_functions = Vector{univariate_function{half_quant, full_quant}}(undef, 0)
     layernorms = Vector{Lux.LayerNorm}(undef, 0)
 
-    for i in eachindex(widths[1:(end-1)])
+    for i in eachindex(widths[1:(end - 1)])
         base_scale = (
             μ_scale * (one(full_quant) / √(full_quant(widths[i]))) .+
-            σ_base .* (
-                randn(rng, full_quant, widths[i], widths[i+1]) .* full_quant(2) .-
-                one(full_quant)
+                σ_base .* (
+                randn(rng, full_quant, widths[i], widths[i + 1]) .* full_quant(2) .-
+                    one(full_quant)
             ) .* (one(full_quant) / √(full_quant(widths[i])))
         )
-        push!(Φ_functions, initialize_function(widths[i], widths[i+1], base_scale))
+        push!(Φ_functions, initialize_function(widths[i], widths[i + 1], base_scale))
 
         if layernorm_bool
             push!(layernorms, Lux.LayerNorm(widths[i]))
@@ -115,12 +116,12 @@ function init_KAN_Generator(
     )
 end
 
-function (gen::KAN_Generator{T,U})(
-    ps::ComponentArray{T},
-    st_kan::ComponentArray{T},
-    st_lyrnorm::NamedTuple,
-    z::AbstractArray{T,3},
-)::Tuple{AbstractArray{T},NamedTuple} where {T<:half_quant,U<:full_quant}
+function (gen::KAN_Generator{T, U})(
+        ps::ComponentArray{T},
+        st_kan::ComponentArray{T},
+        st_lyrnorm::NamedTuple,
+        z::AbstractArray{T, 3},
+    )::Tuple{AbstractArray{T}, NamedTuple} where {T <: half_quant, U <: full_quant}
     """
     Generate data from the KAN likelihood model.
 
@@ -138,7 +139,7 @@ function (gen::KAN_Generator{T,U})(
     z = dropdims(sum(z, dims = 2), dims = 2)
 
     # KAN functions
-    for i = 1:gen.depth
+    for i in 1:gen.depth
         z, st_lyrnorm_new =
             gen.bool_config.layernorm ?
             Lux.apply(

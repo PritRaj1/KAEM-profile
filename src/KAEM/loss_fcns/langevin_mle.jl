@@ -12,13 +12,13 @@ include("../gen/loglikelihoods.jl")
 using .LogLikelihoods: log_likelihood_MALA
 
 function sample_langevin(
-    ps::ComponentArray{T},
-    st_kan::ComponentArray{T},
-    st_lux::NamedTuple,
-    model::T_KAM{T,full_quant},
-    x::AbstractArray{T};
-    rng::AbstractRNG = Random.default_rng(),
-)::Tuple{AbstractArray{T,3},NamedTuple,AbstractArray{T}} where {T<:half_quant}
+        ps::ComponentArray{T},
+        st_kan::ComponentArray{T},
+        st_lux::NamedTuple,
+        model::T_KAM{T, full_quant},
+        x::AbstractArray{T};
+        rng::AbstractRNG = Random.default_rng(),
+    )::Tuple{AbstractArray{T, 3}, NamedTuple, AbstractArray{T}} where {T <: half_quant}
     z, st_lux, = model.posterior_sampler(model, ps, st_kan, st_lux, x; rng = rng)
     z = z[:, :, :, 1]
     noise = randn(rng, T, model.lkhood.x_shape..., size(z)[end]) |> pu
@@ -26,16 +26,16 @@ function sample_langevin(
 end
 
 function marginal_llhood(
-    ps::ComponentArray{T},
-    z_posterior::AbstractArray{T,3},
-    z_prior::AbstractArray{T,3},
-    x::AbstractArray{T},
-    model::T_KAM{T,full_quant},
-    st_kan::ComponentArray{T},
-    st_lux_ebm::NamedTuple,
-    st_lux_gen::NamedTuple,
-    noise::AbstractArray{T};
-)::Tuple{T,NamedTuple,NamedTuple} where {T<:half_quant}
+        ps::ComponentArray{T},
+        z_posterior::AbstractArray{T, 3},
+        z_prior::AbstractArray{T, 3},
+        x::AbstractArray{T},
+        model::T_KAM{T, full_quant},
+        st_kan::ComponentArray{T},
+        st_lux_ebm::NamedTuple,
+        st_lux_gen::NamedTuple,
+        noise::AbstractArray{T}
+    )::Tuple{T, NamedTuple, NamedTuple} where {T <: half_quant}
 
     logprior_pos, st_lux_ebm =
         model.log_prior(z_posterior, model.prior, ps.ebm, st_kan.ebm, st_lux_ebm)
@@ -53,22 +53,22 @@ function marginal_llhood(
     logprior, st_lux_ebm =
         model.log_prior(z_prior, model.prior, ps.ebm, st_kan.ebm, st_lux_ebm)
     ex_prior = model.prior.bool_config.contrastive_div ? mean(logprior) : zero(T)
-    return -(mean(logprior_pos) + mean(logllhood) - ex_prior)*model.loss_scaling.reduced,
-    st_lux_ebm,
-    st_lux_gen
+    return -(mean(logprior_pos) + mean(logllhood) - ex_prior) * model.loss_scaling.reduced,
+        st_lux_ebm,
+        st_lux_gen
 end
 
 function closure(
-    ps::ComponentArray{T},
-    z_posterior::AbstractArray{T,3},
-    z_prior::AbstractArray{T,3},
-    x::AbstractArray{T},
-    model::T_KAM{T,full_quant},
-    st_kan::ComponentArray{T},
-    st_lux_ebm::NamedTuple,
-    st_lux_gen::NamedTuple,
-    noise::AbstractArray{T};
-)::T where {T<:half_quant}
+        ps::ComponentArray{T},
+        z_posterior::AbstractArray{T, 3},
+        z_prior::AbstractArray{T, 3},
+        x::AbstractArray{T},
+        model::T_KAM{T, full_quant},
+        st_kan::ComponentArray{T},
+        st_lux_ebm::NamedTuple,
+        st_lux_gen::NamedTuple,
+        noise::AbstractArray{T}
+    )::T where {T <: half_quant}
     return first(
         marginal_llhood(
             ps,
@@ -85,29 +85,29 @@ function closure(
 end
 
 function grad_langevin_llhood(
-    ps::ComponentArray{T},
-    z_posterior::AbstractArray{T,3},
-    z_prior::AbstractArray{T,3},
-    x::AbstractArray{T},
-    model::T_KAM{T,full_quant},
-    st_kan::ComponentArray{T},
-    st_lux_ebm::NamedTuple,
-    st_lux_gen::NamedTuple,
-    noise::AbstractArray{T};
-)::AbstractArray{T} where {T<:half_quant}
+        ps::ComponentArray{T},
+        z_posterior::AbstractArray{T, 3},
+        z_prior::AbstractArray{T, 3},
+        x::AbstractArray{T},
+        model::T_KAM{T, full_quant},
+        st_kan::ComponentArray{T},
+        st_lux_ebm::NamedTuple,
+        st_lux_gen::NamedTuple,
+        noise::AbstractArray{T}
+    )::AbstractArray{T} where {T <: half_quant}
 
     f =
         p -> closure(
-            p,
-            z_posterior,
-            z_prior,
-            x,
-            model,
-            st_kan,
-            st_lux_ebm,
-            st_lux_gen,
-            noise,
-        )
+        p,
+        z_posterior,
+        z_prior,
+        x,
+        model,
+        st_kan,
+        st_lux_ebm,
+        st_lux_gen,
+        noise,
+    )
 
     return CUDA.@fastmath first(Zygote.gradient(f, ps))
 end
@@ -115,15 +115,15 @@ end
 struct LangevinLoss end
 
 function (l::LangevinLoss)(
-    ps::ComponentArray{T},
-    ∇::ComponentArray{T},
-    st_kan::ComponentArray{T},
-    st_lux::NamedTuple,
-    model::T_KAM{T,full_quant},
-    x::AbstractArray{T};
-    train_idx::Int = 1,
-    rng::AbstractRNG = Random.default_rng(),
-)::Tuple{T,AbstractArray{T},NamedTuple,NamedTuple} where {T<:half_quant}
+        ps::ComponentArray{T},
+        ∇::ComponentArray{T},
+        st_kan::ComponentArray{T},
+        st_lux::NamedTuple,
+        model::T_KAM{T, full_quant},
+        x::AbstractArray{T};
+        train_idx::Int = 1,
+        rng::AbstractRNG = Random.default_rng(),
+    )::Tuple{T, AbstractArray{T}, NamedTuple, NamedTuple} where {T <: half_quant}
     z_posterior, st_new, noise =
         sample_langevin(ps, st_kan, Lux.testmode(st_lux), model, x; rng = rng)
     st_lux_ebm, st_lux_gen = st_new.ebm, st_new.gen

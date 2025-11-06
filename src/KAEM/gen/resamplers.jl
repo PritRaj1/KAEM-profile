@@ -15,28 +15,28 @@ end
 
 ### Potential thread divergence on GPU for resampler searchsortedfirsts
 @parallel_indices (b) function residual_kernel!(
-    idxs::AbstractArray{U,2},
-    ESS_bool::AbstractArray{Bool,1},
-    cdf::AbstractArray{U,2},
-    u::AbstractArray{U,2},
-    num_remaining::AbstractArray{Int,1},
-    integer_counts::AbstractArray{Int,2},
-    B::Int,
-    N::Int,
-)::Nothing where {U<:full_quant}
+        idxs::AbstractArray{U, 2},
+        ESS_bool::AbstractArray{Bool, 1},
+        cdf::AbstractArray{U, 2},
+        u::AbstractArray{U, 2},
+        num_remaining::AbstractArray{Int, 1},
+        integer_counts::AbstractArray{Int, 2},
+        B::Int,
+        N::Int,
+    )::Nothing where {U <: full_quant}
     c = 1
 
     if !ESS_bool[b] # No resampling
-        for n = 1:N
+        for n in 1:N
             idxs[b, n] = n
         end
     else
 
         # Deterministic replication
-        for s = 1:N
+        for s in 1:N
             count = integer_counts[b, s]
             if count > 0
-                for i = c:(c+count-1)
+                for i in c:(c + count - 1)
                     idxs[b, i] = s
                 end
                 c += count
@@ -45,9 +45,9 @@ end
 
         # Multinomial resampling
         if num_remaining[b] > 0
-            for k = 1:num_remaining[b]
+            for k in 1:num_remaining[b]
                 idx = N
-                for j = 1:N
+                for j in 1:N
                     if cdf[b, j] >= u[b, k]
                         idx = j
                         break
@@ -63,12 +63,12 @@ end
 end
 
 function residual_resampler(
-    weights::AbstractArray{U,2},
-    ESS_bool::AbstractArray{Bool,1},
-    B::Int,
-    N::Int;
-    rng::AbstractRNG = Random.default_rng(),
-)::AbstractArray{Int,2} where {U<:full_quant}
+        weights::AbstractArray{U, 2},
+        ESS_bool::AbstractArray{Bool, 1},
+        B::Int,
+        N::Int;
+        rng::AbstractRNG = Random.default_rng(),
+    )::AbstractArray{Int, 2} where {U <: full_quant}
     """
     Residual resampling for weight filtering.
 
@@ -106,22 +106,22 @@ function residual_resampler(
 end
 
 @parallel_indices (b) function systematic_kernel!(
-    idxs::AbstractArray{U,2},
-    ESS_bool::AbstractArray{Bool,1},
-    cdf::AbstractArray{U,2},
-    u::AbstractArray{U,2},
-    B::Int,
-    N::Int,
-)::Nothing where {U<:full_quant}
+        idxs::AbstractArray{U, 2},
+        ESS_bool::AbstractArray{Bool, 1},
+        cdf::AbstractArray{U, 2},
+        u::AbstractArray{U, 2},
+        B::Int,
+        N::Int,
+    )::Nothing where {U <: full_quant}
     if !ESS_bool[b] # No resampling
-        for n = 1:N
+        for n in 1:N
             idxs[b, n] = n
         end
     else
         # Searchsortedfirst
-        for n = 1:N
+        for n in 1:N
             idx = N
-            for j = 1:N
+            for j in 1:N
                 if cdf[b, j] >= u[b, n]
                     idx = j
                     break
@@ -135,12 +135,12 @@ end
 end
 
 function systematic_resampler(
-    weights::AbstractArray{U,2},
-    ESS_bool::AbstractArray{Bool,1},
-    B::Int,
-    N::Int;
-    rng::AbstractRNG = Random.default_rng(),
-)::AbstractArray{Int,2} where {U<:full_quant}
+        weights::AbstractArray{U, 2},
+        ESS_bool::AbstractArray{Bool, 1},
+        B::Int,
+        N::Int;
+        rng::AbstractRNG = Random.default_rng(),
+    )::AbstractArray{Int, 2} where {U <: full_quant}
     """
     Systematic resampling for weight filtering.
 
@@ -156,7 +156,7 @@ function systematic_resampler(
     cdf = cumsum(weights, dims = 2)
 
     # Systematic thresholds
-    u = pu((rand(rng, U, B, 1) .+ (0:(N-1))') ./ N)
+    u = pu((rand(rng, U, B, 1) .+ (0:(N - 1))') ./ N)
 
     idxs = @zeros(B, N)
     @parallel (1:B) systematic_kernel!(idxs, ESS_bool, cdf, u, B, N)
@@ -164,12 +164,12 @@ function systematic_resampler(
 end
 
 function stratified_resampler(
-    weights::AbstractArray{U,2},
-    ESS_bool::AbstractArray{Bool,1},
-    B::Int,
-    N::Int;
-    rng::AbstractRNG = Random.default_rng(),
-)::AbstractArray{Int,2} where {U<:full_quant}
+        weights::AbstractArray{U, 2},
+        ESS_bool::AbstractArray{Bool, 1},
+        B::Int,
+        N::Int;
+        rng::AbstractRNG = Random.default_rng(),
+    )::AbstractArray{Int, 2} where {U <: full_quant}
     """
     Systematic resampling for weight filtering.
 
@@ -185,7 +185,7 @@ function stratified_resampler(
     cdf = cumsum(weights, dims = 2)
 
     # Stratified thresholds
-    u = pu((rand(rng, U, B, N) .+ (0:(N-1))') ./ N)
+    u = pu((rand(rng, U, B, N) .+ (0:(N - 1))') ./ N)
 
     idxs = @zeros(B, N)
     @parallel (1:B) systematic_kernel!(idxs, ESS_bool, cdf, u, B, N)
@@ -193,12 +193,12 @@ function stratified_resampler(
 end
 
 function importance_resampler(
-    weights::AbstractArray{U,2};
-    rng::AbstractRNG = Random.default_rng(),
-    ESS_threshold::U = full_quant(0.5),
-    resampler::Function = systematic_sampler,
-    verbose::Bool = false,
-)::AbstractArray{Int,2} where {U<:full_quant}
+        weights::AbstractArray{U, 2};
+        rng::AbstractRNG = Random.default_rng(),
+        ESS_threshold::U = full_quant(0.5),
+        resampler::Function = systematic_sampler,
+        verbose::Bool = false,
+    )::AbstractArray{Int, 2} where {U <: full_quant}
     """
     Filter the latent variable for a index of the Steppingstone sum using residual resampling.
 
@@ -218,9 +218,9 @@ function importance_resampler(
 
     # Check effective sample size
     ESS = dropdims(1 ./ sum(weights .^ 2, dims = 2); dims = 2)
-    ESS_bool = ESS .< ESS_threshold*N
+    ESS_bool = ESS .< ESS_threshold * N
 
-    # Only resample when needed 
+    # Only resample when needed
     verbose && (any(ESS_bool) && println("Resampling!"))
     any(ESS_bool) && return resampler(weights, ESS_bool, B, N; rng = rng)
     return repeat(collect(1:N)', B, 1)

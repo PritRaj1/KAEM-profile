@@ -1,5 +1,4 @@
 import os
-import tempfile
 
 import h5py
 import matplotlib.pyplot as plt
@@ -88,7 +87,11 @@ def select_best_samples_fast(generated_images, num_samples):
 def plot_generated_images_grid(dataset, method_config, grid_size, cmap):
     """Generate and save a single plot for generated images from ULA method."""
 
-    gen_path = f"logs/{method_config['method_type']}/{dataset}/{method_config['sampler']}/{method_config['model_type']}/generated_images.h5"
+    gen_path = (
+        f"logs/{method_config['method_type']}/{dataset}/"
+        f"{method_config['sampler']}/{method_config['model_type']}/"
+        f"generated_images.h5"
+    )
 
     try:
         with h5py.File(gen_path, "r") as h5_file:
@@ -122,12 +125,18 @@ def plot_generated_images_grid(dataset, method_config, grid_size, cmap):
                     ax.imshow(np.zeros((32, 32)), cmap="gray")
             ax.axis("off")
 
-        method_label = f"{method_config['method_type']} - {method_config['sampler']} - {method_config['model_type']}"
+        method_label = (
+            f"{method_config['method_type']} - {method_config['sampler']} - "
+            f"{method_config['model_type']}"
+        )
         fig.suptitle(f"{dataset} - {method_label}", fontsize=18, y=0.95)
 
         plt.subplots_adjust(wspace=0.1, hspace=0.1)
 
-        filename = f"{dataset.lower()}_{method_config['method_type'].lower()}_{method_config['sampler'].lower()}_{method_config['model_type']}.png"
+        filename = (
+            f"{dataset.lower()}_{method_config['method_type'].lower()}_"
+            f"{method_config['sampler'].lower()}_{method_config['model_type']}.png"
+        )
         filepath = os.path.join(output_dir, filename)
         plt.savefig(filepath, dpi=300, bbox_inches="tight")
         plt.close()
@@ -144,7 +153,11 @@ def plot_real_images_reference(dataset, grid_size, cmap):
     """Generate a reference plot with real images for each dataset."""
 
     for config_name, method_config in METHOD_CONFIGS.items():
-        real_path = f"logs/{method_config['method_type']}/{dataset}/{method_config['sampler']}/{method_config['model_type']}/real_images.h5"
+        real_path = (
+            f"logs/{method_config['method_type']}/{dataset}/"
+            f"{method_config['sampler']}/{method_config['model_type']}/"
+            f"real_images.h5"
+        )
         try:
             with h5py.File(real_path, "r") as h5_file:
                 real_images = h5_file["samples"][()]

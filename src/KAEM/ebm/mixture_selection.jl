@@ -1,4 +1,3 @@
-
 module MixtureChoice
 
 export choose_component
@@ -16,16 +15,16 @@ else
 end
 
 @parallel_indices (q, b) function mask_kernel!(
-    mask::AbstractArray{U,3},
-    α::AbstractArray{U,2},
-    rand_vals::AbstractArray{U,2},
-    p_size::Int,
-)::Nothing where {U<:full_quant}
+        mask::AbstractArray{U, 3},
+        α::AbstractArray{U, 2},
+        rand_vals::AbstractArray{U, 2},
+        p_size::Int,
+    )::Nothing where {U <: full_quant}
     idx = p_size
     val = rand_vals[q, b]
 
     # Potential thread divergence on GPU
-    for j = 1:p_size
+    for j in 1:p_size
         if α[q, j] >= val
             idx = j
             break
@@ -33,19 +32,19 @@ end
     end
 
     # One-hot vector for this (q, b)
-    for k = 1:p_size
+    for k in 1:p_size
         mask[q, k, b] = (idx == k) ? one(U) : zero(U)
     end
     return nothing
 end
 
 function choose_component(
-    α::AbstractArray{U,2},
-    num_samples::Int,
-    q_size::Int,
-    p_size::Int;
-    rng::AbstractRNG = Random.default_rng(),
-)::AbstractArray{U,3} where {U<:full_quant}
+        α::AbstractArray{U, 2},
+        num_samples::Int,
+        q_size::Int,
+        p_size::Int;
+        rng::AbstractRNG = Random.default_rng(),
+    )::AbstractArray{U, 3} where {U <: full_quant}
     """
     Creates a one-hot mask for mixture model, q, to select one component, p.
 

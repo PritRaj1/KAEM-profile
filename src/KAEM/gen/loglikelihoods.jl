@@ -13,15 +13,15 @@ using .Losses
 
 ## Log-likelihood functions ##
 function log_likelihood_IS(
-    z::AbstractArray{T,3},
-    x::AbstractArray{T},
-    lkhood::GenModel{T},
-    ps::ComponentArray{T},
-    st_kan::ComponentArray{T},
-    st_lux::NamedTuple,
-    noise::AbstractArray{T};
-    ε::T = eps(T),
-)::Tuple{AbstractArray{T,2},NamedTuple} where {T<:half_quant}
+        z::AbstractArray{T, 3},
+        x::AbstractArray{T},
+        lkhood::GenModel{T},
+        ps::ComponentArray{T},
+        st_kan::ComponentArray{T},
+        st_lux::NamedTuple,
+        noise::AbstractArray{T};
+        ε::T = eps(T),
+    )::Tuple{AbstractArray{T, 2}, NamedTuple} where {T <: half_quant}
     """
     Conditional likelihood of the generator.
 
@@ -42,20 +42,20 @@ function log_likelihood_IS(
     noise = lkhood.σ.noise .* noise
     x̂_noised = lkhood.output_activation(x̂ .+ noise)
 
-    ll = IS_loss(x, x̂_noised, ε, 2*lkhood.σ.llhood^2, B, S, lkhood.SEQ)
+    ll = IS_loss(x, x̂_noised, ε, 2 * lkhood.σ.llhood^2, B, S, lkhood.SEQ)
     return ll, st_lux
 end
 
 function log_likelihood_MALA(
-    z::AbstractArray{T,3},
-    x::AbstractArray{T},
-    lkhood::GenModel{T},
-    ps::ComponentArray{T},
-    st_kan::ComponentArray{T},
-    st_lux::NamedTuple,
-    noise::AbstractArray{T};
-    ε::T = eps(half_quant),
-)::Tuple{AbstractArray{T,1},NamedTuple} where {T<:half_quant}
+        z::AbstractArray{T, 3},
+        x::AbstractArray{T},
+        lkhood::GenModel{T},
+        ps::ComponentArray{T},
+        st_kan::ComponentArray{T},
+        st_lux::NamedTuple,
+        noise::AbstractArray{T};
+        ε::T = eps(half_quant),
+    )::Tuple{AbstractArray{T, 1}, NamedTuple} where {T <: half_quant}
     """
     Conditional likelihood of the generator sampled by Langevin.
 
@@ -76,7 +76,7 @@ function log_likelihood_MALA(
     x̂_act = lkhood.output_activation(x̂ .+ noise)
 
     ll =
-        MALA_loss(x, x̂_act, ε, 2*lkhood.σ.llhood^2, B, lkhood.SEQ, lkhood.perceptual_scale)
+        MALA_loss(x, x̂_act, ε, 2 * lkhood.σ.llhood^2, B, lkhood.SEQ, lkhood.perceptual_scale)
     return ll, st_lux
 end
 

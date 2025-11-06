@@ -33,11 +33,11 @@ q_size_large, p_size_large, num_samples_large = 3, 4, 100
 
 function test_interp_kernel_uniform()
     # Create grid from 0 to 1 with grid_size points
-    grid = pu(reshape(collect(full_quant, 0.0:(1.0/(grid_size-1)):1.0), 1, grid_size))
+    grid = pu(reshape(collect(full_quant, 0.0:(1.0 / (grid_size - 1)):1.0), 1, grid_size))
     grid = repeat(grid, p_size, 1)
 
     # Uniform PDF values (equal probability for each grid interval)
-    pdf_vals = @ones(q_size, p_size, grid_size-1) ./ (grid_size-1)
+    pdf_vals = @ones(q_size, p_size, grid_size - 1) ./ (grid_size - 1)
 
     # Create CDF by cumsum - this will have grid_size elements
     cdf = cat(@zeros(q_size, p_size, 1), cumsum(pdf_vals, dims = 3), dims = 3)
@@ -65,11 +65,11 @@ function test_interp_kernel_uniform()
     D = maximum(
         abs.(
             theoretical_cdf .-
-            (z_flat .- minimum(z_flat)) ./ (maximum(z_flat) - minimum(z_flat)),
+                (z_flat .- minimum(z_flat)) ./ (maximum(z_flat) - minimum(z_flat)),
         ),
     )
     critical_value = 1.36 / sqrt(n)
-    @test D < critical_value
+    return @test D < critical_value
 end
 
 # Abramowitz and Stegun approximation - (Maximum error: 1.5e-7)
@@ -98,9 +98,9 @@ function test_interp_kernel_gaussian()
     grid = pu(reshape(collect(full_quant, grid_range), 1, length(grid_range)))
     grid = repeat(grid, p_size, 1)
 
-    pdf_vals = @zeros(q_size, p_size, length(grid_range)-1)
-    for i = 1:(length(grid_range)-1)
-        mid_point = (grid_range[i] + grid_range[i+1]) / 2
+    pdf_vals = @zeros(q_size, p_size, length(grid_range) - 1)
+    for i in 1:(length(grid_range) - 1)
+        mid_point = (grid_range[i] + grid_range[i + 1]) / 2
         pdf_vals[:, :, i] .= exp(-0.5 * ((mid_point - μ) / σ)^2) / (σ * sqrt(2π))
     end
 
@@ -130,7 +130,7 @@ function test_interp_kernel_gaussian()
     @test abs(sample_mean - μ) < 0.5  # Mean should be close to μ
     @test abs(sample_std - σ) < 0.5   # Std should be close to σ
 
-    if length(z_flat) > 50
+    return if length(z_flat) > 50
         # Kolmogorov-Smirnov test for Gaussian distributed z at 5% significance
         z_standardized = (z_flat .- sample_mean) ./ sample_std
         sort!(z_standardized)

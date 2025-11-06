@@ -19,12 +19,12 @@ using ..Utils
 
 ## Basis functions with Stencil loops ##
 function extend_grid(
-    grid::AbstractArray{T,2};
-    k_extend::Int = 0,
-)::AbstractArray{T,2} where {T<:half_quant}
+        grid::AbstractArray{T, 2};
+        k_extend::Int = 0,
+    )::AbstractArray{T, 2} where {T <: half_quant}
     h = (grid[:, end] - grid[:, 1]) / (size(grid, 2) - 1)
 
-    for i = 1:k_extend
+    for i in 1:k_extend
         grid = hcat(grid[:, 1:1] .- h, grid)
         grid = hcat(grid, grid[:, end:end] .+ h)
     end
@@ -33,11 +33,11 @@ function extend_grid(
 end
 
 function SplineMUL(
-    l::Lux.AbstractLuxLayer,
-    ps::ComponentArray{T},
-    x::AbstractArray{T,2},
-    y::AbstractArray{T,3},
-)::AbstractArray{T,3} where {T<:half_quant}
+        l::Lux.AbstractLuxLayer,
+        ps::ComponentArray{T},
+        x::AbstractArray{T, 2},
+        y::AbstractArray{T, 3},
+    )::AbstractArray{T, 3} where {T <: half_quant}
     """Top-level function for KAN with spline basis functions."""
     x = l.base_activation(x)
     w_base, w_sp = ps.w_base, ps.w_sp
@@ -65,28 +65,28 @@ function Cheby_basis(degree::Int)
 end
 
 function (b::B_spline_basis)(
-    x::AbstractArray{T,2},
-    grid::AbstractArray{T,2},
-    σ::AbstractArray{T,1};
-)::AbstractArray{T,3} where {T<:half_quant}
+        x::AbstractArray{T, 2},
+        grid::AbstractArray{T, 2},
+        σ::AbstractArray{T, 1}
+    )::AbstractArray{T, 3} where {T <: half_quant}
     I, S, G = size(x)..., size(grid, 2)
 
     # Initialize degree 0, piecewise const
-    grid_1 = grid[:, 1:(end-1)]
+    grid_1 = grid[:, 1:(end - 1)]
     grid_2 = grid[:, 2:end]
     @tullio term1[i, g, s] := x[i, s] >= grid_1[i, g]
     @tullio term2[i, g, s] := x[i, s] < grid_2[i, g]
     B = T.(term1 .* term2)
 
     # Iteratively build up to degree k
-    for d = 1:b.degree
+    for d in 1:b.degree
         gmax = G - d - 1
         B1 = B[:, 1:gmax, :]
-        B2 = B[:, 2:(gmax+1), :]
+        B2 = B[:, 2:(gmax + 1), :]
         grid_1 = grid[:, 1:gmax]
-        grid_2 = grid[:, 2:(gmax+1)]
-        grid_3 = grid[:, (d+1):(d+gmax)]
-        grid_4 = grid[:, (d+2):(d+gmax+1)]
+        grid_2 = grid[:, 2:(gmax + 1)]
+        grid_3 = grid[:, (d + 1):(d + gmax)]
+        grid_4 = grid[:, (d + 2):(d + gmax + 1)]
 
         @tullio numer1[i, g, s] := x[i, s] - grid_1[i, g]
         @tullio denom1[i, g] := grid_3[i, g] - grid_1[i, g]
@@ -107,20 +107,20 @@ function (b::B_spline_basis)(
 end
 
 function (b::RBF_basis)(
-    x::AbstractArray{T,2},
-    grid::AbstractArray{T,2},
-    σ::AbstractArray{T,1},
-)::AbstractArray{T,3} where {T<:half_quant}
+        x::AbstractArray{T, 2},
+        grid::AbstractArray{T, 2},
+        σ::AbstractArray{T, 1},
+    )::AbstractArray{T, 3} where {T <: half_quant}
     σ = b.scale .* σ
     @tullio B[i, g, s] := exp(-(((x[i, s] - grid[i, g]) / σ[d])^2) / 2)
     return B
 end
 
 function (b::RSWAF_basis)(
-    x::AbstractArray{T,2},
-    grid::AbstractArray{T,2},
-    σ::AbstractArray{T,1},
-)::AbstractArray{T,3} where {T<:half_quant}
+        x::AbstractArray{T, 2},
+        grid::AbstractArray{T, 2},
+        σ::AbstractArray{T, 1},
+    )::AbstractArray{T, 3} where {T <: half_quant}
     @tullio diff[i, g, s] := x[i, s] - grid[i, g]
     diff = NNlib.tanh_fast(diff ./ σ)
     @tullio B[i, g, s] := 1 - diff[i, g, s]^2
@@ -128,10 +128,10 @@ function (b::RSWAF_basis)(
 end
 
 function (b::Cheby_basis)(
-    x::AbstractArray{T,2},
-    grid::AbstractArray{T,2},
-    σ::AbstractArray{T,1},
-)::AbstractArray{T,3} where {T<:half_quant}
+        x::AbstractArray{T, 2},
+        grid::AbstractArray{T, 2},
+        σ::AbstractArray{T, 1},
+    )::AbstractArray{T, 3} where {T <: half_quant}
     lin = b.lin
     x = NNlib.tanh_fast(x) ./ σ # Scale > 1 to place well within [-1, 1]
     @tullio B[i, g, s] := cos(lin[g] * acos(x[i, s]))
@@ -139,12 +139,12 @@ function (b::Cheby_basis)(
 end
 
 function coef2curve_Spline(
-    b::AbstractBasis,
-    x_eval::AbstractArray{T,2},
-    grid::AbstractArray{T,2},
-    coef::AbstractArray{T,3},
-    σ::AbstractArray{T,1},
-)::AbstractArray{T,3} where {T<:half_quant}
+        b::AbstractBasis,
+        x_eval::AbstractArray{T, 2},
+        grid::AbstractArray{T, 2},
+        coef::AbstractArray{T, 3},
+        σ::AbstractArray{T, 1},
+    )::AbstractArray{T, 3} where {T <: half_quant}
     """Top-level function for coef multiplication for all splines."""
     I, S, O, G = size(x_eval)..., size(coef)[2:3]...
     G = b == Cheby_basis ? b.degree : G
@@ -154,12 +154,12 @@ function coef2curve_Spline(
 end
 
 function curve2coef(
-    b::AbstractBasis,
-    x::AbstractArray{T,2},
-    y::AbstractArray{T,3},
-    grid::AbstractArray{T,2},
-    σ::AbstractArray{T,1},
-)::AbstractArray{T,3} where {T<:half_quant}
+        b::AbstractBasis,
+        x::AbstractArray{T, 2},
+        y::AbstractArray{T, 3},
+        grid::AbstractArray{T, 2},
+        σ::AbstractArray{T, 1},
+    )::AbstractArray{T, 3} where {T <: half_quant}
     """Least sqaures fit of coefs from spline curves, (only for spline-types)."""
     J, S, O = size(x)..., size(y, 2)
 
@@ -170,8 +170,8 @@ function curve2coef(
     B = permutedims(B, [1, 3, 2]) # in_dim x b_size x n_grid
 
     coef = Array{full_quant}(undef, J, O, G) |> pu
-    for i = 1:J
-        for o = 1:O
+    for i in 1:J
+        for o in 1:O
             coef[i, o, :] .= B[i, :, :] \ y[i, o, :]
         end
     end
@@ -183,10 +183,10 @@ end
 struct FFT_basis <: AbstractBasis end
 
 function (b::FFT_basis)(
-    x::AbstractArray{T,2},
-    grid::AbstractArray{T,2},
-    σ::AbstractArray{T,1},
-)::Tuple{AbstractArray{T,3},AbstractArray{T,3}} where {T<:half_quant}
+        x::AbstractArray{T, 2},
+        grid::AbstractArray{T, 2},
+        σ::AbstractArray{T, 1},
+    )::Tuple{AbstractArray{T, 3}, AbstractArray{T, 3}} where {T <: half_quant}
     I, S = size(x)
     σ = T(2π) .* σ
     @tullio freq[i, g, s] := x[i, s] * grid[i, g] * σ[d]
@@ -194,12 +194,12 @@ function (b::FFT_basis)(
 end
 
 function coef2curve_FFT(
-    b::AbstractBasis,
-    x_eval::AbstractArray{T,2},
-    grid::AbstractArray{T,2},
-    coef::AbstractArray{T,4},
-    σ::AbstractArray{T,1},
-)::AbstractArray{T,3} where {T<:half_quant}
+        b::AbstractBasis,
+        x_eval::AbstractArray{T, 2},
+        grid::AbstractArray{T, 2},
+        coef::AbstractArray{T, 4},
+        σ::AbstractArray{T, 1},
+    )::AbstractArray{T, 3} where {T <: half_quant}
     even, odd = b(x_eval, grid, σ)
     even_coef, odd_coef = coef[1, :, :, :], coef[2, :, :, :]
     @tullio y[i, o, s] :=

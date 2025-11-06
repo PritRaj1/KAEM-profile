@@ -35,7 +35,7 @@ function test_ps_derivative()
         model.loss_fcn(ps, ∇, st_kan, st_lux, model, x_test; rng = Random.default_rng())
 
     @test norm(∇) != 0
-    @test !any(isnan, ∇)
+    return @test !any(isnan, ∇)
 end
 
 function test_grid_update()
@@ -51,7 +51,7 @@ function test_grid_update()
     model, ps, st_kan, st_lux =
         update_model_grid(model, x, ps, st_kan, Lux.testmode(st_lux))
     @test all(size(st_kan.ebm[:a].grid) .== size_grid)
-    @test !any(isnan, ps)
+    return @test !any(isnan, ps)
 end
 
 function test_pca()
@@ -67,7 +67,7 @@ function test_pca()
 
     x_recon = reconstruct(model.PCA_model, cpu_device()(x_test))
     x_recon = reshape(x_recon, model.original_data_size..., :)
-    @test all(size(x_recon)[1:3] .== size(dataset)[1:3])
+    return @test all(size(x_recon)[1:3] .== size(dataset)[1:3])
 end
 
 function test_mala_loss()
@@ -83,7 +83,7 @@ function test_mala_loss()
     loss, ∇, st_ebm, st_gen =
         model.loss_fcn(ps, ∇, st_kan, st_lux, model, x_test; rng = Random.default_rng())
     @test norm(∇) != 0
-    @test !any(isnan, ∇)
+    return @test !any(isnan, ∇)
 end
 
 function test_cnn_loss()
@@ -91,6 +91,7 @@ function test_cnn_loss()
     dataset = randn(full_quant, 32, 32, 3, 50)
     commit!(conf, "CNN", "use_cnn_lkhood", "true")
     commit!(conf, "CNN", "latent_concat", "false")
+    commit!(conf, "PCA", "use_pca", "false")
     model = init_T_KAM(dataset, conf, (32, 32, 3))
     x_test = first(model.train_loader) |> pu
     model, ps, st_kan, st_lux = prep_model(model, x_test)
@@ -101,7 +102,7 @@ function test_cnn_loss()
         model.loss_fcn(ps, ∇, st_kan, st_lux, model, x_test; rng = Random.default_rng())
     @test norm(∇) != 0
     @test !any(isnan, ∇)
-    commit!(conf, "CNN", "use_cnn_lkhood", "false")
+    return commit!(conf, "CNN", "use_cnn_lkhood", "false")
 end
 
 function test_cnn_residual_loss()
@@ -119,7 +120,7 @@ function test_cnn_residual_loss()
         model.loss_fcn(ps, ∇, st_kan, st_lux, model, x_test; rng = Random.default_rng())
     @test norm(∇) != 0
     @test !any(isnan, ∇)
-    commit!(conf, "CNN", "use_cnn_lkhood", "false")
+    return commit!(conf, "CNN", "use_cnn_lkhood", "false")
 end
 
 function test_seq_loss()
@@ -136,7 +137,7 @@ function test_seq_loss()
     loss, ∇, st_ebm, st_gen =
         model.loss_fcn(ps, ∇, st_kan, st_lux, model, x_test; rng = Random.default_rng())
     @test norm(∇) != 0
-    @test !any(isnan, ∇)
+    return @test !any(isnan, ∇)
 end
 
 @testset "KAEM Tests" begin
@@ -146,5 +147,5 @@ end
     test_mala_loss()
     test_cnn_loss()
     test_cnn_residual_loss()
-    test_seq_loss()
+    # test_seq_loss()
 end

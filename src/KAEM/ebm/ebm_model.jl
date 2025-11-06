@@ -30,8 +30,8 @@ struct BoolConfig <: AbstractBoolConfig
     train_props::Bool
 end
 
-struct EbmModel{T<:half_quant,U<:full_quant} <: Lux.AbstractLuxLayer
-    fcns_qp::Vector{univariate_function{T,U}}
+struct EbmModel{T <: half_quant, U <: full_quant} <: Lux.AbstractLuxLayer
+    fcns_qp::Vector{univariate_function{T, U}}
     layernorms::Vector{Lux.LayerNorm}
     bool_config::BoolConfig
     depth::Int
@@ -45,7 +45,7 @@ struct EbmModel{T<:half_quant,U<:full_quant} <: Lux.AbstractLuxLayer
     weights::AbstractArray{T}
     quad_type::AbstractString
     λ::T
-    prior_domain::Tuple{T,T}
+    prior_domain::Tuple{T, T}
 end
 
 function init_EbmModel(conf::ConfParse; rng::AbstractRNG = Random.default_rng())
@@ -90,15 +90,15 @@ function init_EbmModel(conf::ConfParse; rng::AbstractRNG = Random.default_rng())
 
     eps = parse(half_quant, retrieve(conf, "TRAINING", "eps"))
 
-    functions = Vector{univariate_function{half_quant,full_quant}}(undef, 0)
+    functions = Vector{univariate_function{half_quant, full_quant}}(undef, 0)
     layernorms = Vector{Lux.LayerNorm}(undef, 0)
 
-    for i in eachindex(widths[1:(end-1)])
+    for i in eachindex(widths[1:(end - 1)])
         base_scale = (
             μ_scale * (one(full_quant) / √(full_quant(widths[i]))) .+
-            σ_base .* (
-                randn(rng, full_quant, widths[i], widths[i+1]) .* full_quant(2) .-
-                one(full_quant)
+                σ_base .* (
+                randn(rng, full_quant, widths[i], widths[i + 1]) .* full_quant(2) .-
+                    one(full_quant)
             ) .* (one(full_quant) / √(full_quant(widths[i])))
         )
 
@@ -106,7 +106,7 @@ function init_EbmModel(conf::ConfParse; rng::AbstractRNG = Random.default_rng())
 
         func = init_function(
             widths[i],
-            widths[i+1];
+            widths[i + 1];
             spline_degree = spline_degree,
             base_activation = base_activation,
             spline_function = spline_function,
@@ -156,7 +156,7 @@ function init_EbmModel(conf::ConfParse; rng::AbstractRNG = Random.default_rng())
             use_attention_kernel,
             train_props,
         ),
-        length(widths)-1,
+        length(widths) - 1,
         prior_type,
         ref_initializer(eps),
         P,
@@ -171,12 +171,12 @@ function init_EbmModel(conf::ConfParse; rng::AbstractRNG = Random.default_rng())
     )
 end
 
-function (ebm::EbmModel{T,U})(
-    ps::ComponentArray{T},
-    st_kan::ComponentArray{T},
-    st_lyrnorm::NamedTuple,
-    z::AbstractArray{T},
-)::Tuple{AbstractArray{T},NamedTuple} where {T<:half_quant,U<:full_quant}
+function (ebm::EbmModel{T, U})(
+        ps::ComponentArray{T},
+        st_kan::ComponentArray{T},
+        st_lyrnorm::NamedTuple,
+        z::AbstractArray{T},
+    )::Tuple{AbstractArray{T}, NamedTuple} where {T <: half_quant, U <: full_quant}
     """
     Forward pass through the ebm-prior, returning the energy function.
 
@@ -193,11 +193,11 @@ function (ebm::EbmModel{T,U})(
 
     mid_size = !ebm.bool_config.mixture_model ? ebm.p_size : ebm.q_size
 
-    for i = 1:ebm.depth
+    for i in 1:ebm.depth
         z, st_lyrnorm_new =
             (ebm.bool_config.layernorm && i != 1) ?
             Lux.apply(
-                ebm.layernorms[i-1],
+                ebm.layernorms[i - 1],
                 z,
                 ps.layernorm[symbol_map[i]],
                 st_lyrnorm[symbol_map[i]],
@@ -208,7 +208,7 @@ function (ebm::EbmModel{T,U})(
 
         z = Lux.apply(ebm.fcns_qp[i], z, ps.fcn[symbol_map[i]], st_kan[symbol_map[i]])
         z =
-            (i == 1 && !ebm.bool_config.ula) ? reshape(z, size(z, 2), mid_size*size(z, 3)) :
+            (i == 1 && !ebm.bool_config.ula) ? reshape(z, size(z, 2), mid_size * size(z, 3)) :
             dropdims(sum(z, dims = 1); dims = 1)
     end
 
@@ -217,30 +217,30 @@ function (ebm::EbmModel{T,U})(
 end
 
 function Lux.initialparameters(
-    rng::AbstractRNG,
-    prior::EbmModel{T,U},
-) where {T<:half_quant,U<:full_quant}
+        rng::AbstractRNG,
+        prior::EbmModel{T, U},
+    ) where {T <: half_quant, U <: full_quant}
     fcn_ps = NamedTuple(
-        symbol_map[i] => Lux.initialparameters(rng, prior.fcns_qp[i]) for i = 1:prior.depth
+        symbol_map[i] => Lux.initialparameters(rng, prior.fcns_qp[i]) for i in 1:prior.depth
     )
     layernorm_ps = (a = [zero(T)], b = [zero(T)])
     if prior.bool_config.layernorm && length(prior.layernorms) > 0
         layernorm_ps = NamedTuple(
             symbol_map[i] => Lux.initialparameters(rng, prior.layernorms[i]) for
-            i = 1:length(prior.layernorms)
+                i in 1:length(prior.layernorms)
         )
     end
 
     prior_ps = (
         π_μ = prior.prior_type == "learnable_gaussian" ?
-              zeros(half_quant, prior.p_size) : [zero(T)],
+            zeros(half_quant, prior.p_size) : [zero(T)],
         π_σ = prior.prior_type == "learnable_gaussian" ?
-              ones(half_quant, prior.p_size) : [zero(T)],
+            ones(half_quant, prior.p_size) : [zero(T)],
         α = !prior.bool_config.mixture_model ? [zero(T)] :
             (
-            !prior.bool_config.use_attention_kernel ?
-            glorot_uniform(rng, U, prior.q_size, prior.p_size) : [zero(T)]
-        ),
+                !prior.bool_config.use_attention_kernel ?
+                glorot_uniform(rng, U, prior.q_size, prior.p_size) : [zero(T)]
+            ),
     )
 
     if !prior.bool_config.train_props && !prior.bool_config.use_attention_kernel
@@ -264,17 +264,17 @@ function Lux.initialparameters(
 end
 
 function Lux.initialstates(
-    rng::AbstractRNG,
-    prior::EbmModel{T,U},
-) where {T<:half_quant,U<:full_quant}
+        rng::AbstractRNG,
+        prior::EbmModel{T, U},
+    ) where {T <: half_quant, U <: full_quant}
     fcn_st = NamedTuple(
-        symbol_map[i] => Lux.initialstates(rng, prior.fcns_qp[i]) for i = 1:prior.depth
+        symbol_map[i] => Lux.initialstates(rng, prior.fcns_qp[i]) for i in 1:prior.depth
     )
     st_lyrnorm = (a = [zero(T)], b = [zero(T)])
     if prior.bool_config.layernorm && length(prior.layernorms) > 0
         st_lyrnorm = NamedTuple(
             symbol_map[i] => Lux.initialstates(rng, prior.layernorms[i]) |> hq for
-            i = 1:length(prior.layernorms)
+                i in 1:length(prior.layernorms)
         )
     end
 

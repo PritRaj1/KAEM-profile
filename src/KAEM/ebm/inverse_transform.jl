@@ -1,4 +1,3 @@
-
 module InverseTransformSampling
 
 export sample_univariate, sample_mixture
@@ -17,17 +16,17 @@ else
 end
 
 @parallel_indices (q, p, b) function interp_kernel!(
-    z::AbstractArray{U,3},
-    cdf::AbstractArray{U,3},
-    grid::AbstractArray{U,2},
-    rand_vals::AbstractArray{U,3},
-    grid_size::Int,
-)::Nothing where {U<:full_quant}
+        z::AbstractArray{U, 3},
+        cdf::AbstractArray{U, 3},
+        grid::AbstractArray{U, 2},
+        rand_vals::AbstractArray{U, 3},
+        grid_size::Int,
+    )::Nothing where {U <: full_quant}
     rv = rand_vals[q, p, b]
     idx = 1
 
     # Manual searchsortedfirst over cdf[q, p, :] - potential thread divergence on GPU
-    for j = 1:(grid_size+1)
+    for j in 1:(grid_size + 1)
         if cdf[q, p, j] >= rv
             idx = j
             break
@@ -43,10 +42,10 @@ end
     elseif idx > grid_size
         z[q, p, b] = grid[p, grid_size]
 
-        # Interpolate into interval   
+        # Interpolate into interval
     else
-        z1, z2 = grid[p, idx-1], grid[p, idx]
-        cd1, cd2 = cdf[q, p, idx-1], cdf[q, p, idx]
+        z1, z2 = grid[p, idx - 1], grid[p, idx]
+        cd1, cd2 = cdf[q, p, idx - 1], cdf[q, p, idx]
 
         # Handle exact match without instability
         length = cd2 - cd1
@@ -60,13 +59,13 @@ end
 end
 
 function sample_univariate(
-    ebm::Lux.AbstractLuxLayer,
-    num_samples::Int,
-    ps::ComponentArray{T},
-    st_kan::ComponentArray{T},
-    st_lyrnorm::NamedTuple;
-    rng::AbstractRNG = Random.default_rng(),
-)::Tuple{AbstractArray{T,3},NamedTuple} where {T<:half_quant}
+        ebm::Lux.AbstractLuxLayer,
+        num_samples::Int,
+        ps::ComponentArray{T},
+        st_kan::ComponentArray{T},
+        st_lyrnorm::NamedTuple;
+        rng::AbstractRNG = Random.default_rng(),
+    )::Tuple{AbstractArray{T, 3}, NamedTuple} where {T <: half_quant}
 
     cdf, grid, st_lyrnorm_new = ebm.quad(ebm, ps, st_kan, st_lyrnorm)
     grid_size = size(grid, 2)
@@ -91,17 +90,17 @@ function sample_univariate(
 end
 
 @parallel_indices (q, b) function interp_kernel_mixture!(
-    z::AbstractArray{U,3},
-    cdf::AbstractArray{U,3},
-    grid::AbstractArray{U,2},
-    rand_vals::AbstractArray{U,2},
-    grid_size::Int,
-)::Nothing where {U<:full_quant}
+        z::AbstractArray{U, 3},
+        cdf::AbstractArray{U, 3},
+        grid::AbstractArray{U, 2},
+        rand_vals::AbstractArray{U, 2},
+        grid_size::Int,
+    )::Nothing where {U <: full_quant}
     rv = rand_vals[q, b]
     idx = 1
 
     # Manual searchsortedfirst over cdf[q, b, :] - potential thread divergence on GPU
-    for j = 1:(grid_size+1)
+    for j in 1:(grid_size + 1)
         if cdf[q, b, j] >= rv
             idx = j
             break
@@ -117,10 +116,10 @@ end
     elseif idx > grid_size
         z[q, 1, b] = grid[q, grid_size]
 
-        # Interpolate into interval   
+        # Interpolate into interval
     else
-        z1, z2 = grid[q, idx-1], grid[q, idx]
-        cd1, cd2 = cdf[q, b, idx-1], cdf[q, b, idx]
+        z1, z2 = grid[q, idx - 1], grid[q, idx]
+        cd1, cd2 = cdf[q, b, idx - 1], cdf[q, b, idx]
 
         # Handle exact match without instability
         length = cd2 - cd1
@@ -134,27 +133,27 @@ end
 end
 
 @parallel_indices (q, p, b) function dotprod_attn_kernel!(
-    QK::AbstractArray{U,2},
-    Q::AbstractArray{U,2},
-    K::AbstractArray{U,2},
-    z::AbstractArray{U,2},
-    scale::U,
-    min_z::U,
-    max_z::U,
-)::Nothing where {U<:full_quant}
+        QK::AbstractArray{U, 2},
+        Q::AbstractArray{U, 2},
+        K::AbstractArray{U, 2},
+        z::AbstractArray{U, 2},
+        scale::U,
+        min_z::U,
+        max_z::U,
+    )::Nothing where {U <: full_quant}
     z_mapped = z[q, b] * (max_z - min_z) + min_z
     QK[q, p] = ((Q[q, p] * z_mapped) * (K[q, p] * z_mapped)) / scale
     return nothing
 end
 
 function sample_mixture(
-    ebm::Lux.AbstractLuxLayer,
-    num_samples::Int,
-    ps::ComponentArray{T},
-    st_kan::ComponentArray{T},
-    st_lyrnorm::NamedTuple;
-    rng::AbstractRNG = Random.default_rng(),
-)::Tuple{AbstractArray{T,3},NamedTuple} where {T<:half_quant}
+        ebm::Lux.AbstractLuxLayer,
+        num_samples::Int,
+        ps::ComponentArray{T},
+        st_kan::ComponentArray{T},
+        st_lyrnorm::NamedTuple;
+        rng::AbstractRNG = Random.default_rng(),
+    )::Tuple{AbstractArray{T, 3}, NamedTuple} where {T <: half_quant}
     """
     Component-wise inverse transform sampling for the ebm-prior.
     p = components of model

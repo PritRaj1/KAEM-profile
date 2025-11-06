@@ -1,5 +1,4 @@
 import os
-from pathlib import Path
 
 import h5py
 import imageio
@@ -81,7 +80,6 @@ def create_sample_subset_frame(
 ):
     grid_size = config["grid_size"]
     cmap = config["cmap"]
-    samples_per_frame = config["samples_per_frame"]
 
     fig, axes = plt.subplots(grid_size, grid_size, figsize=(8, 8))
 
@@ -91,7 +89,6 @@ def create_sample_subset_frame(
         axes = axes.reshape(-1, 1)
 
     start_idx = (sample_subset_idx * grid_size * grid_size) % total_samples
-    end_idx = min(start_idx + grid_size * grid_size, total_samples)
 
     for i in range(grid_size * grid_size):
         row, col = divmod(i, grid_size)
@@ -126,7 +123,10 @@ def create_sample_subset_frame(
     progress_filled = int(total_progress * 20)
     progress_bar = "=" * progress_filled + "." * (20 - progress_filled)
 
-    title = f"{config['dataset']} - {method_label}\nTraining: [{progress_bar}] ({current_frame + 1}/{total_frames})"
+    title = (
+        f"{config['dataset']} - {method_label}\nTraining: [{progress_bar}] "
+        f"({current_frame + 1}/{total_frames})"
+    )
     fig.suptitle(title, fontsize=14, y=0.95)
 
     plt.subplots_adjust(wspace=0.1, hspace=0.1)
@@ -142,7 +142,9 @@ def create_sample_subset_frame(
 
 def create_evolution_gif(config):
     print(
-        f"Creating GIF for {config['dataset']} - {config['method_type']} - {config['sampler']} - {config['model_type']}"
+        f"Creating GIF for {config['dataset']} - "
+        f"{config['method_type']} - {config['sampler']} - "
+        f"{config['model_type']}"
     )
 
     frames = []
@@ -150,7 +152,11 @@ def create_evolution_gif(config):
     samples_per_frame = config["samples_per_frame"]
 
     for epoch in config["epochs"]:
-        file_path = f"logs/{config['method_type']}/{config['dataset']}/{config['sampler']}/{config['model_type']}/generated_images_epoch_{epoch}.h5"
+        file_path = (
+            f"logs/{config['method_type']}/{config['dataset']}/"
+            f"{config['sampler']}/{config['model_type']}/"
+            f"generated_images_epoch_{epoch}.h5"
+        )
 
         try:
             with h5py.File(file_path, "r") as h5_file:
@@ -176,7 +182,9 @@ def create_evolution_gif(config):
 
     if not frames:
         print(
-            f"  No valid frames found for {config['dataset']} - {config['method_type']} - {config['sampler']} - {config['model_type']}"
+            f"  No valid frames found for {config['dataset']} - "
+            f"{config['method_type']} - {config['sampler']} - "
+            f"{config['model_type']}"
         )
         return
 
