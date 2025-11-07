@@ -12,7 +12,7 @@ include("kan/grid_updating.jl")
 using .GridUpdating
 
 function update_model_grid(
-        model::T_KAM{T, U},
+        model::T_KAM{T},
         x::AbstractArray{T},
         ps::ComponentArray{T},
         st_kan::ComponentArray{T},
@@ -24,7 +24,7 @@ function update_model_grid(
         ComponentArray{T},
         ComponentArray{T},
         NamedTuple,
-    } where {T <: half_quant, U <: full_quant}
+    } where {T <: Float32}
     """
     Update the grid of the likelihood model using samples from the prior.
 
@@ -151,7 +151,7 @@ function update_model_grid(
 
     # Only update if KAN-type generator requires
     (!model.update_llhood_grid || model.lkhood.CNN || model.lkhood.SEQ) &&
-        return model, T.(ps), st_kan, st_lux
+        return model, ps, st_kan, st_lux
 
     if model.N_t > 1
         temps = collect(T, [(k / model.N_t)^model.p[train_idx] for k in 1:model.N_t])
@@ -223,7 +223,7 @@ function update_model_grid(
         z = dropdims(sum(z, dims = 1); dims = 1)
     end
 
-    return model, T.(ps), st_kan, st_lux
+    return model, ps, st_kan, st_lux
 end
 
 end

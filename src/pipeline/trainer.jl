@@ -24,12 +24,12 @@ include("data_utils.jl")
 using .optimization
 using .DataUtils: get_vision_dataset, get_text_dataset
 
-mutable struct T_KAM_trainer{T <: half_quant, U <: full_quant}
+mutable struct T_KAM_trainer{T <: Float32}
     model::Any
     cnn::Bool
     o::opt
     dataset_name::AbstractString
-    ps::ComponentArray{U}
+    ps::ComponentArray{T}
     st_kan::ComponentArray{T}
     st_lux::NamedTuple
     N_epochs::Int
@@ -43,7 +43,7 @@ mutable struct T_KAM_trainer{T <: half_quant, U <: full_quant}
     gen_type::AbstractString
     checkpoint_every::Int
     gen_every::Int
-    loss::U
+    loss::T
     rng::AbstractRNG
 end
 
@@ -169,7 +169,7 @@ function init_trainer(
         gen_type,
         checkpoint_every,
         gen_every,
-        zero(full_quant),
+        zero(Float32),
         rng,
     )
 end
@@ -179,7 +179,7 @@ function train!(t::T_KAM_trainer; train_idx::Int = 1)
     num_batches = length(t.model.train_loader)
     grid_updated = 0
     num_param_updates = num_batches * t.N_epochs
-    grads = half_quant.(t.ps .* 0)
+    grads = (t.ps .* 0)
 
     loss_file = t.model.file_loc * "loss.csv"
 
@@ -198,7 +198,7 @@ function train!(t::T_KAM_trainer; train_idx::Int = 1)
     # Gradient for a single batch
     function grad_fcn(G, u, args...)
         t.ps = u
-        ps_hq = half_quant.(t.ps)
+        ps_hq = (t.ps)
 
         # Grid updating for likelihood model
         if (
@@ -214,7 +214,7 @@ function train!(t::T_KAM_trainer; train_idx::Int = 1)
                 rng = t.rng,
             )
 
-            t.ps = full_quant.(ps_hq)
+            t.ps = (ps_hq)
             t.grid_update_frequency =
                 train_idx > 1 ?
                 floor(t.grid_update_frequency * (2 - t.model.grid_update_decay)^train_idx) :
@@ -228,7 +228,7 @@ function train!(t::T_KAM_trainer; train_idx::Int = 1)
         # Reduced precision grads, (switches to full precision for accumulation, not forward passes)
         loss, grads, st_ebm, st_gen = t.model.loss_fcn(
             ps_hq,
-            zero(half_quant) .* grads,
+            zero(Float32) .* grads,
             t.st_kan,
             t.st_lux,
             t.model,
@@ -236,8 +236,8 @@ function train!(t::T_KAM_trainer; train_idx::Int = 1)
             train_idx = train_idx,
             rng = t.rng,
         )
-        t.loss = full_quant(loss) / t.model.loss_scaling.full
-        copy!(G, full_quant.(grads) ./ t.model.loss_scaling.full)
+        t.loss = Float32(loss)
+        copy!(G, (grads))
         @reset t.st_lux.ebm = st_ebm
         @reset t.st_lux.gen = st_gen
 
@@ -257,7 +257,7 @@ function train!(t::T_KAM_trainer; train_idx::Int = 1)
         if train_idx % num_batches == 0 || train_idx == 1
 
             test_loss = 0
-            ps_hq = half_quant.(t.ps)
+            ps_hq = (t.ps)
             for x in t.model.test_loader
                 x_gen, st_ebm, st_gen = CUDA.@fastmath t.model(
                     ps_hq,
@@ -268,7 +268,7 @@ function train!(t::T_KAM_trainer; train_idx::Int = 1)
                 )
                 @reset t.st_lux.ebm = st_ebm
                 @reset t.st_lux.gen = st_gen
-                x_gen = x_gen .|> full_quant
+                x_gen = x_gen .|> Float32
 
                 # MSE loss between pixels for images, and max index for logits
                 if t.gen_type == "logits"
@@ -309,7 +309,7 @@ function train!(t::T_KAM_trainer; train_idx::Int = 1)
             num_batches_to_save = fld(t.num_generated_samples, 10) ÷ t.batch_size_for_gen # Save 1/10 of the samples to conserve space
             if num_batches_to_save > 0
                 concat_dim = length(t.model.lkhood.x_shape) + 1
-                ps_hq = half_quant.(t.ps)
+                ps_hq = (t.ps)
                 # Get first batch to determine type
                 first_batch, st_ebm, st_gen = CUDA.@fastmath t.model(
                     ps_hq,
@@ -338,14 +338,14 @@ function train!(t::T_KAM_trainer; train_idx::Int = 1)
                 end
                 gen_data = cat(batches_to_cat..., dims = concat_dim)
             else
-                gen_data = zeros(half_quant, t.model.lkhood.x_shape..., 0)
+                gen_data = zeros(Float32, t.model.lkhood.x_shape..., 0)
             end
 
             if (t.gen_every > 0 && epoch % t.gen_every == 0)
 
                 if !t.model.lkhood.SEQ && !t.model.lkhood.CNN && t.model.use_pca
                     gen_data = reconstruct(t.model.PCA_model, gen_data)
-                    gen_data = Float32.(
+                    gen_data = (
                         reshape(
                             gen_data,
                             t.model.original_data_size...,
@@ -394,23 +394,23 @@ function train!(t::T_KAM_trainer; train_idx::Int = 1)
         t.o.init_optimizer();
         maxiters = num_param_updates,
         verbose = true,
-        abstol = -one(full_quant),
-        reltol = -one(full_quant),
-        x_tol = -one(full_quant),
-        x_abstol = -one(full_quant),
-        x_reltol = -one(full_quant),
-        f_tol = -one(full_quant),
-        f_abstol = -one(full_quant),
-        f_reltol = -one(full_quant),
-        g_tol = -one(full_quant),
-        g_abstol = -one(full_quant),
-        g_reltol = -one(full_quant),
-        outer_x_abstol = -one(full_quant),
-        outer_x_reltol = -one(full_quant),
-        outer_f_abstol = -one(full_quant),
-        outer_f_reltol = -one(full_quant),
-        outer_g_abstol = -one(full_quant),
-        outer_g_reltol = -one(full_quant),
+        abstol = -one(Float32),
+        reltol = -one(Float32),
+        x_tol = -one(Float32),
+        x_abstol = -one(Float32),
+        x_reltol = -one(Float32),
+        f_tol = -one(Float32),
+        f_abstol = -one(Float32),
+        f_reltol = -one(Float32),
+        g_tol = -one(Float32),
+        g_abstol = -one(Float32),
+        g_reltol = -one(Float32),
+        outer_x_abstol = -one(Float32),
+        outer_x_reltol = -one(Float32),
+        outer_f_abstol = -one(Float32),
+        outer_f_reltol = -one(Float32),
+        outer_g_abstol = -one(Float32),
+        outer_g_reltol = -one(Float32),
         successive_f_tol = num_param_updates,
         allow_f_increases = true,
         allow_outer_f_increases = true,
@@ -419,7 +419,7 @@ function train!(t::T_KAM_trainer; train_idx::Int = 1)
     # Generate samples
     num_batches = t.num_generated_samples ÷ t.batch_size_for_gen
     concat_dim = length(t.model.lkhood.x_shape) + 1
-    ps_hq = half_quant.(t.ps)
+    ps_hq = (t.ps)
     first_batch, st_ebm, st_gen = CUDA.@fastmath t.model(
         ps_hq,
         t.st_kan,
@@ -446,7 +446,7 @@ function train!(t::T_KAM_trainer; train_idx::Int = 1)
     if !t.model.lkhood.SEQ && !t.model.lkhood.CNN && t.model.use_pca
         gen_data = reconstruct(t.model.PCA_model, gen_data)
         gen_data =
-            Float32.(reshape(gen_data, t.model.original_data_size..., size(gen_data)[end]))
+            (reshape(gen_data, t.model.original_data_size..., size(gen_data)[end]))
     end
 
     try

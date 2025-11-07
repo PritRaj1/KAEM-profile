@@ -1,9 +1,7 @@
 using Test, Random, LinearAlgebra, Lux, ConfParser, ComponentArrays
 
 ENV["THERMO"] = "true"
-ENV["GPU"] = true
-ENV["FULL_QUANT"] = "FP32"
-ENV["HALF_QUANT"] = "FP16"
+ENV["GPU"] = false
 
 include("../src/utils.jl")
 using .Utils
@@ -24,11 +22,11 @@ out_dim = parse(Int, retrieve(conf, "GeneratorModel", "output_dim"))
 
 function test_posterior_sampling()
     Random.seed!(42)
-    dataset = randn(full_quant, 32, 32, 3, 50)
+    dataset = randn(Float32, 32, 32, 3, 50)
     model = init_T_KAM(dataset, conf, (32, 32, 3))
     x_test = first(model.train_loader) |> pu
     model, ps, st_kan, st_lux = prep_model(model, x_test)
-    ps = half_quant.(ps)
+    ps = ps
 
     z_posterior, temps, st_lux = sample_thermo(
         ps,
@@ -51,12 +49,12 @@ end
 
 function test_model_derivative()
     Random.seed!(42)
-    dataset = randn(full_quant, 32, 32, 1, 50)
+    dataset = randn(Float32, 32, 32, 1, 50)
     model = init_T_KAM(dataset, conf, (32, 32, 1))
     x_test = first(model.train_loader) |> pu
     model, ps, st_kan, st_lux = prep_model(model, x_test)
-    ps = half_quant.(ps)
-    ∇ = zero(half_quant) .* ps
+    ps = ps
+    ∇ = zero(Float32) .* ps
 
     loss, ∇, st_ebm, st_gen =
         model.loss_fcn(ps, ∇, st_kan, st_lux, model, x_test; rng = Random.default_rng())

@@ -16,7 +16,7 @@ function accumulator(
         weights::AbstractArray{T, 1},
         logprior::AbstractArray{T, 1},
         logllhood::AbstractArray{T, 1},
-    )::T where {T <: half_quant}
+    )::T where {T <: Float32}
     return weights' * (logprior + logllhood)
 end
 
@@ -27,9 +27,9 @@ function loss_accum(
         resampled_idxs::AbstractArray{Int, 2},
         B::Int,
         S::Int,
-    )::T where {T <: half_quant}
+    )::T where {T <: Float32}
 
-    loss = zero(T)
+    loss = 0.0f0
     for b in 1:B
         loss =
             loss + accumulator(
@@ -46,7 +46,7 @@ function sample_importance(
         ps::ComponentArray{T},
         st_kan::ComponentArray{T},
         st_lux::NamedTuple,
-        m::T_KAM{T, U},
+        m::T_KAM{T},
         x::AbstractArray{T};
         rng::AbstractRNG = Random.default_rng(),
     )::Tuple{
@@ -57,7 +57,7 @@ function sample_importance(
         AbstractArray{T, 2},
         AbstractArray{Int, 2},
         AbstractArray{T},
-    } where {T <: half_quant, U <: full_quant}
+    } where {T <: Float32}
 
     # Prior is proposal for importance sampling
     z_posterior, st_lux_ebm = m.sample_prior(m, m.IS_samples, ps, st_kan, st_lux, rng)
@@ -74,9 +74,8 @@ function sample_importance(
     )
 
     # Posterior weights and resampling
-    weights = softmax(U.(logllhood), dims = 2)
+    weights = softmax(logllhood, dims = 2)
     resampled_idxs = m.lkhood.resample_z(weights; rng = rng)
-    weights = T.(weights)
     weights_resampled = softmax(
         reduce(vcat, map(b -> weights[b:b, resampled_idxs[b, :]], 1:size(x)[end])),
         dims = 2,
@@ -105,7 +104,7 @@ function marginal_llhood(
         st_lux_ebm::NamedTuple,
         st_lux_gen::NamedTuple,
         noise::AbstractArray{T},
-    )::Tuple{T, NamedTuple, NamedTuple} where {T <: half_quant}
+    )::Tuple{T, NamedTuple, NamedTuple} where {T <: Float32}
     B, S = size(x)[end], size(z_posterior)[end]
 
     logprior_posterior, st_ebm =
@@ -126,9 +125,9 @@ function marginal_llhood(
 
     logprior_prior, st_ebm =
         m.log_prior(z_prior, m.prior, ps.ebm, st_kan.ebm, st_ebm)
-    ex_prior = m.prior.bool_config.contrastive_div ? mean(logprior_prior) : zero(T)
+    ex_prior = m.prior.bool_config.contrastive_div ? mean(logprior_prior) : 0.0f0
 
-    return -(marginal_llhood - ex_prior) * m.loss_scaling.reduced, st_ebm, st_gen
+    return -(marginal_llhood - ex_prior), st_ebm, st_gen
 end
 
 function closure(
@@ -138,12 +137,12 @@ function closure(
         x::AbstractArray{T},
         weights_resampled::AbstractArray{T, 2},
         resampled_idxs::AbstractArray{Int, 2},
-        m::T_KAM{T, full_quant},
+        m::T_KAM{T},
         st_kan::ComponentArray{T},
         st_lux_ebm::NamedTuple,
         st_lux_gen::NamedTuple,
         noise::AbstractArray{T},
-    )::T where {T <: half_quant}
+    )::T where {T <: Float32}
     return first(
         marginal_llhood(
             ps,
@@ -169,15 +168,15 @@ function grad_importance_llhood!(
         x::AbstractArray{T},
         weights_resampled::AbstractArray{T, 2},
         resampled_idxs::AbstractArray{Int, 2},
-        model::T_KAM{T, full_quant},
+        model::T_KAM{T},
         st_kan::ComponentArray{T},
         st_lux_ebm::NamedTuple,
         st_lux_gen::NamedTuple,
         noise::AbstractArray{T},
-    )::Nothing where {T <: half_quant}
+    )::Nothing where {T <: Float32}
 
-    Enzyme.autodiff(
-        Enzyme.Reverse,
+    Enzyme.autodiff_deferred(
+        Enzyme.set_runtime_activity(Enzyme.Reverse),
         Enzyme.Const(closure),
         Enzyme.Active,
         Enzyme.Duplicated(ps, ∇),
@@ -205,47 +204,47 @@ function ImportanceLoss(
         ps::ComponentArray{T},
         st_kan::ComponentArray{T},
         st_lux::NamedTuple,
-        model::T_KAM{T, full_quant},
+        model::T_KAM{T},
         x::AbstractArray{T};
         rng::AbstractRNG = Random.default_rng(),
-    )::ImportanceLoss where {T <: half_quant}
+    )::ImportanceLoss where {T <: Float32}
     z_posterior, z_prior, st_lux_ebm, st_lux_gen, weights_resampled, resampled_idxs, noise =
         sample_importance(ps, st_kan, Lux.testmode(st_lux), model, x; rng = rng)
 
-    compiled_grad! = Reactant.@compile grad_importance_llhood!(
-        Enzyme.make_zero(ps),
-        ps,
-        z_posterior,
-        z_prior,
-        x,
-        weights_resampled,
-        resampled_idxs,
-        model,
-        st_kan,
-        Lux.trainmode(st_lux_ebm),
-        Lux.trainmode(st_lux_gen),
-        noise,
-    )
-
-    compiled_loss = Reactant.@compile marginal_llhood(
-        ps,
-        z_posterior,
-        z_prior,
-        x,
-        weights_resampled,
-        resampled_idxs,
-        model,
-        st_kan,
-        Lux.trainmode(st_lux_ebm),
-        Lux.trainmode(st_lux_gen),
-        noise,
-    )
+    # compiled_loss = Reactant.@compile marginal_llhood(
+    #     ps,
+    #     z_posterior,
+    #     z_prior,
+    #     x,
+    #     weights_resampled,
+    #     resampled_idxs,
+    #     model,
+    #     st_kan,
+    #     Lux.trainmode(st_lux_ebm),
+    #     Lux.trainmode(st_lux_gen),
+    #     noise,
+    # )
+    #
+    # compiled_grad! = Reactant.@compile grad_importance_llhood!(
+    #     Enzyme.make_zero(ps),
+    #     ps,
+    #     z_posterior,
+    #     z_prior,
+    #     x,
+    #     weights_resampled,
+    #     resampled_idxs,
+    #     model,
+    #     st_kan,
+    #     Lux.trainmode(st_lux_ebm),
+    #     Lux.trainmode(st_lux_gen),
+    #     noise,
+    # )
 
     return ImportanceLoss(
-        compiled_loss,
-        compiled_grad!,
-        # marginal_llhood,
-        # grad_importance_llhood!,
+        # compiled_loss,
+        # compiled_grad!
+        marginal_llhood,
+        grad_importance_llhood!
     )
 end
 
@@ -255,11 +254,11 @@ function (l::ImportanceLoss)(
         ∇::ComponentArray{T},
         st_kan::ComponentArray{T},
         st_lux::NamedTuple,
-        model::T_KAM{T, full_quant},
+        model::T_KAM{T},
         x::AbstractArray{T};
         train_idx::Int = 1,
         rng::AbstractRNG = Random.default_rng(),
-    )::Tuple{T, AbstractArray{T}, NamedTuple, NamedTuple} where {T <: half_quant}
+    )::Tuple{T, AbstractArray{T}, NamedTuple, NamedTuple} where {T <: Float32}
 
     z_posterior, z_prior, st_lux_ebm, st_lux_gen, weights_resampled, resampled_idxs, noise =
         sample_importance(ps, st_kan, Lux.testmode(st_lux), model, x; rng = rng)

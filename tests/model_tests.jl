@@ -1,9 +1,7 @@
 using Test, Random, LinearAlgebra, Lux, ConfParser, ComponentArrays
 using MultivariateStats: reconstruct
 
-ENV["GPU"] = true
-ENV["FULL_QUANT"] = "FP32"
-ENV["HALF_QUANT"] = "FP32"
+ENV["GPU"] = false
 
 include("../src/utils.jl")
 using .Utils
@@ -24,12 +22,12 @@ commit!(conf, "THERMODYNAMIC_INTEGRATION", "num_temps", "-1")
 
 function test_ps_derivative()
     Random.seed!(42)
-    dataset = randn(full_quant, 32, 32, 1, 50)
+    dataset = randn(Float32, 32, 32, 1, 50)
     model = init_T_KAM(dataset, conf, (32, 32, 1))
     x_test = first(model.train_loader) |> pu
     model, ps, st_kan, st_lux = prep_model(model, x_test)
-    ps = half_quant.(ps)
-    ∇ = zero(half_quant) .* ps
+    ps = ps
+    ∇ = zero(Float32) .* ps
 
     loss, ∇, st_ebm, st_gen =
         model.loss_fcn(ps, ∇, st_kan, st_lux, model, x_test; rng = Random.default_rng())
@@ -40,11 +38,11 @@ end
 
 function test_grid_update()
     Random.seed!(42)
-    dataset = randn(full_quant, 32, 32, 1, 50)
+    dataset = randn(Float32, 32, 32, 1, 50)
     model = init_T_KAM(dataset, conf, (32, 32, 1))
     x_test = first(model.train_loader) |> pu
     model, ps, st_kan, st_lux = prep_model(model, x_test)
-    ps = half_quant.(ps)
+    ps = ps
 
     size_grid = size(st_kan.ebm[:a].grid)
     x = first(model.train_loader) |> pu
@@ -56,7 +54,7 @@ end
 
 function test_pca()
     Random.seed!(42)
-    dataset = randn(full_quant, 32, 32, 1, 50)
+    dataset = randn(Float32, 32, 32, 1, 50)
     commit!(conf, "PCA", "use_pca", "true")
     commit!(conf, "PCA", "pca_components", "10")
     model = init_T_KAM(dataset, conf, (32, 32, 1))
@@ -72,13 +70,13 @@ end
 
 function test_mala_loss()
     Random.seed!(42)
-    dataset = randn(full_quant, 32, 32, 1, 50)
+    dataset = randn(Float32, 32, 32, 1, 50)
     commit!(conf, "POST_LANGEVIN", "use_langevin", "true")
     model = init_T_KAM(dataset, conf, (32, 32, 1))
     x_test = first(model.train_loader) |> pu
     model, ps, st_kan, st_lux = prep_model(model, x_test)
-    ps = half_quant.(ps)
-    ∇ = zero(half_quant) .* ps
+    ps = ps
+    ∇ = zero(Float32) .* ps
 
     loss, ∇, st_ebm, st_gen =
         model.loss_fcn(ps, ∇, st_kan, st_lux, model, x_test; rng = Random.default_rng())
@@ -88,15 +86,15 @@ end
 
 function test_cnn_loss()
     Random.seed!(42)
-    dataset = randn(full_quant, 32, 32, 3, 50)
+    dataset = randn(Float32, 32, 32, 3, 50)
     commit!(conf, "CNN", "use_cnn_lkhood", "true")
     commit!(conf, "CNN", "latent_concat", "false")
     commit!(conf, "PCA", "use_pca", "false")
     model = init_T_KAM(dataset, conf, (32, 32, 3))
     x_test = first(model.train_loader) |> pu
     model, ps, st_kan, st_lux = prep_model(model, x_test)
-    ps = half_quant.(ps)
-    ∇ = zero(half_quant) .* ps
+    ps = ps
+    ∇ = zero(Float32) .* ps
 
     loss, ∇, st_ebm, st_gen =
         model.loss_fcn(ps, ∇, st_kan, st_lux, model, x_test; rng = Random.default_rng())
@@ -107,14 +105,14 @@ end
 
 function test_cnn_residual_loss()
     Random.seed!(42)
-    dataset = randn(full_quant, 32, 32, 3, 50)
+    dataset = randn(Float32, 32, 32, 3, 50)
     commit!(conf, "CNN", "use_cnn_lkhood", "true")
     commit!(conf, "CNN", "latent_concat", "true")
     model = init_T_KAM(dataset, conf, (32, 32, 3))
     x_test = first(model.train_loader) |> pu
     model, ps, st_kan, st_lux = prep_model(model, x_test)
-    ps = half_quant.(ps)
-    ∇ = zero(half_quant) .* ps
+    ps = ps
+    ∇ = zero(Float32) .* ps
 
     loss, ∇, st_ebm, st_gen =
         model.loss_fcn(ps, ∇, st_kan, st_lux, model, x_test; rng = Random.default_rng())
@@ -125,14 +123,14 @@ end
 
 function test_seq_loss()
     Random.seed!(42)
-    dataset = randn(full_quant, 50, 10, 100)
+    dataset = randn(Float32, 50, 10, 100)
     commit!(conf, "SEQ", "sequence_length", "10")
     commit!(conf, "SEQ", "vocab_size", "50")
     model = init_T_KAM(dataset, conf, (50, 10))
     x_test = first(model.train_loader) |> pu
     model, ps, st_kan, st_lux = prep_model(model, x_test)
-    ps = half_quant.(ps)
-    ∇ = zero(half_quant) .* ps
+    ps = ps
+    ∇ = zero(Float32) .* ps
 
     loss, ∇, st_ebm, st_gen =
         model.loss_fcn(ps, ∇, st_kan, st_lux, model, x_test; rng = Random.default_rng())
@@ -142,10 +140,10 @@ end
 
 @testset "KAEM Tests" begin
     test_ps_derivative()
-    # test_grid_update()
-    # test_pca()
-    # test_mala_loss()
-    # test_cnn_loss()
-    # test_cnn_residual_loss()
-    # test_seq_loss()
+    test_grid_update()
+    test_pca()
+    test_mala_loss()
+    test_cnn_loss()
+    test_cnn_residual_loss()
+    test_seq_loss()
 end

@@ -23,7 +23,7 @@ end
 function upsample_to_match(
         input_tensor::AbstractArray{T, 4},
         target_tensor::AbstractArray{T, 4},
-    )::AbstractArray{T, 4} where {T <: half_quant}
+    )::AbstractArray{T, 4} where {T <: Float32}
     input_h, input_w = size(input_tensor, 1), size(input_tensor, 2)
     target_h, target_w = size(target_tensor, 1), size(target_tensor, 2)
     h_factor = div(target_h, input_h)
@@ -37,15 +37,15 @@ function forward_with_latent_concat(
         z::AbstractArray{T, 4},
         ps::ComponentArray{T},
         st_lux::NamedTuple,
-    )::Tuple{AbstractArray{T, 4}, NamedTuple} where {T <: half_quant}
+    )::Tuple{AbstractArray{T, 4}, NamedTuple} where {T <: Float32}
 
     original_z = z
-    current_z = z .* one(T)
+    current_z = z .* 1.0f0
     st_lux_new = st_lux
 
     for i in 1:(gen.depth)
         if i > 1
-            upsampled_z = upsample_to_match(original_z .* one(T), current_z .* one(T))
+            upsampled_z = upsample_to_match(original_z .* 1.0f0, current_z .* 1.0f0)
             current_z = cat(current_z, upsampled_z, dims = 3)
         end
 
@@ -80,7 +80,7 @@ function forward(
         st_lux::NamedTuple,
         current_layer::Int = 1,
         skip_input::Union{AbstractArray{T, 4}, Nothing} = nothing,
-    )::Tuple{AbstractArray{T, 4}, NamedTuple} where {T <: half_quant}
+    )::Tuple{AbstractArray{T, 4}, NamedTuple} where {T <: Float32}
     st_lux_new = st_lux
     for i in 1:(gen.depth)
         z, st_layer_new =
@@ -172,7 +172,7 @@ function init_CNN_Generator(
         )
 
         if batchnorm_bool
-            push!(batchnorms_temp, Lux.BatchNorm(hidden_c[i + 1], act))
+            push!(batchnorms, Lux.BatchNorm(hidden_c[i + 1], act))
         end
 
         prev_c = (i == 1 && skip_bool) ? hidden_c[1] : prev_c
@@ -192,8 +192,8 @@ function init_CNN_Generator(
 
     return CNN_Generator(
         depth,
-        Tuple{Φ_functions},
-        Tuple{batchnorms},
+        Tuple(Φ_functions),
+        Tuple(batchnorms),
         BoolConfig(false, batchnorm_bool, skip_bool),
     )
 end
@@ -203,7 +203,7 @@ function (gen::CNN_Generator)(
         st_kan::ComponentArray{T},
         st_lux::NamedTuple,
         z::AbstractArray{T, 3},
-    )::Tuple{AbstractArray{T, 4}, NamedTuple} where {T <: half_quant}
+    )::Tuple{AbstractArray{T, 4}, NamedTuple} where {T <: Float32}
     """
     Generate data from the CNN likelihood model.
 

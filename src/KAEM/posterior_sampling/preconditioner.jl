@@ -25,74 +25,74 @@ MixDiagonalPreconditioner() = MixDiagonalPreconditioner(1 // 3, 1 // 3)
 
 # Default behavior - no preconditioning
 function build_preconditioner!(
-        dest::AbstractArray{U, 2},
+        dest::AbstractArray{T, 2},
         ::IdentityPreconditioner,
-        std_devs::AbstractArray{U, 2};
+        std_devs::AbstractArray{T, 2};
         rng::AbstractRNG = Random.default_rng(),
-    )::Nothing where {U <: full_quant}
-    fill!(dest, one(U))
+    )::Nothing where {T <: Float32}
+    fill!(dest, one(T))
     return nothing
 end
 
 # Diagonal preconditioning
 function build_preconditioner!(
-        dest::AbstractArray{U, 2},
+        dest::AbstractArray{T, 2},
         ::DiagonalPreconditioner,
-        std_devs::AbstractArray{U, 2};
+        std_devs::AbstractArray{T, 2};
         rng::AbstractRNG = Random.default_rng(),
-    )::Nothing where {U <: full_quant}
-    @. dest = ifelse(iszero(std_devs), one(U), one(U) / std_devs)
+    )::Nothing where {T <: Float32}
+    @. dest = ifelse(iszero(std_devs), one(T), one(T) / std_devs)
     return nothing
 end
 
 # Mixed diagonal preconditioning
 function build_preconditioner!(
-        dest::AbstractArray{U, 2},
+        dest::AbstractArray{T, 2},
         prec::MixDiagonalPreconditioner,
-        std_devs::AbstractArray{U, 2};
+        std_devs::AbstractArray{T, 2};
         rng::AbstractRNG = Random.default_rng(),
-    )::Nothing where {U <: full_quant}
-    u = rand(rng, U)
+    )::Nothing where {T <: Float32}
+    u = rand(rng, T)
 
     if u ≤ prec.p0
         # Use inverse standard deviations
-        @. dest = ifelse(iszero(std_devs), one(U), one(U) / std_devs)
+        @. dest = ifelse(iszero(std_devs), one(T), one(T) / std_devs)
     elseif u ≤ prec.p0 + prec.p1
         # Use identity
-        fill!(dest, one(U))
+        fill!(dest, one(T))
     else
         # Random mixture
-        mix = rand(rng, U)
-        rmix = one(U) - mix
-        @. dest = ifelse(iszero(std_devs), one(U), mix + rmix / std_devs)
+        mix = rand(rng, T)
+        rmix = one(T) - mix
+        @. dest = ifelse(iszero(std_devs), one(T), mix + rmix / std_devs)
     end
     return nothing
 end
 
 function init_mass_matrix(
-        z::AbstractArray{U, 3},
+        z::AbstractArray{T, 3},
         rng::AbstractRNG = Random.default_rng(),
-    )::AbstractArray{U, 2} where {U <: full_quant}
+    )::AbstractArray{T, 2} where {T <: Float32}
     Σ = sum((z .- mean(z; dims = 3)) .^ 2; dims = 3) ./ (size(z, 3) - 1) # Diagonal Covariance
-    β = rand(rng, Truncated(Beta(1, 1), 0.5, 2 / 3)) |> U
+    β = rand(rng, Truncated(Beta(1, 1), 0.5, 2 / 3)) |> T
     @. Σ = sqrt(β * (1 / Σ) + (1 - β)) # Augmented mass matrix
     return dropdims(Σ; dims = 3)
 end
 
 # This is transformed momentum!
 function sample_momentum(
-        z::AbstractArray{U, 3},
-        M::AbstractArray{U, 2};
+        z::AbstractArray{T, 3},
+        M::AbstractArray{T, 2};
         rng::AbstractRNG = Random.default_rng(),
         preconditioner::Preconditioner = MixDiagonalPreconditioner(),
-    )::Tuple{AbstractArray{U, 3}, AbstractArray{U, 2}} where {U <: full_quant}
+    )::Tuple{AbstractArray{T, 3}, AbstractArray{T, 2}} where {T <: Float32}
 
     # Initialize M^{1/2}
     Σ = sqrt.(sum((z .- mean(z; dims = 3)) .^ 2; dims = 3) ./ (size(z, 3) - 1))
     build_preconditioner!(M, preconditioner, dropdims(Σ; dims = 3); rng = rng)
 
     # Sample y ~ N(0,I) directly (transformed momentum)
-    y = randn(rng, U, size(z)) |> pu
+    y = randn(rng, T, size(z)) |> pu
     return y, M
 end
 

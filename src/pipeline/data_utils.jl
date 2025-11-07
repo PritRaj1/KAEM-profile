@@ -3,7 +3,7 @@ module DataUtils
 export get_vision_dataset, get_text_dataset
 
 include("../utils.jl")
-using .Utils: pu, full_quant
+using .Utils: pu
 
 using MLDatasets, Embeddings, Images, ImageTransformations, HDF5, Statistics
 using Flux: onehotbatch
@@ -69,7 +69,7 @@ function get_vision_dataset(
         elseif dataset_name == "CELEBA" || dataset_name == "CELEBAPANG"
             celeba = dataset_mapping[dataset_name]
             num_iters = fld(N_train + N_test, batch_size)
-            data = zeros(full_quant, img_resize..., 3, N_train + N_test)
+            data = zeros(Float32, img_resize..., 3, N_train + N_test)
             for i in 1:num_iters
                 start_idx = (i - 1) * batch_size + 1
                 end_idx = min(i * batch_size, N_train + N_test)
@@ -77,7 +77,7 @@ function get_vision_dataset(
                     batch_process(
                     celeba[start_idx:end_idx]["image"];
                     img_resize = img_resize,
-                ) .|> full_quant
+                ) .|> Float32
 
                 if i % 10 == 0
                     GC.gc()
@@ -92,7 +92,7 @@ function get_vision_dataset(
         end
     end
 
-    dataset = dataset .|> full_quant
+    dataset = dataset .|> Float32
     img_shape = size(dataset)[1:(end - 1)]
 
     img_shape =
@@ -163,14 +163,14 @@ function get_text_dataset(
     embedding_dim = size(emb.embeddings, 1)
 
     max_length = maximum(length(sentence) for sentence in dataset)
-    embedding_matrix = zeros(full_quant, embedding_dim, length(vocab))
+    embedding_matrix = zeros(Float32, embedding_dim, length(vocab))
     indexed_dataset =
         map(sentence -> index_sentence(sentence, sequence_length, vocab), dataset)
 
     dataset = hcat(indexed_dataset...)
     save_dataset = dataset[:, 1:num_generated_samples]
 
-    return_data = zeros(full_quant, length(vocab), size(dataset)...)
+    return_data = zeros(Float32, length(vocab), size(dataset)...)
     num_iters = fld(size(dataset, 2), batch_size)
 
     # Had some issues, so batched
@@ -178,7 +178,7 @@ function get_text_dataset(
         start_idx = (i - 1) * batch_size + 1
         end_idx = min(i * batch_size, size(dataset, 2))
         return_data[:, :, start_idx:end_idx] =
-            collect(full_quant, onehotbatch(dataset[:, start_idx:end_idx], 1:length(vocab)))
+            collect(Float32, onehotbatch(dataset[:, start_idx:end_idx], 1:length(vocab)))
     end
 
     return return_data, (size(return_data, 1), size(return_data, 2)), save_dataset

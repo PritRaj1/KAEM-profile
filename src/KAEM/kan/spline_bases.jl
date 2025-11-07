@@ -18,7 +18,7 @@ using ..Utils
 function extend_grid(
         grid::AbstractArray{T, 2};
         k_extend::Int = 0,
-    )::AbstractArray{T, 2} where {T <: half_quant}
+    )::AbstractArray{T, 2} where {T <: Float32}
     h = (grid[:, end] - grid[:, 1]) / (size(grid, 2) - 1)
 
     for i in 1:k_extend
@@ -34,18 +34,18 @@ struct B_spline_basis <: AbstractBasis
 end
 
 struct RBF_basis <: AbstractBasis
-    scale::half_quant
+    scale::Float32
 end
 
 struct RSWAF_basis <: AbstractBasis end
 
 struct Cheby_basis <: AbstractBasis
     degree::Int
-    lin::AbstractArray{half_quant}
+    lin::AbstractArray{Float32}
 end
 
 function Cheby_basis(degree::Int)
-    lin = collect(half_quant, 0:degree)' |> pu
+    lin = collect(Float32, 0:degree)' |> pu
     return Cheby_basis(degree, lin)
 end
 
@@ -53,7 +53,7 @@ function (b::B_spline_basis)(
         x::AbstractArray{T, 2},
         grid::AbstractArray{T, 2},
         σ::AbstractArray{T, 1}
-    )::AbstractArray{T, 3} where {T <: half_quant}
+    )::AbstractArray{T, 3} where {T <: Float32}
     I, S, G = size(x)..., size(grid, 2)
     x = reshape(x, I, 1, S)
 
@@ -91,7 +91,7 @@ function (b::RBF_basis)(
         x::AbstractArray{T, 2},
         grid::AbstractArray{T, 2},
         σ::AbstractArray{T, 1},
-    )::AbstractArray{T, 3} where {T <: half_quant}
+    )::AbstractArray{T, 3} where {T <: Float32}
     I, S, G = size(x)..., size(grid, 2)
     x_3d = reshape(x, I, 1, S)
     grid_3d = reshape(grid, I, G, 1)
@@ -102,7 +102,7 @@ function (b::RSWAF_basis)(
         x::AbstractArray{T, 2},
         grid::AbstractArray{T, 2},
         σ::AbstractArray{T, 1},
-    )::AbstractArray{T, 3} where {T <: half_quant}
+    )::AbstractArray{T, 3} where {T <: Float32}
     I, S, G = size(x)..., size(grid, 2)
     diff = NNlib.tanh_fast((reshape(x, I, 1, S) .- grid) ./ σ)
     return @. one(T) - diff^2
@@ -112,7 +112,7 @@ function (b::Cheby_basis)(
         x::AbstractArray{T, 2},
         grid::AbstractArray{T, 2},
         σ::AbstractArray{T, 1},
-    )::AbstractArray{T, 3} where {T <: half_quant}
+    )::AbstractArray{T, 3} where {T <: Float32}
     I, S = size(x)
     z = acos.(NNlib.tanh_fast(x) ./ σ)
     return cos.(reshape(z, I, 1, S) .* b.lin)
@@ -124,7 +124,7 @@ function coef2curve_Spline(
         grid::AbstractArray{T, 2},
         coef::AbstractArray{T, 3},
         σ::AbstractArray{T, 1},
-    )::AbstractArray{T, 3} where {T <: half_quant}
+    )::AbstractArray{T, 3} where {T <: Float32}
     spl = b(x_eval, grid, σ)
     I, G, S, O = size(spl)..., size(coef, 2)
     coef_perm = permutedims(coef, (2, 3, 1)) # [O, G, I]
@@ -139,16 +139,16 @@ function curve2coef(
         y::AbstractArray{T, 3},
         grid::AbstractArray{T, 2},
         σ::AbstractArray{T, 1},
-    )::AbstractArray{T, 3} where {T <: half_quant}
+    )::AbstractArray{T, 3} where {T <: Float32}
     J, S, O = size(x)..., size(y, 2)
 
-    B = b(x, grid, σ) .|> full_quant
-    y = y .|> full_quant
+    B = b(x, grid, σ) .|> Float32
+    y = y .|> Float32
     G = size(B, 2)
 
     B = permutedims(B, [1, 3, 2]) # in_dim x b_size x n_grid
 
-    coef = Array{full_quant}(undef, J, O, G) |> pu
+    coef = Array{Float32}(undef, J, O, G) |> pu
     for i in 1:J
         for o in 1:O
             coef[i, o, :] .= B[i, :, :] \ y[i, o, :]
@@ -165,7 +165,7 @@ function (b::FFT_basis)(
         x::AbstractArray{T, 2},
         grid::AbstractArray{T, 2},
         σ::AbstractArray{T, 1},
-    )::Tuple{AbstractArray{T, 3}, AbstractArray{T, 3}} where {T <: half_quant}
+    )::Tuple{AbstractArray{T, 3}, AbstractArray{T, 3}} where {T <: Float32}
     I, S, G = size(x)..., size(grid, 2)
 
     x_3d = reshape(x, I, 1, S)
@@ -180,7 +180,7 @@ function coef2curve_FFT(
         grid::AbstractArray{T, 2},
         coef::AbstractArray{T, 4},
         σ::AbstractArray{T, 1},
-    )::AbstractArray{T, 3} where {T <: half_quant}
+    )::AbstractArray{T, 3} where {T <: Float32}
     even, odd = b(x_eval, grid, σ)
     even_coef = @view coef[1, :, :, :]
     odd_coef = @view coef[2, :, :, :]

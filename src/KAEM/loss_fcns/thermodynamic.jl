@@ -15,7 +15,7 @@ function sample_thermo(
         ps::ComponentArray{T},
         st_kan::ComponentArray{T},
         st_lux::NamedTuple,
-        model::T_KAM{T, full_quant},
+        model::T_KAM{T},
         x::AbstractArray{T};
         train_idx::Int = 1,
         rng::AbstractRNG = Random.default_rng(),
@@ -25,7 +25,7 @@ function sample_thermo(
         NamedTuple,
         AbstractArray{T},
         AbstractArray{T},
-    } where {T <: half_quant}
+    } where {T <: Float32}
     temps = collect(T, [(k / model.N_t)^model.p[train_idx] for k in 0:model.N_t])
     z, st_lux = model.posterior_sampler(
         model,
@@ -49,19 +49,19 @@ function marginal_llhood(
         z_prior::AbstractArray{T, 3},
         x::AbstractArray{T},
         Δt::AbstractArray{T, 1},
-        model::T_KAM{T, full_quant},
+        model::T_KAM{T},
         st_kan::ComponentArray{T},
         st_lux_ebm::NamedTuple,
         st_lux_gen::NamedTuple,
         noise::AbstractArray{T},
         tempered_noise::AbstractArray{T}
-    )::Tuple{T, NamedTuple, NamedTuple} where {T <: half_quant}
+    )::Tuple{T, NamedTuple, NamedTuple} where {T <: Float32}
     Q, P, S, num_temps = size(z_posterior)
-    log_ss = zero(T)
+    log_ss = 0.0f0
 
     # Steppingstone estimator
     x_rep = model.lkhood.SEQ ? repeat(x, 1, 1, num_temps) : repeat(x, 1, 1, 1, num_temps)
-    ll, st_lux_gen = log_likelihood_MALA(
+    ll, st_gen = log_likelihood_MALA(
         reshape(z_posterior, Q, P, S * num_temps),
         x_rep,
         model.lkhood,
@@ -74,7 +74,7 @@ function marginal_llhood(
     log_ss = sum(reshape(ll, num_temps, S) .* Δt) / S
 
     # MLE estimator
-    logprior_pos, st_lux_ebm = model.log_prior(
+    logprior_pos, st_ebm = model.log_prior(
         z_posterior[:, :, :, num_temps - 1],
         model.prior,
         ps.ebm,
@@ -82,25 +82,24 @@ function marginal_llhood(
         st_lux_ebm,
     )
 
-    logprior, st_lux_ebm =
-        model.log_prior(z_prior, model.prior, ps.ebm, st_kan.ebm, st_lux_ebm)
-    ex_prior = model.prior.bool_config.contrastive_div ? mean(logprior) : zero(T)
+    logprior, st_ebm =
+        model.log_prior(z_prior, model.prior, ps.ebm, st_kan.ebm, st_ebm)
+    ex_prior = model.prior.bool_config.contrastive_div ? mean(logprior) : 0.0f0
 
-    logllhood, st_lux_gen = log_likelihood_MALA(
+    logllhood, st_gen = log_likelihood_MALA(
         z_prior,
         x,
         model.lkhood,
         ps.gen,
         st_kan.gen,
-        st_lux_gen,
+        st_gen,
         noise;
         ε = model.ε,
     )
     steppingstone_loss = mean(logllhood .* view(Δt, 1)) + log_ss
-    return -(steppingstone_loss + mean(logprior_pos) - ex_prior) *
-        model.loss_scaling.reduced,
-        st_lux_ebm,
-        st_lux_gen
+    return -(steppingstone_loss + mean(logprior_pos) - ex_prior),
+        st_ebm,
+        st_gen
 end
 
 function closure(
@@ -109,13 +108,13 @@ function closure(
         z_prior::AbstractArray{T, 3},
         x::AbstractArray{T},
         Δt::AbstractArray{T, 1},
-        model::T_KAM{T, full_quant},
+        model::T_KAM{T},
         st_kan::ComponentArray{T},
         st_lux_ebm::NamedTuple,
         st_lux_gen::NamedTuple,
         noise::AbstractArray{T},
         tempered_noise::AbstractArray{T}
-    )::T where {T <: half_quant}
+    )::T where {T <: Float32}
     return first(
         marginal_llhood(
             ps,
@@ -139,13 +138,13 @@ function grad_thermo_llhood(
         z_prior::AbstractArray{T, 3},
         x::AbstractArray{T},
         Δt::AbstractArray{T, 1},
-        model::T_KAM{T, full_quant},
+        model::T_KAM{T},
         st_kan::ComponentArray{T},
         st_lux_ebm::NamedTuple,
         st_lux_gen::NamedTuple,
         noise::AbstractArray{T},
         tempered_noise::AbstractArray{T}
-    )::AbstractArray{T} where {T <: half_quant}
+    )::AbstractArray{T} where {T <: Float32}
 
     f =
         p -> closure(
@@ -172,11 +171,11 @@ function (l::ThermodynamicLoss)(
         ∇::ComponentArray{T},
         st_kan::ComponentArray{T},
         st_lux::NamedTuple,
-        model::T_KAM{T, full_quant},
+        model::T_KAM{T},
         x::AbstractArray{T};
         train_idx::Int = 1,
         rng::AbstractRNG = Random.default_rng(),
-    )::Tuple{T, AbstractArray{T}, NamedTuple, NamedTuple} where {T <: half_quant}
+    )::Tuple{T, AbstractArray{T}, NamedTuple, NamedTuple} where {T <: Float32}
     z_posterior, Δt, st_lux, noise, tempered_noise = sample_thermo(
         ps,
         st_kan,

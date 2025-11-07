@@ -2,8 +2,6 @@ using Random,
     LinearAlgebra, Lux, ConfParser, ComponentArrays, CUDA, Test, ParallelStencil, Statistics
 
 ENV["GPU"] = true
-ENV["FULL_QUANT"] = "FP32"
-ENV["HALF_QUANT"] = "FP32"
 
 include("../src/utils.jl")
 using .Utils
@@ -18,9 +16,9 @@ include("../src/KAEM/ebm/inverse_transform.jl")
 using .InverseTransformSampling: interp_kernel!, interp_kernel_mixture!
 
 @static if CUDA.has_cuda() && parse(Bool, get(ENV, "GPU", "false"))
-    @init_parallel_stencil(CUDA, full_quant, 3)
+    @init_parallel_stencil(CUDA, Float32, 3)
 else
-    @init_parallel_stencil(Threads, full_quant, 3)
+    @init_parallel_stencil(Threads, Float32, 3)
 end
 
 Random.seed!(42)
@@ -33,7 +31,7 @@ q_size_large, p_size_large, num_samples_large = 3, 4, 100
 
 function test_interp_kernel_uniform()
     # Create grid from 0 to 1 with grid_size points
-    grid = pu(reshape(collect(full_quant, 0.0:(1.0 / (grid_size - 1)):1.0), 1, grid_size))
+    grid = pu(reshape(collect(Float32, 0.0:(1.0 / (grid_size - 1)):1.0), 1, grid_size))
     grid = repeat(grid, p_size, 1)
 
     # Uniform PDF values (equal probability for each grid interval)
@@ -95,7 +93,7 @@ end
 function test_interp_kernel_gaussian()
     μ, σ = 0.0, 1.0
     grid_range = μ .+ σ .* collect(-3.0:0.5:3.0)  # ±3σ range
-    grid = pu(reshape(collect(full_quant, grid_range), 1, length(grid_range)))
+    grid = pu(reshape(collect(Float32, grid_range), 1, length(grid_range)))
     grid = repeat(grid, p_size, 1)
 
     pdf_vals = @zeros(q_size, p_size, length(grid_range) - 1)

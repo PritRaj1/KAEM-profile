@@ -10,18 +10,18 @@ include("mixture_selection.jl")
 using .MixtureChoice: choose_component
 
 @static if CUDA.has_cuda() && parse(Bool, get(ENV, "GPU", "false"))
-    @init_parallel_stencil(CUDA, full_quant, 3)
+    @init_parallel_stencil(CUDA, Float32, 3)
 else
-    @init_parallel_stencil(Threads, full_quant, 3)
+    @init_parallel_stencil(Threads, Float32, 3)
 end
 
 @parallel_indices (q, p, b) function interp_kernel!(
-        z::AbstractArray{U, 3},
-        cdf::AbstractArray{U, 3},
-        grid::AbstractArray{U, 2},
-        rand_vals::AbstractArray{U, 3},
+        z::AbstractArray{T, 3},
+        cdf::AbstractArray{T, 3},
+        grid::AbstractArray{T, 2},
+        rand_vals::AbstractArray{T, 3},
         grid_size::Int,
-    )::Nothing where {U <: full_quant}
+    )::Nothing where {T <: Float32}
     rv = rand_vals[q, p, b]
     idx = 1
 
@@ -65,19 +65,18 @@ function sample_univariate(
         st_kan::ComponentArray{T},
         st_lyrnorm::NamedTuple;
         rng::AbstractRNG = Random.default_rng(),
-    )::Tuple{AbstractArray{T, 3}, NamedTuple} where {T <: half_quant}
+    )::Tuple{AbstractArray{T, 3}, NamedTuple} where {T <: Float32}
 
     cdf, grid, st_lyrnorm_new = ebm.quad(ebm, ps, st_kan, st_lyrnorm)
     grid_size = size(grid, 2)
-    grid = full_quant.(grid)
 
     cdf = cat(
-        pu(zeros(full_quant, ebm.q_size, ebm.p_size, 1)), # Add 0 to start of CDF
-        cumsum(full_quant.(cdf); dims = 3), # Cumulative trapezium = CDF
+        pu(zeros(T, ebm.q_size, ebm.p_size, 1)), # Add 0 to start of CDF
+        cumsum(cdf; dims = 3), # Cumulative trapezium = CDF
         dims = 3,
     )
 
-    rand_vals = pu(rand(rng, full_quant, 1, ebm.p_size, num_samples)) .* cdf[:, :, end]
+    rand_vals = pu(rand(rng, T, 1, ebm.p_size, num_samples)) .* cdf[:, :, end]
     z = @zeros(ebm.q_size, ebm.p_size, num_samples)
     @parallel (1:ebm.q_size, 1:ebm.p_size, 1:num_samples) interp_kernel!(
         z,
@@ -86,16 +85,16 @@ function sample_univariate(
         rand_vals,
         grid_size,
     )
-    return T.(z), st_lyrnorm_new
+    return z, st_lyrnorm_new
 end
 
 @parallel_indices (q, b) function interp_kernel_mixture!(
-        z::AbstractArray{U, 3},
-        cdf::AbstractArray{U, 3},
-        grid::AbstractArray{U, 2},
-        rand_vals::AbstractArray{U, 2},
+        z::AbstractArray{T, 3},
+        cdf::AbstractArray{T, 3},
+        grid::AbstractArray{T, 2},
+        rand_vals::AbstractArray{T, 2},
         grid_size::Int,
-    )::Nothing where {U <: full_quant}
+    )::Nothing where {T <: Float32}
     rv = rand_vals[q, b]
     idx = 1
 
@@ -133,14 +132,14 @@ end
 end
 
 @parallel_indices (q, p, b) function dotprod_attn_kernel!(
-        QK::AbstractArray{U, 2},
-        Q::AbstractArray{U, 2},
-        K::AbstractArray{U, 2},
-        z::AbstractArray{U, 2},
-        scale::U,
-        min_z::U,
-        max_z::U,
-    )::Nothing where {U <: full_quant}
+        QK::AbstractArray{T, 2},
+        Q::AbstractArray{T, 2},
+        K::AbstractArray{T, 2},
+        z::AbstractArray{T, 2},
+        scale::T,
+        min_z::T,
+        max_z::T,
+    )::Nothing where {T <: Float32}
     z_mapped = z[q, b] * (max_z - min_z) + min_z
     QK[q, p] = ((Q[q, p] * z_mapped) * (K[q, p] * z_mapped)) / scale
     return nothing
@@ -153,7 +152,7 @@ function sample_mixture(
         st_kan::ComponentArray{T},
         st_lyrnorm::NamedTuple;
         rng::AbstractRNG = Random.default_rng(),
-    )::Tuple{AbstractArray{T, 3}, NamedTuple} where {T <: half_quant}
+    )::Tuple{AbstractArray{T, 3}, NamedTuple} where {T <: Float32}
     """
     Component-wise inverse transform sampling for the ebm-prior.
     p = components of model
@@ -167,16 +166,16 @@ function sample_mixture(
     Returns:
         z: The samples from the ebm-prior, (num_samples, q). 
     """
-    alpha = full_quant.(ps.dist.α)
+    alpha = ps.dist.α
     if ebm.bool_config.use_attention_kernel
         z = @rand(ebm.q_size, num_samples)
         alpha = @zeros(ebm.q_size, ebm.p_size)
-        scale = sqrt(full_quant(num_samples))
-        min_z, max_z = full_quant.(ebm.prior_domain)
+        scale = sqrt(Float32(num_samples))
+        min_z, max_z = ebm.prior_domain
         @parallel (1:ebm.q_size, 1:ebm.p_size, 1:num_samples) dotprod_attn_kernel!(
             alpha,
-            full_quant.(ps.attention.Q),
-            full_quant.(ps.attention.K),
+            ps.attention.Q,
+            ps.attention.K,
             z,
             scale,
             min_z,
@@ -185,26 +184,26 @@ function sample_mixture(
     end
     mask = choose_component(alpha, num_samples, ebm.q_size, ebm.p_size; rng = rng)
     cdf, grid, st_lyrnorm_new =
-        ebm.quad(ebm, ps, st_kan, st_lyrnorm; component_mask = T.(mask))
+        ebm.quad(ebm, ps, st_kan, st_lyrnorm; component_mask = mask)
     grid_size = size(grid, 2)
 
     cdf = cat(
-        pu(zeros(full_quant, ebm.q_size, num_samples, 1)), # Add 0 to start of CDF
-        cumsum(full_quant.(cdf); dims = 3), # Cumulative trapezium = CDF
+        pu(zeros(T, ebm.q_size, num_samples, 1)), # Add 0 to start of CDF
+        cumsum(cdf; dims = 3), # Cumulative trapezium = CDF
         dims = 3,
     )
 
-    rand_vals = pu(rand(rng, full_quant, ebm.q_size, num_samples)) .* cdf[:, :, end]
+    rand_vals = pu(rand(rng, T, ebm.q_size, num_samples)) .* cdf[:, :, end]
 
     z = @zeros(ebm.q_size, 1, num_samples)
     @parallel (1:ebm.q_size, 1:num_samples) interp_kernel_mixture!(
         z,
         cdf,
-        full_quant.(grid),
+        grid,
         rand_vals,
         grid_size,
     )
-    return T.(z), st_lyrnorm_new
+    return z, st_lyrnorm_new
 end
 
 end

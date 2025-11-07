@@ -15,10 +15,10 @@ function sample_langevin(
         ps::ComponentArray{T},
         st_kan::ComponentArray{T},
         st_lux::NamedTuple,
-        model::T_KAM{T, full_quant},
+        model::T_KAM{T},
         x::AbstractArray{T};
         rng::AbstractRNG = Random.default_rng(),
-    )::Tuple{AbstractArray{T, 3}, NamedTuple, AbstractArray{T}} where {T <: half_quant}
+    )::Tuple{AbstractArray{T, 3}, NamedTuple, AbstractArray{T}} where {T <: Float32}
     z, st_lux, = model.posterior_sampler(model, ps, st_kan, st_lux, x; rng = rng)
     z = z[:, :, :, 1]
     noise = randn(rng, T, model.lkhood.x_shape..., size(z)[end]) |> pu
@@ -30,16 +30,16 @@ function marginal_llhood(
         z_posterior::AbstractArray{T, 3},
         z_prior::AbstractArray{T, 3},
         x::AbstractArray{T},
-        model::T_KAM{T, full_quant},
+        model::T_KAM{T},
         st_kan::ComponentArray{T},
         st_lux_ebm::NamedTuple,
         st_lux_gen::NamedTuple,
         noise::AbstractArray{T}
-    )::Tuple{T, NamedTuple, NamedTuple} where {T <: half_quant}
+    )::Tuple{T, NamedTuple, NamedTuple} where {T <: Float32}
 
-    logprior_pos, st_lux_ebm =
+    logprior_pos, st_ebm =
         model.log_prior(z_posterior, model.prior, ps.ebm, st_kan.ebm, st_lux_ebm)
-    logllhood, st_lux_gen = log_likelihood_MALA(
+    logllhood, st_gen = log_likelihood_MALA(
         z_posterior,
         x,
         model.lkhood,
@@ -50,12 +50,12 @@ function marginal_llhood(
         ε = model.ε,
     )
 
-    logprior, st_lux_ebm =
-        model.log_prior(z_prior, model.prior, ps.ebm, st_kan.ebm, st_lux_ebm)
-    ex_prior = model.prior.bool_config.contrastive_div ? mean(logprior) : zero(T)
-    return -(mean(logprior_pos) + mean(logllhood) - ex_prior) * model.loss_scaling.reduced,
-        st_lux_ebm,
-        st_lux_gen
+    logprior, st_ebm =
+        model.log_prior(z_prior, model.prior, ps.ebm, st_kan.ebm, st_ebm)
+    ex_prior = model.prior.bool_config.contrastive_div ? mean(logprior) : 0.0f0
+    return -(mean(logprior_pos) + mean(logllhood) - ex_prior),
+        st_ebm,
+        st_gen
 end
 
 function closure(
@@ -63,12 +63,12 @@ function closure(
         z_posterior::AbstractArray{T, 3},
         z_prior::AbstractArray{T, 3},
         x::AbstractArray{T},
-        model::T_KAM{T, full_quant},
+        model::T_KAM{T},
         st_kan::ComponentArray{T},
         st_lux_ebm::NamedTuple,
         st_lux_gen::NamedTuple,
         noise::AbstractArray{T}
-    )::T where {T <: half_quant}
+    )::T where {T <: Float32}
     return first(
         marginal_llhood(
             ps,
@@ -89,12 +89,12 @@ function grad_langevin_llhood(
         z_posterior::AbstractArray{T, 3},
         z_prior::AbstractArray{T, 3},
         x::AbstractArray{T},
-        model::T_KAM{T, full_quant},
+        model::T_KAM{T},
         st_kan::ComponentArray{T},
         st_lux_ebm::NamedTuple,
         st_lux_gen::NamedTuple,
         noise::AbstractArray{T}
-    )::AbstractArray{T} where {T <: half_quant}
+    )::AbstractArray{T} where {T <: Float32}
 
     f =
         p -> closure(
@@ -119,11 +119,11 @@ function (l::LangevinLoss)(
         ∇::ComponentArray{T},
         st_kan::ComponentArray{T},
         st_lux::NamedTuple,
-        model::T_KAM{T, full_quant},
+        model::T_KAM{T},
         x::AbstractArray{T};
         train_idx::Int = 1,
         rng::AbstractRNG = Random.default_rng(),
-    )::Tuple{T, AbstractArray{T}, NamedTuple, NamedTuple} where {T <: half_quant}
+    )::Tuple{T, AbstractArray{T}, NamedTuple, NamedTuple} where {T <: Float32}
     z_posterior, st_new, noise =
         sample_langevin(ps, st_kan, Lux.testmode(st_lux), model, x; rng = rng)
     st_lux_ebm, st_lux_gen = st_new.ebm, st_new.gen

@@ -1,8 +1,6 @@
 # using BenchmarkTools, ConfParser, Lux, Random, CUDA, ComponentArrays, CSV, DataFrames
 
 # ENV["GPU"] = true
-# ENV["FULL_QUANT"] = "FP32"
-# ENV["HALF_QUANT"] = "FP32"
 
 # include("../src/pipeline/data_utils.jl")
 # using .DataUtils: get_vision_dataset
@@ -44,7 +42,7 @@
 #     x_test = pu(x_test)
 #     model, ps, st_kan, st_lux = prep_model(model, x_test; rng = rng)
 
-#     return model, half_quant.(ps), st_kan, st_lux
+#     return model, ps, st_kan, st_lux
 # end
 
 # function benchmark_prior(model, ps, st_kan, st_lux)

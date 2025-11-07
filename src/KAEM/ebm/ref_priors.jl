@@ -7,23 +7,23 @@ using CUDA, Lux, KernelAbstractions, Tullio
 
 using ..Utils
 
-struct UniformPrior{T <: half_quant} <: AbstractPrior
+struct UniformPrior{T <: Float32} <: AbstractPrior
     ε::T
 end
-struct GaussianPrior{T <: half_quant} <: AbstractPrior
+struct GaussianPrior{T <: Float32} <: AbstractPrior
     ε::T
 end
-struct LogNormalPrior{T <: half_quant} <: AbstractPrior
+struct LogNormalPrior{T <: Float32} <: AbstractPrior
     ε::T
 end
-struct LearnableGaussianPrior{T <: half_quant} <: AbstractPrior
+struct LearnableGaussianPrior{T <: Float32} <: AbstractPrior
     ε::T
 end
-struct EbmPrior{T <: half_quant} <: AbstractPrior
+struct EbmPrior{T <: Float32} <: AbstractPrior
     ε::T
 end
 
-function stable_log(pdf::AbstractArray{T, 3}, ε::T)::AbstractArray{T, 3} where {T <: half_quant}
+function stable_log(pdf::AbstractArray{T, 3}, ε::T)::AbstractArray{T, 3} where {T <: Float32}
     return log.(pdf .+ ε)
 end
 
@@ -32,9 +32,8 @@ function (prior::UniformPrior)(
         π_μ::AbstractArray{T, 1},
         π_σ::AbstractArray{T, 1};
         log_bool::Bool = false,
-    )::AbstractArray{T, 3} where {T <: half_quant}
+    )::AbstractArray{T, 3} where {T <: Float32}
     @tullio pdf[q, p, s] := (z[q, p, s] >= 0) * (z[q, p, s] <= 1)
-    pdf = T.(pdf)
     log_bool && return stable_log(pdf, prior.ε)
     return pdf
 end
@@ -44,7 +43,7 @@ function (prior::GaussianPrior)(
         π_μ::AbstractArray{T, 1},
         π_σ::AbstractArray{T, 1};
         log_bool::Bool = false,
-    )::AbstractArray{T, 3} where {T <: half_quant}
+    )::AbstractArray{T, 3} where {T <: Float32}
     scale = T(1 / sqrt(2π))
     @tullio pdf[q, p, s] := exp(-z[q, p, s]^2 / 2)
     pdf = scale .* pdf
@@ -57,12 +56,11 @@ function (prior::LogNormalPrior)(
         π_μ::AbstractArray{T, 1},
         π_σ::AbstractArray{T, 1};
         log_bool::Bool = false,
-    )::AbstractArray{T, 3} where {T <: half_quant}
+    )::AbstractArray{T, 3} where {T <: Float32}
     sqrt_2π = T(sqrt(2π))
     denom = z .* sqrt_2π .+ prior.ε
     z_eps = z .+ prior.ε
     @tullio pdf[q, p, s] := exp(-((log(z_eps[q, p, s]))^2) / 2) / denom[q, p, s]
-    pdf = T.(pdf)
     log_bool && return stable_log(pdf, prior.ε)
     return pdf
 end
@@ -72,7 +70,7 @@ function (prior::LearnableGaussianPrior)(
         π_μ::AbstractArray{T, 1},
         π_σ::AbstractArray{T, 1};
         log_bool::Bool = false,
-    )::AbstractArray{T, 3} where {T <: half_quant}
+    )::AbstractArray{T, 3} where {T <: Float32}
     π_eps = π_σ .* T(sqrt(2π)) .+ prior.ε
     denom_eps = 2 .* π_σ .^ 2 .+ prior.ε
     @tullio pdf[q, p, s] :=
@@ -86,10 +84,10 @@ function (prior::EbmPrior)(
         π_μ::AbstractArray{T, 1},
         π_σ::AbstractArray{T, 1};
         log_bool::Bool = false,
-    )::AbstractArray{T, 3} where {T <: half_quant}
-    log_pdf = zero(T) .* z
+    )::AbstractArray{T, 3} where {T <: Float32}
+    log_pdf = 0.0f0 .* z
     log_bool && return log_pdf
-    return log_pdf .+ one(T)
+    return log_pdf .+ 1.0f0
 end
 
 const prior_map = Dict(

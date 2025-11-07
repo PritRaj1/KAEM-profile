@@ -2,8 +2,6 @@ using Test, Random, LinearAlgebra
 using NNlib: softmax
 
 ENV["GPU"] = true
-ENV["FULL_QUANT"] = "FP32"
-ENV["HALF_QUANT"] = "FP32"
 
 include("../src/utils.jl")
 using .Utils
@@ -13,7 +11,7 @@ using .WeightResamplers
 
 function test_systematic_resampler()
     Random.seed!(42)
-    weights = rand(full_quant, 4, 6) |> pu
+    weights = rand(Float32, 4, 6) |> pu
     ESS_bool = rand(Bool, 4) |> pu
     r = SystematicResampler(0.5, true)
 
@@ -24,7 +22,7 @@ end
 
 function test_stratified_resampler()
     Random.seed!(42)
-    weights = rand(full_quant, 4, 4) |> pu
+    weights = rand(Float32, 4, 4) |> pu
     ESS_bool = rand(Bool, 4) |> pu
     r = StratifiedResampler(0.5, true)
 
@@ -35,7 +33,7 @@ end
 
 function test_residual_resampler()
     Random.seed!(42)
-    weights = rand(full_quant, 4, 4) |> pu
+    weights = rand(Float32, 4, 4) |> pu
     ESS_bool = rand(Bool, 4) |> pu
     r = ResidualResampler(0.5, true)
 

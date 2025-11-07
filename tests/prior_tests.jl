@@ -1,8 +1,6 @@
 using Test, Random, LinearAlgebra, Lux, ConfParser, ComponentArrays, CUDA
 
 ENV["GPU"] = false
-ENV["FULL_QUANT"] = "FP32"
-ENV["HALF_QUANT"] = "FP32"
 
 include("../src/utils.jl")
 using .Utils
@@ -20,11 +18,11 @@ p_size = first(parse.(Int, retrieve(conf, "EbmModel", "layer_widths")))
 q_size = last(parse.(Int, retrieve(conf, "EbmModel", "layer_widths")))
 
 Random.seed!(42)
-dataset = randn(full_quant, 32, 32, 1, b_size * 10)
+dataset = randn(Float32, 32, 32, 1, b_size * 10)
 model = init_T_KAM(dataset, conf, (32, 32, 1))
 x_test = first(model.train_loader) |> pu
 model, ps, st_kan, st_lux = prep_model(model, x_test)
-ps = half_quant.(ps)
+ps = ps
 
 function test_shapes()
     @test model.prior.p_size == p_size

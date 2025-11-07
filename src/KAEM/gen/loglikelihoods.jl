@@ -21,7 +21,7 @@ function log_likelihood_IS(
         st_lux::NamedTuple,
         noise::AbstractArray{T};
         ε::T = eps(T),
-    )::Tuple{AbstractArray{T, 2}, NamedTuple} where {T <: half_quant}
+    )::Tuple{AbstractArray{T, 2}, NamedTuple} where {T <: Float32}
     """
     Conditional likelihood of the generator.
 
@@ -39,7 +39,8 @@ function log_likelihood_IS(
     """
     B, S = size(x)[end], size(z)[end]
     x̂, st_lux_new = lkhood.generator(ps, st_kan, st_lux, z)
-    x̂_noised = lkhood.output_activation(x̂ .+ (lkhood.σ.noise .* noise))
+    noise_scaled = lkhood.σ.noise .* noise
+    x̂_noised = lkhood.output_activation(x̂ .+ noise_scaled)
 
     ll = IS_loss(x, x̂_noised, ε, 2 * lkhood.σ.llhood^2, B, S, lkhood.SEQ)
     return ll, st_lux_new
@@ -53,8 +54,8 @@ function log_likelihood_MALA(
         st_kan::ComponentArray{T},
         st_lux::NamedTuple,
         noise::AbstractArray{T};
-        ε::T = eps(half_quant),
-    )::Tuple{AbstractArray{T, 1}, NamedTuple} where {T <: half_quant}
+        ε::T = eps(Float32),
+    )::Tuple{AbstractArray{T, 1}, NamedTuple} where {T <: Float32}
     """
     Conditional likelihood of the generator sampled by Langevin.
 
@@ -71,7 +72,8 @@ function log_likelihood_MALA(
     """
     B = size(z)[end]
     x̂, st_lux_new = lkhood.generator(ps, st_kan, st_lux, z)
-    x̂_act = lkhood.output_activation(x̂ .+ (lkhood.σ.noise .* noise))
+    noise_scaled = lkhood.σ.noise .* noise
+    x̂_act = lkhood.output_activation(x̂ .+ noise_scaled)
 
     ll =
         MALA_loss(x, x̂_act, ε, 2 * lkhood.σ.llhood^2, B, lkhood.SEQ, lkhood.perceptual_scale)

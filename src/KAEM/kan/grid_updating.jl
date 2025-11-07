@@ -9,11 +9,11 @@ using ..UnivariateFunctions
 using ..UnivariateFunctions.spline_functions
 
 function update_fcn_grid(
-        l::univariate_function{T, U, A},
+        l::univariate_function{T, A},
         ps::ComponentArray{T},
         st::ComponentArray{T},
         x::AbstractArray{T, 2},
-    )::Tuple{AbstractArray{T, 2}, AbstractArray{T, 3}} where {T <: half_quant, U <: full_quant, A <: AbstractActivation}
+    )::Tuple{AbstractArray{T, 2}, AbstractArray{T, 3}} where {T <: Float32, A <: AbstractActivation}
     """
     Adapt the function's grid to the distribution of the input data.
 
@@ -35,7 +35,7 @@ function update_fcn_grid(
     y =
         l.spline_string == "FFT" ?
         coef2curve_FFT(l.basis_function, x_sort, st.grid, coef, τ) :
-        coef2curve_Spline(l.basis_function, x_sort, st.grid, coef, τ) .|> half_quant
+        coef2curve_Spline(l.basis_function, x_sort, st.grid, coef, τ) .|> Float32
 
     # Adaptive grid - concentrate grid points around regions of higher density
     num_interval = size(st.grid, 2) - 2 * l.spline_degree - 1

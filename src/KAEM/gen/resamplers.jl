@@ -9,16 +9,16 @@ using ..Utils
 
 ### Note: potential thread divergence on GPU for resampler searchsortedfirsts
 @static if CUDA.has_cuda() && parse(Bool, get(ENV, "GPU", "false"))
-    @init_parallel_stencil(CUDA, full_quant, 3)
+    @init_parallel_stencil(CUDA, Float32, 3)
 else
-    @init_parallel_stencil(Threads, full_quant, 3)
+    @init_parallel_stencil(Threads, Float32, 3)
 end
 
 function check_ESS(
-        weights::AbstractArray{U, 2};
-        ESS_threshold::U = full_quant(0.5),
+        weights::AbstractArray{T, 2};
+        ESS_threshold::T = 0.5f0,
         verbose::Bool = false,
-    )::Tuple{AbstractArray{Bool, 1}, Bool, Int, Int} where {U <: full_quant}
+    )::Tuple{AbstractArray{Bool, 1}, Bool, Int, Int} where {T <: Float32}
     """
     Filter the latent variable for a index of the Steppingstone sum using residual resampling.
 
@@ -47,20 +47,20 @@ function check_ESS(
 end
 
 struct ResidualResampler <: AbstractResampler
-    ESS_threshold::full_quant
+    ESS_threshold::Float32
     verbose::Bool
 end
 
 @parallel_indices (b) function residual_kernel!(
-        idxs::AbstractArray{U, 2},
+        idxs::AbstractArray{T, 2},
         ESS_bool::AbstractArray{Bool, 1},
-        cdf::AbstractArray{U, 2},
-        u::AbstractArray{U, 2},
+        cdf::AbstractArray{T, 2},
+        u::AbstractArray{T, 2},
         num_remaining::AbstractArray{Int, 1},
         integer_counts::AbstractArray{Int, 2},
         B::Int,
         N::Int,
-    )::Nothing where {U <: full_quant}
+    )::Nothing where {T <: Float32}
     c = 1
 
     if !ESS_bool[b] # No resampling
@@ -100,9 +100,9 @@ end
 end
 
 function (r::ResidualResampler)(
-        weights::AbstractArray{U, 2};
+        weights::AbstractArray{T, 2};
         rng::AbstractRNG = Random.default_rng(),
-    )::AbstractArray{Int, 2} where {U <: full_quant}
+    )::AbstractArray{Int, 2} where {T <: Float32}
     """
     Residual resampling for weight filtering.
 
@@ -125,7 +125,7 @@ function (r::ResidualResampler)(
     residual_weights = softmax(weights .* (N .- integer_counts), dims = 2)
 
     # CDF and variate for resampling
-    u = pu(rand(rng, U, B, N))
+    u = pu(rand(rng, T, B, N))
     cdf = cumsum(residual_weights, dims = 2)
 
     idxs = @zeros(B, N)
@@ -143,18 +143,18 @@ function (r::ResidualResampler)(
 end
 
 struct SystematicResampler <: AbstractResampler
-    ESS_threshold::full_quant
+    ESS_threshold::Float32
     verbose::Bool
 end
 
 @parallel_indices (b) function systematic_kernel!(
-        idxs::AbstractArray{U, 2},
+        idxs::AbstractArray{T, 2},
         ESS_bool::AbstractArray{Bool, 1},
-        cdf::AbstractArray{U, 2},
-        u::AbstractArray{U, 2},
+        cdf::AbstractArray{T, 2},
+        u::AbstractArray{T, 2},
         B::Int,
         N::Int,
-    )::Nothing where {U <: full_quant}
+    )::Nothing where {T <: Float32}
     if !ESS_bool[b] # No resampling
         for n in 1:N
             idxs[b, n] = n
@@ -177,9 +177,9 @@ end
 end
 
 function (r::SystematicResampler)(
-        weights::AbstractArray{U, 2};
+        weights::AbstractArray{T, 2};
         rng::AbstractRNG = Random.default_rng(),
-    )::AbstractArray{Int, 2} where {U <: full_quant}
+    )::AbstractArray{Int, 2} where {T <: Float32}
     """
     Systematic resampling for weight filtering.
 
@@ -197,7 +197,7 @@ function (r::SystematicResampler)(
     cdf = cumsum(weights, dims = 2)
 
     # Systematic thresholds
-    u = pu((rand(rng, U, B, 1) .+ (0:(N - 1))') ./ N)
+    u = pu((rand(rng, T, B, 1) .+ (0:(N - 1))') ./ N)
 
     idxs = @zeros(B, N)
     @parallel (1:B) systematic_kernel!(idxs, ESS_bool, cdf, u, B, N)
@@ -205,14 +205,14 @@ function (r::SystematicResampler)(
 end
 
 struct StratifiedResampler <: AbstractResampler
-    ESS_threshold::full_quant
+    ESS_threshold::Float32
     verbose::Bool
 end
 
 function (r::StratifiedResampler)(
-        weights::AbstractArray{U, 2};
+        weights::AbstractArray{T, 2};
         rng::AbstractRNG = Random.default_rng(),
-    )::AbstractArray{Int, 2} where {U <: full_quant}
+    )::AbstractArray{Int, 2} where {T <: Float32}
     """
     Systematic resampling for weight filtering.
 
@@ -230,7 +230,7 @@ function (r::StratifiedResampler)(
     cdf = cumsum(weights, dims = 2)
 
     # Stratified thresholds
-    u = pu((rand(rng, U, B, N) .+ (0:(N - 1))') ./ N)
+    u = pu((rand(rng, T, B, N) .+ (0:(N - 1))') ./ N)
 
     idxs = @zeros(B, N)
     @parallel (1:B) systematic_kernel!(idxs, ESS_bool, cdf, u, B, N)

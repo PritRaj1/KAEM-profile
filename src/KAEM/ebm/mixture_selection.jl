@@ -9,17 +9,17 @@ using CUDA, LinearAlgebra, Random, ParallelStencil
 using ..Utils
 
 @static if CUDA.has_cuda() && parse(Bool, get(ENV, "GPU", "false"))
-    @init_parallel_stencil(CUDA, full_quant, 3)
+    @init_parallel_stencil(CUDA, Float32, 3)
 else
-    @init_parallel_stencil(Threads, full_quant, 3)
+    @init_parallel_stencil(Threads, Float32, 3)
 end
 
 @parallel_indices (q, b) function mask_kernel!(
-        mask::AbstractArray{U, 3},
-        α::AbstractArray{U, 2},
-        rand_vals::AbstractArray{U, 2},
+        mask::AbstractArray{T, 3},
+        α::AbstractArray{T, 2},
+        rand_vals::AbstractArray{T, 2},
         p_size::Int,
-    )::Nothing where {U <: full_quant}
+    )::Nothing where {T <: Float32}
     idx = p_size
     val = rand_vals[q, b]
 
@@ -33,18 +33,18 @@ end
 
     # One-hot vector for this (q, b)
     for k in 1:p_size
-        mask[q, k, b] = (idx == k) ? one(U) : zero(U)
+        mask[q, k, b] = (idx == k) ? 1.0f0 : 0.0f0
     end
     return nothing
 end
 
 function choose_component(
-        α::AbstractArray{U, 2},
+        α::AbstractArray{T, 2},
         num_samples::Int,
         q_size::Int,
         p_size::Int;
         rng::AbstractRNG = Random.default_rng(),
-    )::AbstractArray{U, 3} where {U <: full_quant}
+    )::AbstractArray{T, 3} where {T <: Float32}
     """
     Creates a one-hot mask for mixture model, q, to select one component, p.
 

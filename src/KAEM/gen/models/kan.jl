@@ -13,9 +13,9 @@ struct BoolConfig <: AbstractBoolConfig
     batchnorm::Bool
 end
 
-struct KAN_Generator{T <: half_quant, U <: full_quant, A <: AbstractActivation} <: Lux.AbstractLuxLayer
+struct KAN_Generator{T <: Float32, A <: AbstractActivation} <: Lux.AbstractLuxLayer
     depth::Int
-    Φ_fcns::Tuple{Vararg{univariate_function{T, U, A}}}
+    Φ_fcns::Tuple{Vararg{univariate_function{T, A}}}
     layernorms::Tuple{Vararg{Lux.LayerNorm}}
     bool_config::BoolConfig
     x_shape::Tuple
@@ -61,13 +61,13 @@ function init_KAN_Generator(
     spline_function = retrieve(conf, "GeneratorModel", "spline_function")
     grid_size = parse(Int, retrieve(conf, "GeneratorModel", "grid_size"))
     grid_update_ratio =
-        parse(half_quant, retrieve(conf, "GeneratorModel", "grid_update_ratio"))
-    grid_range = parse.(half_quant, retrieve(conf, "GeneratorModel", "grid_range"))
-    ε_scale = parse(half_quant, retrieve(conf, "GeneratorModel", "ε_scale"))
-    μ_scale = parse(full_quant, retrieve(conf, "GeneratorModel", "μ_scale"))
-    σ_base = parse(full_quant, retrieve(conf, "GeneratorModel", "σ_base"))
-    σ_spline = parse(full_quant, retrieve(conf, "GeneratorModel", "σ_spline"))
-    init_τ = parse(full_quant, retrieve(conf, "GeneratorModel", "init_τ"))
+        parse(Float32, retrieve(conf, "GeneratorModel", "grid_update_ratio"))
+    grid_range = parse.(Float32, retrieve(conf, "GeneratorModel", "grid_range"))
+    ε_scale = parse(Float32, retrieve(conf, "GeneratorModel", "ε_scale"))
+    μ_scale = parse(Float32, retrieve(conf, "GeneratorModel", "μ_scale"))
+    σ_base = parse(Float32, retrieve(conf, "GeneratorModel", "σ_base"))
+    σ_spline = parse(Float32, retrieve(conf, "GeneratorModel", "σ_spline"))
+    init_τ = parse(Float32, retrieve(conf, "GeneratorModel", "init_τ"))
     τ_trainable = parse(Bool, retrieve(conf, "GeneratorModel", "τ_trainable"))
     τ_trainable = spline_function == "B-spline" ? false : τ_trainable
 
@@ -95,11 +95,11 @@ function init_KAN_Generator(
 
     for i in eachindex(widths[1:(end - 1)])
         base_scale = (
-            μ_scale * (one(full_quant) / √(full_quant(widths[i]))) .+
+            μ_scale * (1.0f0 / √(Float32(widths[i]))) .+
                 σ_base .* (
-                randn(rng, full_quant, widths[i], widths[i + 1]) .* full_quant(2) .-
-                    one(full_quant)
-            ) .* (one(full_quant) / √(full_quant(widths[i])))
+                randn(rng, Float32, widths[i], widths[i + 1]) .* 2.0f0 .-
+                    1.0f0
+            ) .* (1.0f0 / √(Float32(widths[i])))
         )
         push!(Φ_functions, initialize_function(widths[i], widths[i + 1], base_scale))
 
@@ -110,7 +110,7 @@ function init_KAN_Generator(
 
     A = length(Φ_functions) > 0 ? typeof(Φ_functions[1].base_activation) : AbstractActivation
 
-    return KAN_Generator{half_quant, full_quant, A}(
+    return KAN_Generator{Float32, A}(
         depth,
         Tuple(Φ_functions),
         Tuple(layernorms),
@@ -119,12 +119,12 @@ function init_KAN_Generator(
     )
 end
 
-function (gen::KAN_Generator{T, U, A})(
+function (gen::KAN_Generator{T, A})(
         ps::ComponentArray{T},
         st_kan::ComponentArray{T},
         st_lyrnorm::NamedTuple,
         z::AbstractArray{T, 3},
-    )::Tuple{AbstractArray{T}, NamedTuple} where {T <: half_quant, U <: full_quant, A <: AbstractActivation}
+    )::Tuple{AbstractArray{T}, NamedTuple} where {T <: Float32, A <: AbstractActivation}
     """
     Generate data from the KAN likelihood model.
 

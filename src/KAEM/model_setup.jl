@@ -20,65 +20,35 @@ using .ThermodynamicIntegration
 using .autoMALA_sampling
 using .ULA_sampling
 
-function move_to_hq(model::T_KAM{T, U}) where {T <: half_quant, U <: full_quant}
-    """Moves the model to half precision."""
-
-    if model.prior.bool_config.layernorm
-        for i in 1:length(model.prior.layernorms)
-            @reset model.prior.layernorms[i] = model.prior.layernorms[i] |> hq
-        end
-    end
-
-    if model.lkhood.generator.bool_config.layernorm
-        for i in 1:length(model.lkhood.generator.layernorms)
-            @reset model.lkhood.generator.layernorms[i] =
-                model.lkhood.generator.layernorms[i] |> hq
-        end
-    end
-
-    if model.lkhood.CNN
-        for i in 1:length(model.lkhood.generator.Φ_fcns)
-            @reset model.lkhood.generator.Φ_fcns[i] = model.lkhood.generator.Φ_fcns[i] |> hq
-            if model.lkhood.generator.bool_config.batchnorm
-                @reset model.lkhood.generator.batchnorms[i] =
-                    model.lkhood.generator.batchnorms[i] |> hq
-            end
-        end
-        @reset model.lkhood.generator.Φ_fcns[model.lkhood.generator.depth] =
-            model.lkhood.generator.Φ_fcns[model.lkhood.generator.depth] |> hq
-    end
-
-    return model
-end
 
 function setup_training(
         ps::ComponentArray{T},
         st_kan::ComponentArray{T},
         st_lux::NamedTuple,
-        model::T_KAM{T, U},
+        model::T_KAM{T},
         x::AbstractArray{T};
         rng::AbstractRNG = Random.default_rng()
-    ) where {T <: half_quant, U <: full_quant}
+    ) where {T <: Float32}
     conf = model.conf
     autoMALA_bool = parse(Bool, retrieve(conf, "POST_LANGEVIN", "use_autoMALA"))
 
     # Posterior samplers
     initial_step_size =
-        parse(full_quant, retrieve(conf, "POST_LANGEVIN", "initial_step_size"))
+        parse(Float32, retrieve(conf, "POST_LANGEVIN", "initial_step_size"))
     num_steps = parse(Int, retrieve(conf, "POST_LANGEVIN", "iters"))
     N_unadjusted = parse(Int, retrieve(conf, "POST_LANGEVIN", "N_unadjusted"))
-    η_init = parse(full_quant, retrieve(conf, "POST_LANGEVIN", "initial_step_size"))
-    Δη = parse(full_quant, retrieve(conf, "POST_LANGEVIN", "autoMALA_η_changerate"))
-    η_minmax = parse.(full_quant, retrieve(conf, "POST_LANGEVIN", "step_size_bounds"))
+    η_init = parse(Float32, retrieve(conf, "POST_LANGEVIN", "initial_step_size"))
+    Δη = parse(Float32, retrieve(conf, "POST_LANGEVIN", "autoMALA_η_changerate"))
+    η_minmax = parse.(Float32, retrieve(conf, "POST_LANGEVIN", "step_size_bounds"))
     replica_exchange_frequency = parse(
         Int,
         retrieve(conf, "THERMODYNAMIC_INTEGRATION", "replica_exchange_frequency"),
     )
 
     batch_size = parse(Int, retrieve(conf, "TRAINING", "batch_size"))
-    zero_vec = pu(zeros(half_quant, model.lkhood.x_shape..., model.IS_samples, batch_size))
+    zero_vec = pu(zeros(T, model.lkhood.x_shape..., model.IS_samples, batch_size))
     max_samples = max(model.IS_samples, batch_size)
-    x = zeros(half_quant, model.lkhood.x_shape..., max_samples) |> pu
+    x = zeros(T, model.lkhood.x_shape..., max_samples) |> pu
 
     # Defaults
     @reset model.loss_fcn = ImportanceLoss(ps, st_kan, st_lux, model, x; rng = rng)
@@ -104,7 +74,7 @@ function setup_training(
 
     if model.prior.bool_config.ula
         num_steps_prior = parse(Int, retrieve(conf, "PRIOR_LANGEVIN", "iters"))
-        step_size_prior = parse(full_quant, retrieve(conf, "PRIOR_LANGEVIN", "step_size"))
+        step_size_prior = parse(Float32, retrieve(conf, "PRIOR_LANGEVIN", "step_size"))
 
         prior_sampler = initialize_ULA_sampler(;
             η = step_size_prior,
@@ -151,17 +121,16 @@ function setup_training(
 end
 
 function prep_model(
-        model::T_KAM{T, U},
+        model::T_KAM{T},
         x::AbstractArray{T};
         rng::AbstractRNG = Random.default_rng(),
-    ) where {T <: half_quant, U <: full_quant}
+    ) where {T <: Float32}
     ps = Lux.initialparameters(rng, model)
     st_kan, st_lux = Lux.initialstates(rng, model)
     ps, st_kan, st_lux =
-        ps |> ComponentArray |> pu, st_kan |> ComponentArray |> pu, st_lux |> pu
-    model = move_to_hq(model::T_KAM{T, U})
-    model = setup_training(hq(ps), st_kan, st_lux, model::T_KAM{T, U}, x; rng = rng)
-    return model, full_quant.(ps), T.(st_kan), st_lux
+        ps |> ComponentArray |> Lux.f32 |> pu, st_kan |> ComponentArray |> Lux.f32 |> pu, st_lux |> Lux.f32 |> pu
+    model = setup_training(ps, st_kan, st_lux, model::T_KAM{T}, x; rng = rng)
+    return model, ps, st_kan, st_lux
 end
 
 end

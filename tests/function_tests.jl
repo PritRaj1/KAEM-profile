@@ -1,8 +1,6 @@
 using Test, Random, LinearAlgebra, Lux, ComponentArrays
 
 ENV["GPU"] = false
-ENV["FULL_QUANT"] = "FP32"
-ENV["HALF_QUANT"] = "FP32"
 
 include("../src/utils.jl")
 using .Utils
@@ -15,7 +13,7 @@ using .GridUpdating: update_fcn_grid
 
 function test_fwd()
     Random.seed!(42)
-    x = rand(half_quant, 5, 3) |> pu
+    x = rand(Float32, 5, 3) |> pu
     f = init_function(5, 2)
 
     Random.seed!(42)
@@ -29,7 +27,7 @@ end
 
 function test_grid_update()
     Random.seed!(42)
-    x = rand(half_quant, 5, 3) |> pu
+    x = rand(Float32, 5, 3) |> pu
     f = init_function(5, 2)
     ps, st = Lux.setup(Random.GLOBAL_RNG, f)
     ps = ps |> ComponentArray |> pu

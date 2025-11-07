@@ -12,38 +12,38 @@ using .LogPosteriors: autoMALA_value_and_grad
 
 ## ULA ##
 function update_z!(
-        z::AbstractArray{U, 3},
-        ∇z::AbstractArray{U, 3},
-        η::U,
-        ξ::AbstractArray{U, 3},
-        sqrt_2η::U,
+        z::AbstractArray{T, 3},
+        ∇z::AbstractArray{T, 3},
+        η::T,
+        ξ::AbstractArray{T, 3},
+        sqrt_2η::T,
         Q::Int,
         P::Int,
         S::Int,
-    )::Nothing where {U <: full_quant}
+    )::Nothing where {T <: Float32}
     @tullio z[q, p, s] = z[q, p, s] + η * ∇z[q, p, s] + sqrt_2η * ξ[q, p, s]
     return nothing
 end
 
 ## autoMALA ##
 function position_update!(
-        z::AbstractArray{U, 3},
-        momentum::AbstractArray{U, 3}, # p*
-        ∇z::AbstractArray{U, 3},
-        M::AbstractArray{U, 2},
-        η::AbstractArray{U, 1},
-    )::Nothing where {U <: full_quant}
+        z::AbstractArray{T, 3},
+        momentum::AbstractArray{T, 3}, # p*
+        ∇z::AbstractArray{T, 3},
+        M::AbstractArray{T, 2},
+        η::AbstractArray{T, 1},
+    )::Nothing where {T <: Float32}
     @tullio momentum[q, p, s] = momentum[q, p, s] + (η[s] / 2) * ∇z[q, p, s] / M[q, p]
     @tullio z[q, p, s] = z[q, p, s] + η[s] * momentum[q, p, s] / M[q, p]
     return nothing
 end
 
 function momentum_update!(
-        momentum::AbstractArray{U, 3}, # p*
-        ∇ẑ::AbstractArray{U, 3},
-        M::AbstractArray{U, 2},
-        η::AbstractArray{U, 1},
-    )::Nothing where {U <: full_quant}
+        momentum::AbstractArray{T, 3}, # p*
+        ∇ẑ::AbstractArray{T, 3},
+        M::AbstractArray{T, 2},
+        η::AbstractArray{T, 1},
+    )::Nothing where {T <: Float32}
     @tullio momentum[q, p, s] = momentum[q, p, s] + (η[s] / 2) * ∇ẑ[q, p, s] / M[q, p]
     return nothing
 end
@@ -53,46 +53,46 @@ function logpos_withgrad(
         ∇z::AbstractArray{T, 3},
         x::AbstractArray{T},
         temps::AbstractArray{T, 1},
-        model::T_KAM{T, U},
+        model::T_KAM{T},
         ps::ComponentArray{T},
         st_kan::ComponentArray{T},
         st_lux::NamedTuple,
     )::Tuple{
-        AbstractArray{U, 1},
-        AbstractArray{U, 3},
+        AbstractArray{T, 1},
+        AbstractArray{T, 3},
         NamedTuple,
-    } where {T <: half_quant, U <: full_quant}
+    } where {T <: Float32}
     logpos, ∇z_k, st_ebm, st_gen =
         autoMALA_value_and_grad(z, ∇z, x, temps, model, ps, st_kan, st_lux)
     @reset st_lux.ebm = st_ebm
     @reset st_lux.gen = st_gen
 
-    return U.(logpos) ./ model.loss_scaling.full,
-        U.(∇z_k) ./ model.loss_scaling.full,
+    return logpos,
+        ∇z_k,
         st_lux
 end
 
 function leapfrog(
-        z::AbstractArray{U, 3},
-        ∇z::AbstractArray{U, 3},
+        z::AbstractArray{T, 3},
+        ∇z::AbstractArray{T, 3},
         x::AbstractArray{T},
         temps::AbstractArray{T, 1},
-        logpos_z::AbstractArray{U, 1},
-        p::AbstractArray{U, 3}, # This is momentum = M^{-1/2}p
-        M::AbstractArray{U, 2}, # This is M^{1/2}
-        η::AbstractArray{U, 1},
-        model::T_KAM{T, U},
+        logpos_z::AbstractArray{T, 1},
+        p::AbstractArray{T, 3}, # This is momentum = M^{-1/2}p
+        M::AbstractArray{T, 2}, # This is M^{1/2}
+        η::AbstractArray{T, 1},
+        model::T_KAM{T},
         ps::ComponentArray{T},
         st_kan::ComponentArray{T},
         st_lux::NamedTuple,
     )::Tuple{
-        AbstractArray{U, 3},
-        AbstractArray{U, 1},
-        AbstractArray{U, 3},
-        AbstractArray{U, 3},
-        AbstractArray{U, 1},
+        AbstractArray{T, 3},
+        AbstractArray{T, 1},
+        AbstractArray{T, 3},
+        AbstractArray{T, 3},
+        AbstractArray{T, 1},
         NamedTuple,
-    } where {T <: half_quant, U <: full_quant}
+    } where {T <: Float32}
     """
     Implements preconditioned Hamiltonian dynamics with transformed momentum:
     y*(x,y)   = y  + (eps/2)M^{-1/2}grad(log pi)(x)
@@ -107,7 +107,7 @@ function leapfrog(
 
     # Get gradient at new position
     logpos_ẑ, ∇ẑ, st_lux =
-        logpos_withgrad(T.(z), T.(∇z), x, temps, model, ps, st_kan, st_lux)
+        logpos_withgrad((z), (∇z), x, temps, model, ps, st_kan, st_lux)
 
     # Half-step momentum update (p* = p + (eps/2)M^{-1/2}grad)
     momentum_update!(p, ∇ẑ, M, η)
