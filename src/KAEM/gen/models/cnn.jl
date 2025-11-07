@@ -41,6 +41,7 @@ function forward_with_latent_concat(
 
     original_z = z
     current_z = z .* one(T)
+    st_lux_new = st_lux
 
     for i in 1:(gen.depth)
         if i > 1
@@ -48,27 +49,28 @@ function forward_with_latent_concat(
             current_z = cat(current_z, upsampled_z, dims = 3)
         end
 
-        current_z, st_new = Lux.apply(
+        current_z, st_layer_new = Lux.apply(
             gen.Φ_fcns[i],
             current_z,
             ps.fcn[symbol_map[i]],
-            st_lux.fcn[symbol_map[i]],
+            st_lux_new.fcn[symbol_map[i]],
         )
-        @ignore_derivatives @reset st_lux.fcn[symbol_map[i]] = st_new
+        st_lux_new = @set st_lux_new.fcn[symbol_map[i]] = st_layer_new
 
-        current_z, st_new =
+        current_z, st_layer_new =
             (gen.bool_config.batchnorm && i < gen.depth) ?
             Lux.apply(
                 gen.batchnorms[i],
                 current_z,
                 ps.batchnorm[symbol_map[i]],
-                st_lux.batchnorm[symbol_map[i]],
+                st_lux_new.batchnorm[symbol_map[i]],
             ) : (current_z, nothing)
-        (gen.bool_config.batchnorm && i < gen.depth) &&
-            @ignore_derivatives @reset st_lux.batchnorm[symbol_map[i]] = st_new
+        if gen.bool_config.batchnorm && i < gen.depth
+            st_lux_new = @set st_lux_new.batchnorm[symbol_map[i]] = st_layer_new
+        end
     end
 
-    return current_z, st_lux
+    return current_z, st_lux_new
 end
 
 function forward(
@@ -79,25 +81,26 @@ function forward(
         current_layer::Int = 1,
         skip_input::Union{AbstractArray{T, 4}, Nothing} = nothing,
     )::Tuple{AbstractArray{T, 4}, NamedTuple} where {T <: half_quant}
+    st_lux_new = st_lux
     for i in 1:(gen.depth)
-        z, st_new =
-            Lux.apply(gen.Φ_fcns[i], z, ps.fcn[symbol_map[i]], st_lux.fcn[symbol_map[i]])
-        @ignore_derivatives @reset st_lux.fcn[symbol_map[i]] = st_new
+        z, st_layer_new =
+            Lux.apply(gen.Φ_fcns[i], z, ps.fcn[symbol_map[i]], st_lux_new.fcn[symbol_map[i]])
+        st_lux_new = @set st_lux_new.fcn[symbol_map[i]] = st_layer_new
 
-        z, st_new =
+        z, st_layer_new =
             (gen.bool_config.batchnorm && i < gen.depth) ?
             Lux.apply(
                 gen.batchnorms[i],
                 z,
                 ps.batchnorm[symbol_map[i]],
-                st_lux.batchnorm[symbol_map[i]],
+                st_lux_new.batchnorm[symbol_map[i]],
             ) : (z, nothing)
-        (gen.bool_config.batchnorm && i < gen.depth) &&
-            (gen.bool_config.batchnorm && i < gen.depth) &&
-            @ignore_derivatives @reset st_lux.batchnorm[symbol_map[i]] = st_new
+        if gen.bool_config.batchnorm && i < gen.depth
+            st_lux_new = @set st_lux_new.batchnorm[symbol_map[i]] = st_layer_new
+        end
     end
 
-    return z, st_lux
+    return z, st_lux_new
 end
 
 function init_CNN_Generator(

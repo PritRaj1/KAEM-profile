@@ -108,7 +108,7 @@ function marginal_llhood(
     )::Tuple{T, NamedTuple, NamedTuple} where {T <: half_quant}
     B, S = size(x)[end], size(z_posterior)[end]
 
-    logprior_posterior, st_lux_ebm =
+    logprior_posterior, st_ebm =
         m.log_prior(z_posterior, m.prior, ps.ebm, st_kan.ebm, st_lux_ebm)
     logllhood, st_gen = log_likelihood_IS(
         z_posterior,
@@ -124,11 +124,11 @@ function marginal_llhood(
     marginal_llhood =
         loss_accum(weights_resampled, logprior_posterior, logllhood, resampled_idxs, B, S)
 
-    logprior_prior, st_lux_ebm =
-        m.log_prior(z_prior, m.prior, ps.ebm, st_kan.ebm, st_lux_ebm)
+    logprior_prior, st_ebm =
+        m.log_prior(z_prior, m.prior, ps.ebm, st_kan.ebm, st_ebm)
     ex_prior = m.prior.bool_config.contrastive_div ? mean(logprior_prior) : zero(T)
 
-    return -(marginal_llhood - ex_prior) * m.loss_scaling.reduced, st_lux_ebm, st_lux_gen
+    return -(marginal_llhood - ex_prior) * m.loss_scaling.reduced, st_ebm, st_gen
 end
 
 function closure(
@@ -212,40 +212,40 @@ function ImportanceLoss(
     z_posterior, z_prior, st_lux_ebm, st_lux_gen, weights_resampled, resampled_idxs, noise =
         sample_importance(ps, st_kan, Lux.testmode(st_lux), model, x; rng = rng)
 
-    # compiled_grad! = Reactant.@compile grad_importance_llhood!(
-    #     Enzyme.make_zero(ps),
-    #     ps,
-    #     z_posterior,
-    #     z_prior,
-    #     x,
-    #     weights_resampled,
-    #     resampled_idxs,
-    #     model,
-    #     st_kan,
-    #     Lux.trainmode(st_lux_ebm),
-    #     Lux.trainmode(st_lux_gen),
-    #     noise,
-    # )
-    #
-    # compiled_loss = Reactant.@compile marginal_llhood(
-    #     ps,
-    #     z_posterior,
-    #     z_prior,
-    #     x,
-    #     weights_resampled,
-    #     resampled_idxs,
-    #     model,
-    #     st_kan,
-    #     Lux.trainmode(st_lux_ebm),
-    #     Lux.trainmode(st_lux_gen),
-    #     noise,
-    # )
+    compiled_grad! = Reactant.@compile grad_importance_llhood!(
+        Enzyme.make_zero(ps),
+        ps,
+        z_posterior,
+        z_prior,
+        x,
+        weights_resampled,
+        resampled_idxs,
+        model,
+        st_kan,
+        Lux.trainmode(st_lux_ebm),
+        Lux.trainmode(st_lux_gen),
+        noise,
+    )
+
+    compiled_loss = Reactant.@compile marginal_llhood(
+        ps,
+        z_posterior,
+        z_prior,
+        x,
+        weights_resampled,
+        resampled_idxs,
+        model,
+        st_kan,
+        Lux.trainmode(st_lux_ebm),
+        Lux.trainmode(st_lux_gen),
+        noise,
+    )
 
     return ImportanceLoss(
-        # compiled_loss,
-        # compiled_grad!,
-        marginal_llhood,
-        grad_importance_llhood!,
+        compiled_loss,
+        compiled_grad!,
+        # marginal_llhood,
+        # grad_importance_llhood!,
     )
 end
 

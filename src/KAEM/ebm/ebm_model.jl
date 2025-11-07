@@ -195,19 +195,21 @@ function (ebm::EbmModel{T, U, A})(
     """
 
     mid_size = !ebm.bool_config.mixture_model ? ebm.p_size : ebm.q_size
+    st_lyrnorm_new = st_lyrnorm
 
     for i in 1:ebm.depth
-        z, st_lyrnorm_new =
+        z, st_layer_new =
             (ebm.bool_config.layernorm && i != 1) ?
             Lux.apply(
                 ebm.layernorms[i - 1],
                 z,
                 ps.layernorm[symbol_map[i]],
-                st_lyrnorm[symbol_map[i]],
+                st_lyrnorm_new[symbol_map[i]],
             ) : (z, nothing)
 
-        (ebm.bool_config.layernorm && i != 1) &&
-            @ignore_derivatives @reset st_lyrnorm[symbol_map[i]] = st_lyrnorm_new
+        if ebm.bool_config.layernorm && i != 1
+            st_lyrnorm_new = @set st_lyrnorm_new[symbol_map[i]] = st_layer_new
+        end
 
         z = Lux.apply(ebm.fcns_qp[i], z, ps.fcn[symbol_map[i]], st_kan[symbol_map[i]])
         z =
@@ -216,7 +218,7 @@ function (ebm::EbmModel{T, U, A})(
     end
 
     z = ebm.bool_config.ula ? z : reshape(z, ebm.q_size, ebm.p_size, :)
-    return z, st_lyrnorm
+    return z, st_lyrnorm_new
 end
 
 function Lux.initialparameters(

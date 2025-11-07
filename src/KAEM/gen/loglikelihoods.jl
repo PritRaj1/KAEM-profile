@@ -38,11 +38,11 @@ function log_likelihood_IS(
         The unnormalized log-likelihood.
     """
     B, S = size(x)[end], size(z)[end]
-    x̂, st_lux = lkhood.generator(ps, st_kan, st_lux, z)
+    x̂, st_lux_new = lkhood.generator(ps, st_kan, st_lux, z)
     x̂_noised = lkhood.output_activation(x̂ .+ (lkhood.σ.noise .* noise))
 
     ll = IS_loss(x, x̂_noised, ε, 2 * lkhood.σ.llhood^2, B, S, lkhood.SEQ)
-    return ll, st_lux
+    return ll, st_lux_new
 end
 
 function log_likelihood_MALA(
@@ -70,12 +70,12 @@ function log_likelihood_MALA(
         The unnormalized log-likelihood.
     """
     B = size(z)[end]
-    x̂, st_lux = lkhood.generator(ps, st_kan, st_lux, z)
+    x̂, st_lux_new = lkhood.generator(ps, st_kan, st_lux, z)
     x̂_act = lkhood.output_activation(x̂ .+ (lkhood.σ.noise .* noise))
 
     ll =
         MALA_loss(x, x̂_act, ε, 2 * lkhood.σ.llhood^2, B, lkhood.SEQ, lkhood.perceptual_scale)
-    return ll, st_lux
+    return ll, st_lux_new
 end
 
 end

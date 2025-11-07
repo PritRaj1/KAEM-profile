@@ -129,47 +129,48 @@ function (gen::SEQ_Generator)(
         The generated data. 
     """
     z = sum(z, dims = 2)
+    st_lux_new = st_lux
 
     # Projection
-    z, st_new = Lux.apply(gen.Φ_fcns[1], z, ps.fcn[:a], st_lux.fcn[:a])
-    @ignore_derivatives @reset st_lux.fcn[:a] = st_new
-    z, st_new = Lux.apply(gen.layernorms[1], z, ps.layernorm[:a], st_lux.layernorm[:a])
-    @ignore_derivatives @reset st_lux.layernorm[:a] = st_new
+    z, st_layer_new = Lux.apply(gen.Φ_fcns[1], z, ps.fcn[:a], st_lux_new.fcn[:a])
+    st_lux_new = @set st_lux_new.fcn[:a] = st_layer_new
+    z, st_layer_new = Lux.apply(gen.layernorms[1], z, ps.layernorm[:a], st_lux_new.layernorm[:a])
+    st_lux_new = @set st_lux_new.layernorm[:a] = st_layer_new
 
     z_prev = z
     for t in 2:gen.seq_length
 
         # Self-attention
-        Q, st_new = Lux.apply(gen.attention[1], z, ps.attention[:Q], st_lux.attention[:Q])
-        @ignore_derivatives @reset st_lux.attention[:Q] = st_new
-        K, st_new = Lux.apply(gen.attention[2], z, ps.attention[:K], st_lux.attention[:K])
-        @ignore_derivatives @reset st_lux.attention[:K] = st_new
-        V, st_new = Lux.apply(gen.attention[3], z, ps.attention[:V], st_lux.attention[:V])
-        @ignore_derivatives @reset st_lux.attention[:V] = st_new
+        Q, st_layer_new = Lux.apply(gen.attention[1], z, ps.attention[:Q], st_lux_new.attention[:Q])
+        st_lux_new = @set st_lux_new.attention[:Q] = st_layer_new
+        K, st_layer_new = Lux.apply(gen.attention[2], z, ps.attention[:K], st_lux_new.attention[:K])
+        st_lux_new = @set st_lux_new.attention[:K] = st_layer_new
+        V, st_layer_new = Lux.apply(gen.attention[3], z, ps.attention[:V], st_lux_new.attention[:V])
+        st_lux_new = @set st_lux_new.attention[:V] = st_layer_new
 
         attn = scaled_dotprod_attn(Q, K, V, gen.d_model)
         z = z + attn
 
         # Feed forward
-        z, st_new = Lux.apply(gen.Φ_fcns[2], z, ps.fcn[:b], st_lux.fcn[:b])
-        @ignore_derivatives @reset st_lux.fcn[:b] = st_new
-        z, st_new = Lux.apply(
+        z, st_layer_new = Lux.apply(gen.Φ_fcns[2], z, ps.fcn[:b], st_lux_new.fcn[:b])
+        st_lux_new = @set st_lux_new.fcn[:b] = st_layer_new
+        z, st_layer_new = Lux.apply(
             gen.layernorms[2],
             z[:, end:end, :],
             ps.layernorm[:b],
-            st_lux.layernorm[:b],
+            st_lux_new.layernorm[:b],
         )
-        @ignore_derivatives @reset st_lux.layernorm[:b] = st_new
+        st_lux_new = @set st_lux_new.layernorm[:b] = st_layer_new
 
         z = cat(z_prev, z, dims = 2)
         z_prev = z
     end
 
     # Output layer
-    z, st_new = Lux.apply(gen.Φ_fcns[3], z, ps.fcn[:c], st_lux.fcn[:c])
-    @ignore_derivatives @reset st_lux.fcn[:c] = st_new
+    z, st_layer_new = Lux.apply(gen.Φ_fcns[3], z, ps.fcn[:c], st_lux_new.fcn[:c])
+    st_lux_new = @set st_lux_new.fcn[:c] = st_layer_new
 
-    return z, st_lux
+    return z, st_lux_new
 end
 
 end
