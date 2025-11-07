@@ -12,7 +12,8 @@ export pu,
     AbstractPrior,
     AbstractLogPrior,
     AbstractQuadrature,
-    AbstractBoolConfig
+    AbstractBoolConfig,
+    AbstractResampler
 
 using Lux, LinearAlgebra, Statistics, Random, Accessors, BFloat16s, CUDA, LuxCUDA, NNlib, Reactant
 
@@ -44,48 +45,64 @@ const symbol_map = (:a, :b, :c, :d, :e, :f, :g, :h, :i)
 abstract type AbstractActivation end
 
 struct ReluActivation <: AbstractActivation end
-(::ReluActivation)(x::AbstractArray{T})::AbstractArray{T} where {T <: half_quant} =
-    NNlib.relu(x)
+function (::ReluActivation)(x::AbstractArray{T})::AbstractArray{T} where {T <: half_quant}
+    return NNlib.relu(x)
+end
 
 struct LeakyReluActivation <: AbstractActivation end
-(::LeakyReluActivation)(x::AbstractArray{T})::AbstractArray{T} where {T <: half_quant} =
-    NNlib.leakyrelu(x)
+function (::LeakyReluActivation)(x::AbstractArray{T})::AbstractArray{T} where {T <: half_quant}
+    return NNlib.leakyrelu(x)
+end
 
 struct TanhActivation <: AbstractActivation end
-(::TanhActivation)(x::AbstractArray{T})::AbstractArray{T} where {T <: half_quant} =
-    NNlib.tanh_fast(x)
+function (::TanhActivation)(x::AbstractArray{T})::AbstractArray{T} where {T <: half_quant}
+    return NNlib.tanh_fast(x)
+end
 
 struct SigmoidActivation <: AbstractActivation end
-(::SigmoidActivation)(x::AbstractArray{T})::AbstractArray{T} where {T <: half_quant} =
-    NNlib.sigmoid_fast(x)
+function (::SigmoidActivation)(x::AbstractArray{T})::AbstractArray{T} where {T <: half_quant}
+    return NNlib.sigmoid_fast(x)
+end
 
 struct SwishActivation <: AbstractActivation end
-(::SwishActivation)(x::AbstractArray{T})::AbstractArray{T} where {T <: half_quant} =
-    NNlib.hardswish(x)
+function (::SwishActivation)(x::AbstractArray{T})::AbstractArray{T} where {T <: half_quant}
+    return NNlib.hardswish(x)
+end
 
 struct GeluActivation <: AbstractActivation end
-(::GeluActivation)(x::AbstractArray{T})::AbstractArray{T} where {T <: half_quant} =
-    NNlib.gelu(x)
+function (::GeluActivation)(x::AbstractArray{T})::AbstractArray{T} where {T <: half_quant}
+    return NNlib.gelu(x)
+end
 
 struct SeluActivation <: AbstractActivation end
-(::SeluActivation)(x::AbstractArray{T})::AbstractArray{T} where {T <: half_quant} =
-    NNlib.selu(x)
+function (::SeluActivation)(x::AbstractArray{T})::AbstractArray{T} where {T <: half_quant}
+    return NNlib.selu(x)
+end
 
 struct SiluActivation <: AbstractActivation end
-(::SiluActivation)(x::AbstractArray{T})::AbstractArray{T} where {T <: half_quant} =
-    x .* NNlib.sigmoid_fast(x)
+function (::SiluActivation)(x::AbstractArray{T})::AbstractArray{T} where {T <: half_quant}
+    return x .* NNlib.sigmoid_fast(x)
+end
 
 struct EluActivation <: AbstractActivation end
-(::EluActivation)(x::AbstractArray{T})::AbstractArray{T} where {T <: half_quant} =
-    NNlib.elu(x)
+function (::EluActivation)(x::AbstractArray{T})::AbstractArray{T} where {T <: half_quant}
+    return NNlib.elu(x)
+end
 
 struct CeluActivation <: AbstractActivation end
-(::CeluActivation)(x::AbstractArray{T})::AbstractArray{T} where {T <: half_quant} =
-    NNlib.celu(x)
+function (::CeluActivation)(x::AbstractArray{T})::AbstractArray{T} where {T <: half_quant}
+    return NNlib.celu(x)
+end
 
 struct NoneActivation <: AbstractActivation end
-(::NoneActivation)(x::AbstractArray{T})::AbstractArray{T} where {T <: half_quant} =
-    x .* zero(T)
+function (::NoneActivation)(x::AbstractArray{T})::AbstractArray{T} where {T <: half_quant}
+    return x .* zero(T)
+end
+
+struct IdentityActivation <: AbstractActivation end
+function (::IdentityActivation)(x::AbstractArray{T})::AbstractArray{T} where {T <: half_quant}
+    return x
+end
 
 const activation_mapping::Dict{String, AbstractActivation} = Dict(
     "relu" => ReluActivation(),
@@ -99,6 +116,7 @@ const activation_mapping::Dict{String, AbstractActivation} = Dict(
     "elu" => EluActivation(),
     "celu" => CeluActivation(),
     "none" => NoneActivation(),
+    "identity" => IdentityActivation(),
 )
 
 abstract type AbstractBasis end
@@ -110,5 +128,7 @@ abstract type AbstractLogPrior end
 abstract type AbstractQuadrature end
 
 abstract type AbstractBoolConfig end
+
+abstract type AbstractResampler end
 
 end

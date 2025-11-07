@@ -75,7 +75,7 @@ function sample_importance(
 
     # Posterior weights and resampling
     weights = softmax(U.(logllhood), dims = 2)
-    resampled_idxs = m.lkhood.resample_z(weights, rng)
+    resampled_idxs = m.lkhood.resample_z(weights; rng = rng)
     weights = T.(weights)
     weights_resampled = softmax(
         reduce(vcat, map(b -> weights[b:b, resampled_idxs[b, :]], 1:size(x)[end])),

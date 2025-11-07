@@ -1,19 +1,56 @@
 module WeightResamplers
 
-export residual_resampler, systematic_resampler, stratified_resampler, importance_resampler
+export ResidualResampler, SystematicResampler, StratifiedResampler, resampler_map
 
 using CUDA, Random, Distributions, LinearAlgebra, ParallelStencil
 using NNlib: softmax
 
 using ..Utils
 
+### Note: potential thread divergence on GPU for resampler searchsortedfirsts
 @static if CUDA.has_cuda() && parse(Bool, get(ENV, "GPU", "false"))
     @init_parallel_stencil(CUDA, full_quant, 3)
 else
     @init_parallel_stencil(Threads, full_quant, 3)
 end
 
-### Potential thread divergence on GPU for resampler searchsortedfirsts
+function check_ESS(
+        weights::AbstractArray{U, 2};
+        ESS_threshold::U = full_quant(0.5),
+        verbose::Bool = false,
+    )::Tuple{AbstractArray{Bool, 1}, Bool, Int, Int} where {U <: full_quant}
+    """
+    Filter the latent variable for a index of the Steppingstone sum using residual resampling.
+
+    Args:
+        logllhood: A matrix of log-likelihood values.
+        weights: The weights of the population.
+        t_resample: The temperature at which the last resample occurred.
+        t2: The temperature at which to update the weights.
+        rng: Random seed for reproducibility.
+        ESS_threshold: The threshold for the effective sample size.
+        resampler: The resampling function.
+
+    Returns:
+        - The resampled indices.    
+    """
+    B, N = size(weights)
+
+    # Check effective sample size
+    ESS = dropdims(1 ./ sum(weights .^ 2, dims = 2); dims = 2)
+    ESS_bool = ESS .< ESS_threshold * N
+    resample_bool = any(ESS_bool)
+
+    # Only resample when needed
+    verbose && (resample_bool && println("Resampling!"))
+    return ESS_bool, resample_bool, B, N
+end
+
+struct ResidualResampler <: AbstractResampler
+    ESS_threshold::full_quant
+    verbose::Bool
+end
+
 @parallel_indices (b) function residual_kernel!(
         idxs::AbstractArray{U, 2},
         ESS_bool::AbstractArray{Bool, 1},
@@ -62,11 +99,8 @@ end
     return nothing
 end
 
-function residual_resampler(
-        weights::AbstractArray{U, 2},
-        ESS_bool::AbstractArray{Bool, 1},
-        B::Int,
-        N::Int;
+function (r::ResidualResampler)(
+        weights::AbstractArray{U, 2};
         rng::AbstractRNG = Random.default_rng(),
     )::AbstractArray{Int, 2} where {U <: full_quant}
     """
@@ -80,6 +114,9 @@ function residual_resampler(
     Returns:
         - The resampled indices.
     """
+    ESS_bool, resample_bool, B, N = check_ESS(weights; ESS_threshold = r.ESS_threshold, verbose = r.verbose)
+    !resample_bool && return repeat(collect(1:N)', B, 1)
+
     # Number times to replicate each sample
     integer_counts = Int.(floor.(weights .* N))
     num_remaining = dropdims(N .- sum(integer_counts, dims = 2); dims = 2)
@@ -103,6 +140,11 @@ function residual_resampler(
         N,
     )
     return Int.(idxs)
+end
+
+struct SystematicResampler <: AbstractResampler
+    ESS_threshold::full_quant
+    verbose::Bool
 end
 
 @parallel_indices (b) function systematic_kernel!(
@@ -134,11 +176,8 @@ end
     return nothing
 end
 
-function systematic_resampler(
-        weights::AbstractArray{U, 2},
-        ESS_bool::AbstractArray{Bool, 1},
-        B::Int,
-        N::Int;
+function (r::SystematicResampler)(
+        weights::AbstractArray{U, 2};
         rng::AbstractRNG = Random.default_rng(),
     )::AbstractArray{Int, 2} where {U <: full_quant}
     """
@@ -152,6 +191,8 @@ function systematic_resampler(
     Returns:
         - The resampled indices.
     """
+    ESS_bool, resample_bool, B, N = check_ESS(weights; ESS_threshold = r.ESS_threshold, verbose = r.verbose)
+    !resample_bool && return repeat(collect(1:N)', B, 1)
 
     cdf = cumsum(weights, dims = 2)
 
@@ -163,11 +204,13 @@ function systematic_resampler(
     return Int.(idxs)
 end
 
-function stratified_resampler(
-        weights::AbstractArray{U, 2},
-        ESS_bool::AbstractArray{Bool, 1},
-        B::Int,
-        N::Int;
+struct StratifiedResampler <: AbstractResampler
+    ESS_threshold::full_quant
+    verbose::Bool
+end
+
+function (r::StratifiedResampler)(
+        weights::AbstractArray{U, 2};
         rng::AbstractRNG = Random.default_rng(),
     )::AbstractArray{Int, 2} where {U <: full_quant}
     """
@@ -181,6 +224,8 @@ function stratified_resampler(
     Returns:
         - The resampled indices.
     """
+    ESS_bool, resample_bool, B, N = check_ESS(weights; ESS_threshold = r.ESS_threshold, verbose = r.verbose)
+    !resample_bool && return repeat(collect(1:N)', B, 1)
 
     cdf = cumsum(weights, dims = 2)
 
@@ -192,38 +237,9 @@ function stratified_resampler(
     return Int.(idxs)
 end
 
-function importance_resampler(
-        weights::AbstractArray{U, 2};
-        rng::AbstractRNG = Random.default_rng(),
-        ESS_threshold::U = full_quant(0.5),
-        resampler::Function = systematic_sampler,
-        verbose::Bool = false,
-    )::AbstractArray{Int, 2} where {U <: full_quant}
-    """
-    Filter the latent variable for a index of the Steppingstone sum using residual resampling.
-
-    Args:
-        logllhood: A matrix of log-likelihood values.
-        weights: The weights of the population.
-        t_resample: The temperature at which the last resample occurred.
-        t2: The temperature at which to update the weights.
-        rng: Random seed for reproducibility.
-        ESS_threshold: The threshold for the effective sample size.
-        resampler: The resampling function.
-
-    Returns:
-        - The resampled indices.    
-    """
-    B, N = size(weights)
-
-    # Check effective sample size
-    ESS = dropdims(1 ./ sum(weights .^ 2, dims = 2); dims = 2)
-    ESS_bool = ESS .< ESS_threshold * N
-
-    # Only resample when needed
-    verbose && (any(ESS_bool) && println("Resampling!"))
-    any(ESS_bool) && return resampler(weights, ESS_bool, B, N; rng = rng)
-    return repeat(collect(1:N)', B, 1)
-end
-
+const resampler_map::Dict{String, Function} = Dict(
+    "residual" => (ESS_threshold, verbose) -> ResidualResampler(ESS_threshold, verbose),
+    "systematic" => (ESS_threshold, verbose) -> SystematicResampler(ESS_threshold, verbose),
+    "stratified" => (ESS_threshold, verbose) -> StratifiedResampler(ESS_threshold, verbose)
+)
 end

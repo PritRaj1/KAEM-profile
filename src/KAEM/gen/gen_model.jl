@@ -5,7 +5,6 @@ export GenModel, init_GenModel, generator, importance_resampler
 using CUDA
 using ConfParser,
     Random, Lux, LuxCUDA, Statistics, LinearAlgebra, ComponentArrays, Accessors
-using NNlib: sigmoid_fast, tanh_fast, relu, gelu, sigmoid, tanh
 
 using ..Utils
 using ..UnivariateFunctions
@@ -24,27 +23,23 @@ struct σ_conf{T <: half_quant}
     llhood::T
 end
 
-const output_activation_mapping =
-    Dict("tanh" => tanh_fast, "sigmoid" => sigmoid_fast, "none" => identity)
-
-const resampler_map = Dict(
-    "residual" => residual_resampler,
-    "systematic" => systematic_resampler,
-    "stratified" => stratified_resampler,
-)
-
 const gen_model_map = Dict(
     "KAN" => init_KAN_Generator,
     "CNN" => init_CNN_Generator,
     "SEQ" => init_SEQ_Generator,
 )
 
+struct SeqActivation <: AbstractActivation end
+function (::SeqActivation)(x::AbstractArray{T})::AbstractArray{T} where {T <: half_quant}
+    return softmax(x; dims = 1)
+end
+
 struct GenModel{T <: half_quant} <: Lux.AbstractLuxLayer
     generator::Any
     σ::σ_conf{T}
     output_activation::AbstractActivation
     x_shape::Tuple{Vararg{Int}}
-    resample_z::Function
+    resample_z::AbstractResampler
     CNN::Bool
     SEQ::Bool
     perceptual_scale::T
@@ -63,23 +58,19 @@ function init_GenModel(
     ESS_threshold =
         parse(full_quant, retrieve(conf, "TRAINING", "resampling_threshold_factor"))
     output_act = retrieve(conf, "GeneratorModel", "output_activation")
-    resampler = retrieve(conf, "GeneratorModel", "resampler")
     verbose = parse(Bool, retrieve(conf, "TRAINING", "verbose"))
-    resampler = get(resampler_map, resampler, systematic_resampler)
+
+
+    resample_fcn = get(
+        resampler_map,
+        retrieve(conf, "GeneratorModel", "resampler"),
+        SystematicResampler(ESS_threshold, verbose)
+    )(ESS_threshold, verbose)
     batchnorm_bool = false
 
-    resample_fcn =
-        (weights, rng) -> importance_resampler(
-        weights;
-        rng = rng,
-        ESS_threshold = ESS_threshold,
-        resampler = resampler,
-        verbose = verbose,
-    )
-
     output_activation =
-        sequence_length > 1 ? (x -> softmax(x, dims = 1)) :
-        get(output_activation_mapping, output_act, identity)
+        sequence_length > 1 ? SeqActivation :
+        get(activation_mapping, output_act, activation_mapping["identity"])
 
     gen_type = "KAN"
 
