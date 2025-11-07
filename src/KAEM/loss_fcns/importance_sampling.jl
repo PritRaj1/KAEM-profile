@@ -239,7 +239,7 @@ function ImportanceLoss(
     #     Lux.trainmode(st_lux_gen),
     #     noise,
     # )
-
+    #
     return ImportanceLoss(
         # compiled_loss,
         # compiled_grad!

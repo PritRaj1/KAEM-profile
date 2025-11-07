@@ -13,8 +13,8 @@ export pu,
 
 using Lux, LinearAlgebra, Statistics, Random, Accessors, CUDA, LuxCUDA, NNlib, Reactant
 using MLDataDevices: reactant_device
+const pu = CUDA.has_cuda() && parse(Bool, get(ENV, "GPU", "false")) ? gpu_device() : cpu_device()
 
-pu = cpu_device()
 Reactant.set_default_backend("cpu")
 if CUDA.has_cuda() && parse(Bool, get(ENV, "GPU", "false"))
     CUDA.allowscalar(false)
@@ -22,7 +22,7 @@ if CUDA.has_cuda() && parse(Bool, get(ENV, "GPU", "false"))
     pu = gpu_device()
 end
 
-# const pu = reactant_device()
+const xdev = reactant_device()
 
 # Num layers must be flexible, yet static, so this is used to index into params/state
 const symbol_map = (:a, :b, :c, :d, :e, :f, :g, :h, :i)

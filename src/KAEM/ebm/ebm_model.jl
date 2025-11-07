@@ -208,7 +208,7 @@ function (ebm::EbmModel{T, A})(
             ) : (z, nothing)
 
         if ebm.bool_config.layernorm && i != 1
-            st_lyrnorm_new = @set st_lyrnorm_new[symbol_map[i]] = st_layer_new
+            @reset st_lyrnorm_new[symbol_map[i]] = st_layer_new
         end
 
         z = Lux.apply(ebm.fcns_qp[i], z, ps.fcn[symbol_map[i]], st_kan[symbol_map[i]])
