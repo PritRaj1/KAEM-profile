@@ -43,11 +43,11 @@ end
 
 function (lp::LogPriorULA)(
         z::AbstractArray{T, 3},
-        ebm::EbmModel{T},
+        ebm::EbmModel{T, U, A},
         ps::ComponentArray{T},
         st_kan::ComponentArray{T},
         st_lyrnorm::NamedTuple,
-    )::Tuple{AbstractArray{T, 1}, NamedTuple} where {T <: half_quant}
+    )::Tuple{AbstractArray{T, 1}, NamedTuple} where {T <: half_quant, U <: full_quant, A <: AbstractActivation}
     log_π0 = dropdims(
         sum(ebm.π_pdf(z, ps.dist.π_μ, ps.dist.π_σ; log_bool = true); dims = 1),
         dims = (1, 2),
@@ -58,12 +58,12 @@ end
 
 function (lp::LogPriorUnivariate)(
         z::AbstractArray{T, 3},
-        ebm,
+        ebm::EbmModel{T, U, A},
         ps::ComponentArray{T},
         st_kan::ComponentArray{T},
         st_lyrnorm::NamedTuple;
         ula::Bool = false,
-    )::Tuple{AbstractArray{T, 1}, NamedTuple} where {T <: half_quant}
+    )::Tuple{AbstractArray{T, 1}, NamedTuple} where {T <: half_quant, U <: full_quant, A <: AbstractActivation}
     """
     The log-probability of the ebm-prior.
 
@@ -110,12 +110,12 @@ end
 
 function (lp::LogPriorMix)(
         z::AbstractArray{T, 3},
-        ebm::EbmModel{T},
+        ebm::EbmModel{T, U, A},
         ps::ComponentArray{T},
         st_kan::ComponentArray{T},
         st_lyrnorm::NamedTuple;
         ula::Bool = false,
-    )::Tuple{AbstractArray{T, 1}, NamedTuple} where {T <: half_quant}
+    )::Tuple{AbstractArray{T, 1}, NamedTuple} where {T <: half_quant, U <: full_quant, A <: AbstractActivation}
     """
     The log-probability of the mixture ebm-prior.
 

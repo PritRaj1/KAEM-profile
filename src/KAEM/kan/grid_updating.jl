@@ -9,11 +9,11 @@ using ..UnivariateFunctions
 using ..UnivariateFunctions.spline_functions
 
 function update_fcn_grid(
-        l::univariate_function{T, U},
+        l::univariate_function{T, U, A},
         ps::ComponentArray{T},
         st::ComponentArray{T},
         x::AbstractArray{T, 2},
-    )::Tuple{AbstractArray{T, 2}, AbstractArray{T, 3}} where {T <: half_quant, U <: full_quant}
+    )::Tuple{AbstractArray{T, 2}, AbstractArray{T, 3}} where {T <: half_quant, U <: full_quant, A <: AbstractActivation}
     """
     Adapt the function's grid to the distribution of the input data.
 

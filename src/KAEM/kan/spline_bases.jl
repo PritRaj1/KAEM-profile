@@ -8,8 +8,7 @@ export extend_grid,
     RBF_basis,
     RSWAF_basis,
     FFT_basis,
-    Cheby_basis,
-    SplineMUL
+    Cheby_basis
 
 using CUDA, Lux, ComponentArrays
 using LinearAlgebra, NNlib
@@ -28,19 +27,6 @@ function extend_grid(
     end
 
     return grid
-end
-
-function SplineMUL(
-        l::Lux.AbstractLuxLayer,
-        ps::ComponentArray{T},
-        x::AbstractArray{T, 2},
-        y::AbstractArray{T, 3},
-    )::AbstractArray{T, 3} where {T <: half_quant}
-    x_act = l.base_activation(x)
-    w_base, w_sp = ps.w_base, ps.w_sp
-    I, S, O = size(x_act)..., size(w_base, 2)
-    return reshape(w_base, I, O, 1) .* reshape(x_act, I, 1, S) .+
-        reshape(w_sp, I, O, 1) .* y
 end
 
 struct B_spline_basis <: AbstractBasis

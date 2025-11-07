@@ -30,8 +30,8 @@ struct BoolConfig <: AbstractBoolConfig
     train_props::Bool
 end
 
-struct EbmModel{T <: half_quant, U <: full_quant} <: Lux.AbstractLuxLayer
-    fcns_qp::Tuple{Vararg{univariate_function{T, U}}}
+struct EbmModel{T <: half_quant, U <: full_quant, A <: AbstractActivation} <: Lux.AbstractLuxLayer
+    fcns_qp::Tuple{Vararg{univariate_function{T, U, A}}}
     layernorms::Tuple{Vararg{Lux.LayerNorm}}
     bool_config::BoolConfig
     depth::Int
@@ -90,7 +90,8 @@ function init_EbmModel(conf::ConfParse; rng::AbstractRNG = Random.default_rng())
 
     eps = parse(half_quant, retrieve(conf, "TRAINING", "eps"))
 
-    functions = Vector{univariate_function{half_quant, full_quant}}(undef, 0)
+    # Let Julia infer the concrete activation type from the elements we push
+    functions = []
     layernorms = Vector{Lux.LayerNorm}(undef, 0)
 
     for i in eachindex(widths[1:(end - 1)])
@@ -145,7 +146,9 @@ function init_EbmModel(conf::ConfParse; rng::AbstractRNG = Random.default_rng())
         parse(Bool, retrieve(conf, "MixtureModel", "use_attention_kernel"))
     train_props = parse(Bool, retrieve(conf, "MixtureModel", "train_proportions"))
 
-    return EbmModel(
+    A = length(functions) > 0 ? typeof(functions[1].base_activation) : AbstractActivation
+
+    return EbmModel{half_quant, full_quant, A}(
         Tuple(functions),
         Tuple(layernorms),
         BoolConfig(
@@ -171,12 +174,12 @@ function init_EbmModel(conf::ConfParse; rng::AbstractRNG = Random.default_rng())
     )
 end
 
-function (ebm::EbmModel{T, U})(
+function (ebm::EbmModel{T, U, A})(
         ps::ComponentArray{T},
         st_kan::ComponentArray{T},
         st_lyrnorm::NamedTuple,
         z::AbstractArray{T},
-    )::Tuple{AbstractArray{T}, NamedTuple} where {T <: half_quant, U <: full_quant}
+    )::Tuple{AbstractArray{T}, NamedTuple} where {T <: half_quant, U <: full_quant, A <: AbstractActivation}
     """
     Forward pass through the ebm-prior, returning the energy function.
 
@@ -218,8 +221,8 @@ end
 
 function Lux.initialparameters(
         rng::AbstractRNG,
-        prior::EbmModel{T, U},
-    ) where {T <: half_quant, U <: full_quant}
+        prior::EbmModel{T, U, A},
+    ) where {T <: half_quant, U <: full_quant, A <: AbstractActivation}
     fcn_ps = NamedTuple(
         symbol_map[i] => Lux.initialparameters(rng, prior.fcns_qp[i]) for i in 1:prior.depth
     )
@@ -265,8 +268,8 @@ end
 
 function Lux.initialstates(
         rng::AbstractRNG,
-        prior::EbmModel{T, U},
-    ) where {T <: half_quant, U <: full_quant}
+        prior::EbmModel{T, U, A},
+    ) where {T <: half_quant, U <: full_quant, A <: AbstractActivation}
     fcn_st = NamedTuple(
         symbol_map[i] => Lux.initialstates(rng, prior.fcns_qp[i]) for i in 1:prior.depth
     )

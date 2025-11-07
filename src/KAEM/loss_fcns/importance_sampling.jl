@@ -175,20 +175,22 @@ function grad_importance_llhood(
         noise::AbstractArray{T},
     )::AbstractArray{T} where {T <: half_quant}
 
-    return Enzyme.gradient(
-        Enzyme.set_runtime_activity(Enzyme.Reverse),
-        Enzyme.Const(closure),
-        ps,
-        Enzyme.Const(z_posterior),
-        Enzyme.Const(z_prior),
-        Enzyme.Const(x),
-        Enzyme.Const(weights_resampled),
-        Enzyme.Const(resampled_idxs),
-        Enzyme.Const(model),
-        Enzyme.Const(st_kan),
-        Enzyme.Const(st_lux_ebm),
-        Enzyme.Const(st_lux_gen),
-        Enzyme.Const(noise),
+    return first(
+        Enzyme.gradient(
+            Enzyme.set_runtime_activity(Enzyme.Reverse),
+            Enzyme.Const(closure),
+            ps,
+            Enzyme.Const(z_posterior),
+            Enzyme.Const(z_prior),
+            Enzyme.Const(x),
+            Enzyme.Const(weights_resampled),
+            Enzyme.Const(resampled_idxs),
+            Enzyme.Const(model),
+            Enzyme.Const(st_kan),
+            Enzyme.Const(st_lux_ebm),
+            Enzyme.Const(st_lux_gen),
+            Enzyme.Const(noise),
+        )
     )
 
 end

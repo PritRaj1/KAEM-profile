@@ -13,9 +13,9 @@ struct BoolConfig <: AbstractBoolConfig
     batchnorm::Bool
 end
 
-struct KAN_Generator{T <: half_quant, U <: full_quant} <: Lux.AbstractLuxLayer
+struct KAN_Generator{T <: half_quant, U <: full_quant, A <: AbstractActivation} <: Lux.AbstractLuxLayer
     depth::Int
-    Φ_fcns::Tuple{Vararg{univariate_function{T, U}}}
+    Φ_fcns::Tuple{Vararg{univariate_function{T, U, A}}}
     layernorms::Tuple{Vararg{Lux.LayerNorm}}
     bool_config::BoolConfig
     x_shape::Tuple
@@ -89,7 +89,8 @@ function init_KAN_Generator(
         init_τ = init_τ,
         τ_trainable = τ_trainable,
     )
-    Φ_functions = Vector{univariate_function{half_quant, full_quant}}(undef, 0)
+    # Let Julia infer the concrete activation type from the elements we push
+    Φ_functions = []
     layernorms = Vector{Lux.LayerNorm}(undef, 0)
 
     for i in eachindex(widths[1:(end - 1)])
@@ -107,7 +108,9 @@ function init_KAN_Generator(
         end
     end
 
-    return KAN_Generator(
+    A = length(Φ_functions) > 0 ? typeof(Φ_functions[1].base_activation) : AbstractActivation
+
+    return KAN_Generator{half_quant, full_quant, A}(
         depth,
         Tuple(Φ_functions),
         Tuple(layernorms),
@@ -116,12 +119,12 @@ function init_KAN_Generator(
     )
 end
 
-function (gen::KAN_Generator{T, U})(
+function (gen::KAN_Generator{T, U, A})(
         ps::ComponentArray{T},
         st_kan::ComponentArray{T},
         st_lyrnorm::NamedTuple,
         z::AbstractArray{T, 3},
-    )::Tuple{AbstractArray{T}, NamedTuple} where {T <: half_quant, U <: full_quant}
+    )::Tuple{AbstractArray{T}, NamedTuple} where {T <: half_quant, U <: full_quant, A <: AbstractActivation}
     """
     Generate data from the KAN likelihood model.
 

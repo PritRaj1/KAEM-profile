@@ -18,10 +18,10 @@ const SplineBasis_mapping = Dict(
     "Cheby" => degree -> Cheby_basis(degree),
 )
 
-struct univariate_function{T <: half_quant, U <: full_quant} <: Lux.AbstractLuxLayer
+struct univariate_function{T <: half_quant, U <: full_quant, A <: AbstractActivation} <: Lux.AbstractLuxLayer
     in_dim::Int
     out_dim::Int
-    base_activation::AbstractActivation
+    base_activation::A
     basis_function::AbstractBasis
     spline_string::String
     spline_degree::Int
@@ -63,8 +63,11 @@ function init_function(
         !(spline_function == "Cheby" || spline_function == "FFT") ?
         extend_grid(grid; k_extend = spline_degree) : grid
     σ_base = any(isnan.(σ_base)) ? ones(U, in_dim, out_dim) : σ_base
-    base_activation =
-        get(activation_mapping, base_activation, x -> x .* NNlib.sigmoid_fast(x))
+    base_activation_obj =
+        get(activation_mapping, base_activation, activation_mapping["silu"])
+
+    # Extract concrete type for type parameter
+    A = typeof(base_activation_obj)
 
     initializer =
         get(SplineBasis_mapping, spline_function, degree -> B_spline_basis(degree))
@@ -73,10 +76,10 @@ function init_function(
     basis_function =
         spline_function == "RBF" ? RBF_basis(scale) : initializer(spline_degree)
 
-    return univariate_function(
+    return univariate_function{T, U, A}(
         in_dim,
         out_dim,
-        base_activation,
+        base_activation_obj,
         basis_function,
         spline_function,
         spline_degree,
@@ -94,13 +97,13 @@ end
 
 function Lux.initialparameters(
         rng::AbstractRNG,
-        l::univariate_function{T, U},
-    ) where {T <: half_quant, U <: full_quant}
+        l::univariate_function{T, U, A},
+    ) where {T <: half_quant, U <: full_quant, A <: AbstractActivation}
 
     w_base = glorot_normal(rng, U, l.in_dim, l.out_dim) .* l.σ_base
     w_sp = glorot_normal(rng, U, l.in_dim, l.out_dim) .* l.σ_spline
 
-    coef = nothing
+    coef = [zero(T)]
     if l.spline_string == "FFT"
         grid_norm_factor = collect(U, 1:(l.grid_size + 1)) .^ 2
         coef =
@@ -138,17 +141,30 @@ end
 
 function Lux.initialstates(
         rng::AbstractRNG,
-        l::univariate_function{T, U},
-    ) where {T <: half_quant, U <: full_quant}
+        l::univariate_function{T, U, A},
+    ) where {T <: half_quant, U <: full_quant, A <: AbstractActivation}
     return (grid = T.(cpu_device()(l.init_grid)), basis_τ = T.(l.init_τ))
 
 end
 
-function (l::univariate_function{T, U})(
+function SplineMUL(
+        l::univariate_function{T, U, A},
+        ps::ComponentArray{T},
+        x::AbstractArray{T, 2},
+        y::AbstractArray{T, 3},
+    )::AbstractArray{T, 3} where {T <: half_quant, U <: full_quant, A <: AbstractActivation}
+    x_act = l.base_activation(x)
+    w_base, w_sp = ps.w_base, ps.w_sp
+    I, S, O = size(x_act)..., size(w_base, 2)
+    return reshape(w_base, I, O, 1) .* reshape(x_act, I, 1, S) .+
+        reshape(w_sp, I, O, 1) .* y
+end
+
+function (l::univariate_function{T, U, A})(
         x::AbstractArray{T, 2},
         ps::ComponentArray{T},
         st::ComponentArray{T}, # Unlike standard Lux, states are a ComponentArray
-    )::AbstractArray{T, 3} where {T <: half_quant, U <: full_quant}
+    )::AbstractArray{T, 3} where {T <: half_quant, U <: full_quant, A <: AbstractActivation}
     basis_τ = l.τ_trainable ? ps.basis_τ : st.basis_τ
     y =
         l.spline_string == "FFT" ?
