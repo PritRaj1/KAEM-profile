@@ -161,7 +161,8 @@ function closure(
     )
 end
 
-function grad_importance_llhood(
+function grad_importance_llhood!(
+        ∇::ComponentArray{T},
         ps::ComponentArray{T},
         z_posterior::AbstractArray{T, 3},
         z_prior::AbstractArray{T, 3},
@@ -173,31 +174,31 @@ function grad_importance_llhood(
         st_lux_ebm::NamedTuple,
         st_lux_gen::NamedTuple,
         noise::AbstractArray{T},
-    )::AbstractArray{T} where {T <: half_quant}
+    )::Nothing where {T <: half_quant}
 
-    return first(
-        Enzyme.gradient(
-            Enzyme.set_runtime_activity(Enzyme.Reverse),
-            Enzyme.Const(closure),
-            ps,
-            Enzyme.Const(z_posterior),
-            Enzyme.Const(z_prior),
-            Enzyme.Const(x),
-            Enzyme.Const(weights_resampled),
-            Enzyme.Const(resampled_idxs),
-            Enzyme.Const(model),
-            Enzyme.Const(st_kan),
-            Enzyme.Const(st_lux_ebm),
-            Enzyme.Const(st_lux_gen),
-            Enzyme.Const(noise),
-        )
+    Enzyme.autodiff(
+        Enzyme.Reverse,
+        Enzyme.Const(closure),
+        Enzyme.Active,
+        Enzyme.Duplicated(ps, ∇),
+        Enzyme.Const(z_posterior),
+        Enzyme.Const(z_prior),
+        Enzyme.Const(x),
+        Enzyme.Const(weights_resampled),
+        Enzyme.Const(resampled_idxs),
+        Enzyme.Const(model),
+        Enzyme.Const(st_kan),
+        Enzyme.Const(st_lux_ebm),
+        Enzyme.Const(st_lux_gen),
+        Enzyme.Const(noise),
     )
 
+    return nothing
 end
 
 struct ImportanceLoss
     compiled_loss
-    compiled_grad
+    compiled_grad!
 end
 
 function ImportanceLoss(
@@ -208,15 +209,11 @@ function ImportanceLoss(
         x::AbstractArray{T};
         rng::AbstractRNG = Random.default_rng(),
     )::ImportanceLoss where {T <: half_quant}
-    ∇ = Enzyme.make_zero(ps)
-
     z_posterior, z_prior, st_lux_ebm, st_lux_gen, weights_resampled, resampled_idxs, noise =
         sample_importance(ps, st_kan, Lux.testmode(st_lux), model, x; rng = rng)
 
-    compiled_grad = grad_importance_llhood
-
-    # Reactant.@compile grad_importance_llhood!(
-    #     ∇,
+    # compiled_grad! = Reactant.@compile grad_importance_llhood!(
+    #     Enzyme.make_zero(ps),
     #     ps,
     #     z_posterior,
     #     z_prior,
@@ -229,10 +226,8 @@ function ImportanceLoss(
     #     Lux.trainmode(st_lux_gen),
     #     noise,
     # )
-
-    compiled_loss = marginal_llhood
-
-    # Reactant.@compile marginal_llhood(
+    #
+    # compiled_loss = Reactant.@compile marginal_llhood(
     #     ps,
     #     z_posterior,
     #     z_prior,
@@ -247,8 +242,10 @@ function ImportanceLoss(
     # )
 
     return ImportanceLoss(
-        compiled_loss,
-        compiled_grad
+        # compiled_loss,
+        # compiled_grad!,
+        marginal_llhood,
+        grad_importance_llhood!,
     )
 end
 
@@ -267,7 +264,8 @@ function (l::ImportanceLoss)(
     z_posterior, z_prior, st_lux_ebm, st_lux_gen, weights_resampled, resampled_idxs, noise =
         sample_importance(ps, st_kan, Lux.testmode(st_lux), model, x; rng = rng)
 
-    ∇ .= l.compiled_grad(
+    l.compiled_grad!(
+        ∇,
         ps,
         z_posterior,
         z_prior,

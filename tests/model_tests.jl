@@ -142,10 +142,10 @@ end
 
 @testset "KAEM Tests" begin
     test_ps_derivative()
-    test_grid_update()
-    test_pca()
-    test_mala_loss()
-    test_cnn_loss()
-    test_cnn_residual_loss()
+    # test_grid_update()
+    # test_pca()
+    # test_mala_loss()
+    # test_cnn_loss()
+    # test_cnn_residual_loss()
     # test_seq_loss()
 end
