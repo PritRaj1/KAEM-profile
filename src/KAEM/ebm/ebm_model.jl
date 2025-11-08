@@ -238,9 +238,9 @@ function Lux.initialparameters(
 
     prior_ps = (
         π_μ = prior.prior_type == "learnable_gaussian" ?
-            zeros(T, prior.p_size) : [0.0f0],
+            zeros(T, 1, prior.p_size) : [0.0f0],
         π_σ = prior.prior_type == "learnable_gaussian" ?
-            ones(T, prior.p_size) : [0.0f0],
+            ones(T, 1, prior.p_size) : [0.0f0],
         α = !prior.bool_config.mixture_model ? [0.0f0] :
             (
                 !prior.bool_config.use_attention_kernel ?

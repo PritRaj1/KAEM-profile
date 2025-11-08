@@ -33,9 +33,9 @@ function (prior::UniformPrior)(
         π_σ;
         log_bool = false,
     )
-    @tullio pdf[q, p, s] := (z[q, p, s] >= 0) * (z[q, p, s] <= 1)
-    log_bool && return stable_log(pdf, prior.ε)
-    return pdf
+    @. z = (z >= 0) * (z <= 1)
+    log_bool && return stable_log(z, prior.ε)
+    return z
 end
 
 function (prior::GaussianPrior)(
@@ -46,9 +46,9 @@ function (prior::GaussianPrior)(
     )
     scale = Float32(1 / sqrt(2π))
     @tullio pdf[q, p, s] := exp(-z[q, p, s]^2 / 2)
-    pdf = scale .* pdf
-    log_bool && return stable_log(pdf, prior.ε)
-    return pdf
+    @. z = scale * exp(-z^2 / 2) 
+    log_bool && return stable_log(z, prior.ε)
+    return z
 end
 
 function (prior::LogNormalPrior)(
@@ -58,11 +58,9 @@ function (prior::LogNormalPrior)(
         log_bool = false,
     )
     sqrt_2π = Float32(sqrt(2π))
-    denom = z .* sqrt_2π .+ prior.ε
-    z_eps = z .+ prior.ε
-    @tullio pdf[q, p, s] := exp(-((log(z_eps[q, p, s]))^2) / 2) / denom[q, p, s]
-    log_bool && return stable_log(pdf, prior.ε)
-    return pdf
+    @. z = exp(-((log(z + prior.ε))) / 2) / (z * sqrt_2π * prior.ε)
+    log_bool && return stable_log(z, prior.ε)
+    return z
 end
 
 function (prior::LearnableGaussianPrior)(
@@ -73,10 +71,9 @@ function (prior::LearnableGaussianPrior)(
     )
     π_eps = π_σ .* Float32(sqrt(2π)) .+ prior.ε
     denom_eps = 2 .* π_σ .^ 2 .+ prior.ε
-    @tullio pdf[q, p, s] :=
-        1 / (abs(π_eps[p]) * exp(-((z[q, p, s] - π_μ[p])^2) / denom_eps[p]))
-    log_bool && return stable_log(pdf, prior.ε)
-    return pdf
+    @. z = (1 / abs(π_eps)) * exp(-((z - π_μ)^2) / denom_eps)
+    log_bool && return stable_log(z, prior.ε)
+    return z
 end
 
 function (prior::EbmPrior)(
