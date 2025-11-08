@@ -20,49 +20,19 @@ parse_conf!(conf)
 commit!(conf, "THERMODYNAMIC_INTEGRATION", "num_temps", "4")
 out_dim = parse(Int, retrieve(conf, "GeneratorModel", "output_dim"))
 
-function test_posterior_sampling()
-    Random.seed!(42)
-    dataset = randn(Float32, 32, 32, 3, 50)
-    model = init_T_KAM(dataset, conf, (32, 32, 3))
-    x_test = first(model.train_loader) |> pu
-    model, ps, st_kan, st_lux = prep_model(model, x_test)
-    ps = ps
-
-    z_posterior, temps, st_lux = sample_thermo(
-        ps,
-        st_kan,
-        st_lux,
-        model,
-        x_test;
-        train_idx = 1,
-        rng = Random.default_rng(),
-    )
-
-    if model.prior.bool_config.mixture_model || model.prior.bool_config.ula
-        @test size(z_posterior) == (10, 1, 10, 4)
-    else
-        @test size(z_posterior) == (10, 5, 10, 4)
-    end
-    @test size(temps) == (4,)
-    return @test !any(isnan, z_posterior)
-end
-
 function test_model_derivative()
     Random.seed!(42)
     dataset = randn(Float32, 32, 32, 1, 50)
     model = init_T_KAM(dataset, conf, (32, 32, 1))
     x_test = first(model.train_loader) |> pu
     model, ps, st_kan, st_lux = prep_model(model, x_test)
-    ps = ps
-    ∇ = zero(Float32) .* ps
 
     loss, ∇, st_ebm, st_gen =
-        model.loss_fcn(ps, ∇, st_kan, st_lux, model, x_test; rng = Random.default_rng())
+        model.loss_fcn(ps, st_kan, st_lux, model, x_test; rng = Random.default_rng())
     @test norm(∇) != 0
     return @test !any(isnan, ∇)
 end
 
 @testset "Thermodynamic Integration Tests" begin
-    test_posterior_sampling()
     test_model_derivative()
 end

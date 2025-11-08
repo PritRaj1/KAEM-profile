@@ -1,6 +1,6 @@
 module T_KAM_model
 
-export T_KAM, init_T_KAM
+export T_KAM, init_T_KAM, generate_new
 
 using ConfParser, Random, Lux, Accessors, ComponentArrays, Statistics
 using Flux: DataLoader

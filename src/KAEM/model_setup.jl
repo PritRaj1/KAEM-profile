@@ -53,7 +53,6 @@ function setup_training(
     # Defaults
     @reset model.loss_fcn = Reactant.@compile importance_loss(
         ps,
-        Enzyme.make_zero(ps),
         st_kan,
         st_lux,
         model,

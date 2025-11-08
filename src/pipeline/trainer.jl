@@ -3,9 +3,10 @@ module trainer
 export T_KAM_trainer, init_trainer, train!
 
 using Flux: onecold, mse
-using CUDA, Random, ComponentArrays, CSV, HDF5, JLD2, ConfParser
-using Optimization, OptimizationOptimJL, Lux, LuxCUDA, LinearAlgebra, Accessors
+using Random, ComponentArrays, CSV, HDF5, JLD2, ConfParser, Reactant
+using Optimization, OptimizationOptimJL, Lux, LinearAlgebra, Accessors
 using MultivariateStats: reconstruct
+using MLDataDevices: cpu_device
 
 include("../utils.jl")
 using .Utils
@@ -183,6 +184,25 @@ function train!(t::T_KAM_trainer; train_idx::Int = 1)
 
     loss_file = t.model.file_loc * "loss.csv"
 
+    grid_compiled = Reactant.@compile update_model_grid(
+        t.model,
+        t.x,
+        t.ps,
+        t.st_kan,
+        Lux.testmode(t.st_lux);
+        train_idx = train_idx,
+        rng = t.rng
+    )
+
+    gen_compiled = Reactant.@compile generate_new(
+        t.model,
+        t.ps,
+        t.st_kan,
+        Lux.testmode(t.st_lux),
+        size(t.x)[end];
+        rng = t.rng,
+    )
+
     function find_nan(grads)
         for k in keys(grads)
             if any(isnan, grads[k]) || any(isinf, grads[k])
@@ -198,23 +218,21 @@ function train!(t::T_KAM_trainer; train_idx::Int = 1)
     # Gradient for a single batch
     function grad_fcn(G, u, args...)
         t.ps = u
-        ps_hq = (t.ps)
 
         # Grid updating for likelihood model
         if (
                 train_idx == 1 || (train_idx - t.last_grid_update >= t.grid_update_frequency)
             ) && (t.model.update_llhood_grid || t.model.update_prior_grid)
-            t.model, ps_hq, t.st_kan, t.st_lux = update_model_grid(
+            t.model, t.ps, t.st_kan, t.st_lux = grid_compiled(
                 t.model,
                 t.x,
-                ps_hq,
+                ps,
                 t.st_kan,
                 Lux.testmode(t.st_lux);
                 train_idx = train_idx,
                 rng = t.rng,
             )
 
-            t.ps = (ps_hq)
             t.grid_update_frequency =
                 train_idx > 1 ?
                 floor(t.grid_update_frequency * (2 - t.model.grid_update_decay)^train_idx) :
@@ -225,10 +243,8 @@ function train!(t::T_KAM_trainer; train_idx::Int = 1)
             t.model.verbose && println("Iter: $(train_idx), Grid updated")
         end
 
-        # Reduced precision grads, (switches to full precision for accumulation, not forward passes)
-        loss, grads, st_ebm, st_gen = t.model.loss_fcn(
-            ps_hq,
-            zero(Float32) .* grads,
+        t.loss, grads, st_ebm, st_gen = t.model.loss_fcn(
+            t.ps,
             t.st_kan,
             t.st_lux,
             t.model,
@@ -236,7 +252,6 @@ function train!(t::T_KAM_trainer; train_idx::Int = 1)
             train_idx = train_idx,
             rng = t.rng,
         )
-        t.loss = Float32(loss)
         copy!(G, (grads))
         @reset t.st_lux.ebm = st_ebm
         @reset t.st_lux.gen = st_gen
@@ -257,10 +272,10 @@ function train!(t::T_KAM_trainer; train_idx::Int = 1)
         if train_idx % num_batches == 0 || train_idx == 1
 
             test_loss = 0
-            ps_hq = (t.ps)
             for x in t.model.test_loader
-                x_gen, st_ebm, st_gen = CUDA.@fastmath t.model(
-                    ps_hq,
+                x_gen, st_ebm, st_gen = gen_compiled(
+                    t.model,
+                    t.ps,
                     t.st_kan,
                     Lux.testmode(t.st_lux),
                     size(x)[end];
@@ -268,7 +283,6 @@ function train!(t::T_KAM_trainer; train_idx::Int = 1)
                 )
                 @reset t.st_lux.ebm = st_ebm
                 @reset t.st_lux.gen = st_gen
-                x_gen = x_gen .|> Float32
 
                 # MSE loss between pixels for images, and max index for logits
                 if t.gen_type == "logits"
@@ -309,10 +323,10 @@ function train!(t::T_KAM_trainer; train_idx::Int = 1)
             num_batches_to_save = fld(t.num_generated_samples, 10) ÷ t.batch_size_for_gen # Save 1/10 of the samples to conserve space
             if num_batches_to_save > 0
                 concat_dim = length(t.model.lkhood.x_shape) + 1
-                ps_hq = (t.ps)
+                t.ps = (t.ps)
                 # Get first batch to determine type
-                first_batch, st_ebm, st_gen = CUDA.@fastmath t.model(
-                    ps_hq,
+                first_batch, st_ebm, st_gen = gen_compiled(
+                    t.ps,
                     t.st_kan,
                     Lux.testmode(t.st_lux),
                     t.batch_size_for_gen;
@@ -325,8 +339,8 @@ function train!(t::T_KAM_trainer; train_idx::Int = 1)
                 push!(batches_to_cat, cpu_device()(first_batch))
 
                 for i in 2:num_batches_to_save
-                    batch, st_ebm, st_gen = CUDA.@fastmath t.model(
-                        ps_hq,
+                    batch, st_ebm, st_gen = gen_compiled(
+                        t.ps,
                         t.st_kan,
                         Lux.testmode(t.st_lux),
                         t.batch_size_for_gen;
@@ -419,9 +433,8 @@ function train!(t::T_KAM_trainer; train_idx::Int = 1)
     # Generate samples
     num_batches = t.num_generated_samples ÷ t.batch_size_for_gen
     concat_dim = length(t.model.lkhood.x_shape) + 1
-    ps_hq = (t.ps)
-    first_batch, st_ebm, st_gen = CUDA.@fastmath t.model(
-        ps_hq,
+    first_batch, st_ebm, st_gen = gen_compiled(
+        t.ps,
         t.st_kan,
         Lux.testmode(t.st_lux),
         t.batch_size_for_gen;
@@ -432,8 +445,8 @@ function train!(t::T_KAM_trainer; train_idx::Int = 1)
     push!(batches_to_cat, cpu_device()(first_batch))
 
     for i in 2:num_batches
-        batch, st_ebm, st_gen = CUDA.@fastmath t.model(
-            ps_hq,
+        batch, st_ebm, st_gen = gen_compiled(
+            t.ps,
             t.st_kan,
             Lux.testmode(t.st_lux),
             t.batch_size_for_gen;

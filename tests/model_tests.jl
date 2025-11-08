@@ -26,11 +26,9 @@ function test_ps_derivative()
     model = init_T_KAM(dataset, conf, (32, 32, 1))
     x_test = first(model.train_loader) |> pu
     model, ps, st_kan, st_lux = prep_model(model, x_test)
-    ps = ps
-    ∇ = zero(Float32) .* ps
 
     loss, ∇, st_ebm, st_gen =
-        model.loss_fcn(ps, ∇, st_kan, st_lux, model, x_test; rng = Random.default_rng())
+        model.loss_fcn(ps, st_kan, st_lux, model, x_test; rng = Random.default_rng())
 
     @test norm(∇) != 0
     return @test !any(isnan, ∇)
@@ -42,7 +40,6 @@ function test_grid_update()
     model = init_T_KAM(dataset, conf, (32, 32, 1))
     x_test = first(model.train_loader) |> pu
     model, ps, st_kan, st_lux = prep_model(model, x_test)
-    ps = ps
 
     size_grid = size(st_kan.ebm[:a].grid)
     x = first(model.train_loader) |> pu
@@ -83,11 +80,9 @@ function test_mala_loss()
     model = init_T_KAM(dataset, conf, (32, 32, 1))
     x_test = first(model.train_loader) |> pu
     model, ps, st_kan, st_lux = prep_model(model, x_test)
-    ps = ps
-    ∇ = zero(Float32) .* ps
 
     loss, ∇, st_ebm, st_gen =
-        model.loss_fcn(ps, ∇, st_kan, st_lux, model, x_test; rng = Random.default_rng())
+        model.loss_fcn(ps, st_kan, st_lux, model, x_test; rng = Random.default_rng())
     @test norm(∇) != 0
     return @test !any(isnan, ∇)
 end
@@ -101,11 +96,9 @@ function test_cnn_loss()
     model = init_T_KAM(dataset, conf, (32, 32, 3))
     x_test = first(model.train_loader) |> pu
     model, ps, st_kan, st_lux = prep_model(model, x_test)
-    ps = ps
-    ∇ = zero(Float32) .* ps
 
     loss, ∇, st_ebm, st_gen =
-        model.loss_fcn(ps, ∇, st_kan, st_lux, model, x_test; rng = Random.default_rng())
+        model.loss_fcn(ps, st_kan, st_lux, model, x_test; rng = Random.default_rng())
     @test norm(∇) != 0
     @test !any(isnan, ∇)
     return commit!(conf, "CNN", "use_cnn_lkhood", "false")
@@ -119,11 +112,9 @@ function test_cnn_residual_loss()
     model = init_T_KAM(dataset, conf, (32, 32, 3))
     x_test = first(model.train_loader) |> pu
     model, ps, st_kan, st_lux = prep_model(model, x_test)
-    ps = ps
-    ∇ = zero(Float32) .* ps
 
     loss, ∇, st_ebm, st_gen =
-        model.loss_fcn(ps, ∇, st_kan, st_lux, model, x_test; rng = Random.default_rng())
+        model.loss_fcn(ps, st_kan, st_lux, model, x_test; rng = Random.default_rng())
     @test norm(∇) != 0
     @test !any(isnan, ∇)
     return commit!(conf, "CNN", "use_cnn_lkhood", "false")
@@ -137,11 +128,9 @@ function test_seq_loss()
     model = init_T_KAM(dataset, conf, (50, 10))
     x_test = first(model.train_loader) |> pu
     model, ps, st_kan, st_lux = prep_model(model, x_test)
-    ps = ps
-    ∇ = zero(Float32) .* ps
 
     loss, ∇, st_ebm, st_gen =
-        model.loss_fcn(ps, ∇, st_kan, st_lux, model, x_test; rng = Random.default_rng())
+        model.loss_fcn(ps, st_kan, st_lux, model, x_test; rng = Random.default_rng())
     @test norm(∇) != 0
     return @test !any(isnan, ∇)
 end

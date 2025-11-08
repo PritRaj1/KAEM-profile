@@ -12,31 +12,19 @@ struct TrapeziumQuadrature <: AbstractQuadrature end
 
 struct GaussLegendreQuadrature <: AbstractQuadrature end
 
-function qfirst_exp_kernel(
-        f,
-        π0,
-    )
-    return exp.(f) .* π0
+function qfirst_exp_kernel(f, π0)
+    return exp.(f) .* reshape(π0, size(π0, 1), 1, size(π0, 2))
 end
 
-function pfirst_exp_kernel(
-        f,
-        π0,
-    )
-    return exp.(f) .* π0
+function pfirst_exp_kernel(f, π0)
+    return exp.(f) .* reshape(π0, 1, size(π0)...)
 end
 
-function apply_mask(
-        exp_fg,
-        component_mask,
-    )
+function apply_mask(exp_fg, component_mask)
     return dropdims(sum(permutedims(exp_fg[:, :, :, :], (1, 2, 4, 3)) .* component_mask; dims = 2); dims = 2)
 end
 
-function weight_kernel(
-        trapz,
-        weights,
-    )
+function weight_kernel(trapz, weights)
     return reshape(weights, 1, size(weights)...) .* trapz
 end
 
