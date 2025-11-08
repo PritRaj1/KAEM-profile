@@ -148,11 +148,11 @@ function Lux.initialstates(
 end
 
 function SplineMUL(
-        l::univariate_function{T, A},
-        ps::ComponentArray{T},
-        x::AbstractArray{T, 2},
-        y::AbstractArray{T, 3},
-    )::AbstractArray{T, 3} where {T <: Float32, A <: AbstractActivation}
+        l,
+        ps,
+        x,
+        y,
+    )
     x_act = l.base_activation(x)
     w_base, w_sp = ps.w_base, ps.w_sp
     I, S, O = size(x_act)..., size(w_base, 2)
@@ -160,11 +160,11 @@ function SplineMUL(
         reshape(w_sp, I, O, 1) .* y
 end
 
-function (l::univariate_function{T, A})(
-        x::AbstractArray{T, 2},
-        ps::ComponentArray{T},
-        st::ComponentArray{T}, # Unlike standard Lux, states are a ComponentArray
-    )::AbstractArray{T, 3} where {T <: Float32, A <: AbstractActivation}
+function (l::univariate_function)(
+        x,
+        ps,
+        st,
+    )
     basis_τ = l.τ_trainable ? ps.basis_τ : st.basis_τ
     y =
         l.spline_string == "FFT" ?

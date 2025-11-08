@@ -13,15 +13,15 @@ using .Losses
 
 ## Log-likelihood functions ##
 function log_likelihood_IS(
-        z::AbstractArray{T, 3},
-        x::AbstractArray{T},
-        lkhood::GenModel{T},
-        ps::ComponentArray{T},
-        st_kan::ComponentArray{T},
-        st_lux::NamedTuple,
-        noise::AbstractArray{T};
-        ε::T = eps(T),
-    )::Tuple{AbstractArray{T, 2}, NamedTuple} where {T <: Float32}
+        z,
+        x,
+        lkhood,
+        ps,
+        st_kan,
+        st_lux,
+        noise;
+        ε = eps(Float32),
+    )
     """
     Conditional likelihood of the generator.
 
@@ -47,15 +47,15 @@ function log_likelihood_IS(
 end
 
 function log_likelihood_MALA(
-        z::AbstractArray{T, 3},
-        x::AbstractArray{T},
-        lkhood::GenModel{T},
-        ps::ComponentArray{T},
-        st_kan::ComponentArray{T},
-        st_lux::NamedTuple,
-        noise::AbstractArray{T};
-        ε::T = eps(Float32),
-    )::Tuple{AbstractArray{T, 1}, NamedTuple} where {T <: Float32}
+        z,
+        x,
+        lkhood,
+        ps,
+        st_kan,
+        st_lux,
+        noise;
+        ε = eps(Float32),
+    )
     """
     Conditional likelihood of the generator sampled by Langevin.
 

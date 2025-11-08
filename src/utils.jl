@@ -1,6 +1,7 @@
 module Utils
 
 export pu,
+    xdev,
     symbol_map,
     activation_mapping,
     AbstractActivation,
@@ -30,67 +31,67 @@ const symbol_map = (:a, :b, :c, :d, :e, :f, :g, :h, :i)
 abstract type AbstractActivation end
 
 struct ReluActivation <: AbstractActivation end
-function (::ReluActivation)(x::AbstractArray{T})::AbstractArray{T} where {T <: Float32}
+function (::ReluActivation)(x)
     return NNlib.relu(x)
 end
 
 struct LeakyReluActivation <: AbstractActivation end
-function (::LeakyReluActivation)(x::AbstractArray{T})::AbstractArray{T} where {T <: Float32}
+function (::LeakyReluActivation)(x)
     return NNlib.leakyrelu(x)
 end
 
 struct TanhActivation <: AbstractActivation end
-function (::TanhActivation)(x::AbstractArray{T})::AbstractArray{T} where {T <: Float32}
+function (::TanhActivation)(x)
     return NNlib.tanh_fast(x)
 end
 
 struct SigmoidActivation <: AbstractActivation end
-function (::SigmoidActivation)(x::AbstractArray{T})::AbstractArray{T} where {T <: Float32}
+function (::SigmoidActivation)(x)
     return NNlib.sigmoid_fast(x)
 end
 
 struct SwishActivation <: AbstractActivation end
-function (::SwishActivation)(x::AbstractArray{T})::AbstractArray{T} where {T <: Float32}
+function (::SwishActivation)(x)
     return NNlib.hardswish(x)
 end
 
 struct GeluActivation <: AbstractActivation end
-function (::GeluActivation)(x::AbstractArray{T})::AbstractArray{T} where {T <: Float32}
+function (::GeluActivation)(x)
     return NNlib.gelu(x)
 end
 
 struct SeluActivation <: AbstractActivation end
-function (::SeluActivation)(x::AbstractArray{T})::AbstractArray{T} where {T <: Float32}
+function (::SeluActivation)(x)
     return NNlib.selu(x)
 end
 
 struct SiluActivation <: AbstractActivation end
-function (::SiluActivation)(x::AbstractArray{T})::AbstractArray{T} where {T <: Float32}
+function (::SiluActivation)(x)
     return x .* NNlib.sigmoid_fast(x)
 end
 
 struct EluActivation <: AbstractActivation end
-function (::EluActivation)(x::AbstractArray{T})::AbstractArray{T} where {T <: Float32}
+function (::EluActivation)(x)
     return NNlib.elu(x)
 end
 
 struct CeluActivation <: AbstractActivation end
-function (::CeluActivation)(x::AbstractArray{T})::AbstractArray{T} where {T <: Float32}
+function (::CeluActivation)(x)
     return NNlib.celu(x)
 end
 
 struct NoneActivation <: AbstractActivation end
-function (::NoneActivation)(x::AbstractArray{T})::AbstractArray{T} where {T <: Float32}
+function (::NoneActivation)(x)
     return x .* 0.0f0
 end
 
 struct IdentityActivation <: AbstractActivation end
-function (::IdentityActivation)(x::AbstractArray{T})::AbstractArray{T} where {T <: Float32}
+function (::IdentityActivation)(x)
     return x
 end
 
 struct SeqActivation <: AbstractActivation end
-function (::SeqActivation)(x::AbstractArray{T})::AbstractArray{T} where {T <: Float32}
+function (::SeqActivation)(x)
     return softmax(x; dims = 1)
 end
 

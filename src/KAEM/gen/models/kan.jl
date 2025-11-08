@@ -119,12 +119,12 @@ function init_KAN_Generator(
     )
 end
 
-function (gen::KAN_Generator{T, A})(
-        ps::ComponentArray{T},
-        st_kan::ComponentArray{T},
-        st_lyrnorm::NamedTuple,
-        z::AbstractArray{T, 3},
-    )::Tuple{AbstractArray{T}, NamedTuple} where {T <: Float32, A <: AbstractActivation}
+function (gen::KAN_Generator)(
+        ps,
+        st_kan,
+        st_lyrnorm,
+        z,
+    )
     """
     Generate data from the KAN likelihood model.
 

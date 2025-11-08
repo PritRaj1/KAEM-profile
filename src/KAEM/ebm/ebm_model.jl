@@ -174,12 +174,12 @@ function init_EbmModel(conf::ConfParse; rng::AbstractRNG = Random.default_rng())
     )
 end
 
-function (ebm::EbmModel{T, A})(
-        ps::ComponentArray{T},
-        st_kan::ComponentArray{T},
-        st_lyrnorm::NamedTuple,
-        z::AbstractArray{T},
-    )::Tuple{AbstractArray{T}, NamedTuple} where {T <: Float32, A <: AbstractActivation}
+function (ebm::EbmModel)(
+        ps,
+        st_kan,
+        st_lyrnorm,
+        z,
+    )
     """
     Forward pass through the ebm-prior, returning the energy function.
 

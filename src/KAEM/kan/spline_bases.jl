@@ -50,17 +50,17 @@ function Cheby_basis(degree::Int)
 end
 
 function (b::B_spline_basis)(
-        x::AbstractArray{T, 2},
-        grid::AbstractArray{T, 2},
-        σ::AbstractArray{T, 1}
-    )::AbstractArray{T, 3} where {T <: Float32}
+        x,
+        grid,
+        σ
+    )
     I, S, G = size(x)..., size(grid, 2)
     x = reshape(x, I, 1, S)
 
     # B0
     grid_1 = @view grid[:, 1:(end - 1)]
     grid_2 = @view grid[:, 2:end]
-    B = T.((x .>= grid_1) .* (x .< grid_2))
+    B = Float32.((x .>= grid_1) .* (x .< grid_2))
 
     # Iteratively build up to degree k
     for d in 1:b.degree
@@ -75,8 +75,8 @@ function (b::B_spline_basis)(
         denom1 = g3 .- g1
         denom2 = g4 .- g2
 
-        mask1 = T.(denom1 .!= 0)
-        mask2 = T.(denom2 .!= 0)
+        mask1 = Float32.(denom1 .!= 0)
+        mask2 = Float32.(denom2 .!= 0)
 
         numer1 = x .- g1
         numer2 = g4 .- x
@@ -88,10 +88,10 @@ function (b::B_spline_basis)(
 end
 
 function (b::RBF_basis)(
-        x::AbstractArray{T, 2},
-        grid::AbstractArray{T, 2},
-        σ::AbstractArray{T, 1},
-    )::AbstractArray{T, 3} where {T <: Float32}
+        x,
+        grid,
+        σ,
+    )
     I, S, G = size(x)..., size(grid, 2)
     x_3d = reshape(x, I, 1, S)
     grid_3d = reshape(grid, I, G, 1)
@@ -99,32 +99,32 @@ function (b::RBF_basis)(
 end
 
 function (b::RSWAF_basis)(
-        x::AbstractArray{T, 2},
-        grid::AbstractArray{T, 2},
-        σ::AbstractArray{T, 1},
-    )::AbstractArray{T, 3} where {T <: Float32}
+        x,
+        grid,
+        σ,
+    )
     I, S, G = size(x)..., size(grid, 2)
     diff = NNlib.tanh_fast((reshape(x, I, 1, S) .- grid) ./ σ)
-    return @. one(T) - diff^2
+    return @. 1.0f0 - diff^2
 end
 
 function (b::Cheby_basis)(
-        x::AbstractArray{T, 2},
-        grid::AbstractArray{T, 2},
-        σ::AbstractArray{T, 1},
-    )::AbstractArray{T, 3} where {T <: Float32}
+        x,
+        grid,
+        σ,
+    )
     I, S = size(x)
     z = acos.(NNlib.tanh_fast(x) ./ σ)
     return cos.(reshape(z, I, 1, S) .* b.lin)
 end
 
 function coef2curve_Spline(
-        b::AbstractBasis,
-        x_eval::AbstractArray{T, 2},
-        grid::AbstractArray{T, 2},
-        coef::AbstractArray{T, 3},
-        σ::AbstractArray{T, 1},
-    )::AbstractArray{T, 3} where {T <: Float32}
+        b,
+        x_eval,
+        grid,
+        coef,
+        σ,
+    )
     spl = b(x_eval, grid, σ)
     I, G, S, O = size(spl)..., size(coef, 2)
     coef_perm = permutedims(coef, (2, 3, 1)) # [O, G, I]
@@ -155,32 +155,32 @@ function curve2coef(
         end
     end
 
-    return T.(coef)
+    return Float32.(coef)
 end
 
 ## FFT basis functions ###
 struct FFT_basis <: AbstractBasis end
 
 function (b::FFT_basis)(
-        x::AbstractArray{T, 2},
-        grid::AbstractArray{T, 2},
-        σ::AbstractArray{T, 1},
-    )::Tuple{AbstractArray{T, 3}, AbstractArray{T, 3}} where {T <: Float32}
+        x,
+        grid,
+        σ,
+    )
     I, S, G = size(x)..., size(grid, 2)
 
     x_3d = reshape(x, I, 1, S)
     grid_3d = reshape(grid, I, G, 1)
-    freq = @. x_3d * grid_3d * T(2π) * σ
+    freq = @. x_3d * grid_3d * Float32(2π) * σ
     return cos.(freq), sin.(freq)
 end
 
 function coef2curve_FFT(
-        b::AbstractBasis,
-        x_eval::AbstractArray{T, 2},
-        grid::AbstractArray{T, 2},
-        coef::AbstractArray{T, 4},
-        σ::AbstractArray{T, 1},
-    )::AbstractArray{T, 3} where {T <: Float32}
+        b,
+        x_eval,
+        grid,
+        coef,
+        σ,
+    )
     even, odd = b(x_eval, grid, σ)
     even_coef = @view coef[1, :, :, :]
     odd_coef = @view coef[2, :, :, :]

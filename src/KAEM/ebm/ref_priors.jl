@@ -23,28 +23,28 @@ struct EbmPrior{T <: Float32} <: AbstractPrior
     ε::T
 end
 
-function stable_log(pdf::AbstractArray{T, 3}, ε::T)::AbstractArray{T, 3} where {T <: Float32}
+function stable_log(pdf, ε)
     return log.(pdf .+ ε)
 end
 
 function (prior::UniformPrior)(
-        z::AbstractArray{T, 3},
-        π_μ::AbstractArray{T, 1},
-        π_σ::AbstractArray{T, 1};
-        log_bool::Bool = false,
-    )::AbstractArray{T, 3} where {T <: Float32}
+        z,
+        π_μ,
+        π_σ;
+        log_bool = false,
+    )
     @tullio pdf[q, p, s] := (z[q, p, s] >= 0) * (z[q, p, s] <= 1)
     log_bool && return stable_log(pdf, prior.ε)
     return pdf
 end
 
 function (prior::GaussianPrior)(
-        z::AbstractArray{T, 3},
-        π_μ::AbstractArray{T, 1},
-        π_σ::AbstractArray{T, 1};
-        log_bool::Bool = false,
-    )::AbstractArray{T, 3} where {T <: Float32}
-    scale = T(1 / sqrt(2π))
+        z,
+        π_μ,
+        π_σ;
+        log_bool = false,
+    )
+    scale = Float32(1 / sqrt(2π))
     @tullio pdf[q, p, s] := exp(-z[q, p, s]^2 / 2)
     pdf = scale .* pdf
     log_bool && return stable_log(pdf, prior.ε)
@@ -52,12 +52,12 @@ function (prior::GaussianPrior)(
 end
 
 function (prior::LogNormalPrior)(
-        z::AbstractArray{T, 3},
-        π_μ::AbstractArray{T, 1},
-        π_σ::AbstractArray{T, 1};
-        log_bool::Bool = false,
-    )::AbstractArray{T, 3} where {T <: Float32}
-    sqrt_2π = T(sqrt(2π))
+        z,
+        π_μ,
+        π_σ;
+        log_bool = false,
+    )
+    sqrt_2π = Float32(sqrt(2π))
     denom = z .* sqrt_2π .+ prior.ε
     z_eps = z .+ prior.ε
     @tullio pdf[q, p, s] := exp(-((log(z_eps[q, p, s]))^2) / 2) / denom[q, p, s]
@@ -66,12 +66,12 @@ function (prior::LogNormalPrior)(
 end
 
 function (prior::LearnableGaussianPrior)(
-        z::AbstractArray{T, 3},
-        π_μ::AbstractArray{T, 1},
-        π_σ::AbstractArray{T, 1};
-        log_bool::Bool = false,
-    )::AbstractArray{T, 3} where {T <: Float32}
-    π_eps = π_σ .* T(sqrt(2π)) .+ prior.ε
+        z,
+        π_μ,
+        π_σ;
+        log_bool = false,
+    )
+    π_eps = π_σ .* Float32(sqrt(2π)) .+ prior.ε
     denom_eps = 2 .* π_σ .^ 2 .+ prior.ε
     @tullio pdf[q, p, s] :=
         1 / (abs(π_eps[p]) * exp(-((z[q, p, s] - π_μ[p])^2) / denom_eps[p]))
@@ -80,11 +80,11 @@ function (prior::LearnableGaussianPrior)(
 end
 
 function (prior::EbmPrior)(
-        z::AbstractArray{T, 3},
-        π_μ::AbstractArray{T, 1},
-        π_σ::AbstractArray{T, 1};
-        log_bool::Bool = false,
-    )::AbstractArray{T, 3} where {T <: Float32}
+        z,
+        π_μ,
+        π_σ;
+        log_bool = false,
+    )
     log_pdf = 0.0f0 .* z
     log_bool && return log_pdf
     return log_pdf .+ 1.0f0

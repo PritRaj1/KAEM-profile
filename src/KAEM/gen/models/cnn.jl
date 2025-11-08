@@ -21,9 +21,9 @@ struct CNN_Generator <: Lux.AbstractLuxLayer
 end
 
 function upsample_to_match(
-        input_tensor::AbstractArray{T, 4},
-        target_tensor::AbstractArray{T, 4},
-    )::AbstractArray{T, 4} where {T <: Float32}
+        input_tensor,
+        target_tensor,
+    )
     input_h, input_w = size(input_tensor, 1), size(input_tensor, 2)
     target_h, target_w = size(target_tensor, 1), size(target_tensor, 2)
     h_factor = div(target_h, input_h)
@@ -34,10 +34,10 @@ end
 
 function forward_with_latent_concat(
         gen::CNN_Generator,
-        z::AbstractArray{T, 4},
-        ps::ComponentArray{T},
-        st_lux::NamedTuple,
-    )::Tuple{AbstractArray{T, 4}, NamedTuple} where {T <: Float32}
+        z,
+        ps,
+        st_lux,
+    )
 
     original_z = z
     current_z = z .* 1.0f0
@@ -75,12 +75,12 @@ end
 
 function forward(
         gen::CNN_Generator,
-        z::AbstractArray{T, 4},
-        ps::ComponentArray{T},
-        st_lux::NamedTuple,
-        current_layer::Int = 1,
-        skip_input::Union{AbstractArray{T, 4}, Nothing} = nothing,
-    )::Tuple{AbstractArray{T, 4}, NamedTuple} where {T <: Float32}
+        z,
+        ps,
+        st_lux,
+        current_layer = 1,
+        skip_input = nothing,
+    )
     st_lux_new = st_lux
     for i in 1:(gen.depth)
         z, st_layer_new =
@@ -199,11 +199,11 @@ function init_CNN_Generator(
 end
 
 function (gen::CNN_Generator)(
-        ps::ComponentArray{T},
-        st_kan::ComponentArray{T},
-        st_lux::NamedTuple,
-        z::AbstractArray{T, 3},
-    )::Tuple{AbstractArray{T, 4}, NamedTuple} where {T <: Float32}
+        ps,
+        st_kan,
+        st_lux,
+        z,
+    )
     """
     Generate data from the CNN likelihood model.
 

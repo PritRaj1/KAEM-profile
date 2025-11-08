@@ -95,12 +95,12 @@ function init_SEQ_Generator(
 end
 
 function scaled_dotprod_attn(
-        Q::AbstractArray{T, 3},
-        K::AbstractArray{T, 3},
-        V::AbstractArray{T, 3},
-        d_model::Int,
-    )::AbstractArray{T, 3} where {T <: Float32}
-    scale = sqrt(T(d_model))
+        Q,
+        K,
+        V,
+        d_model,
+    )
+    scale = sqrt(Float32(d_model))
 
     QK = batched_mul(permutedims(Q, (2, 1, 3)), K)
     QK ./= scale
@@ -111,11 +111,11 @@ function scaled_dotprod_attn(
 end
 
 function (gen::SEQ_Generator)(
-        ps::ComponentArray{T},
-        st_kan::ComponentArray{T},
-        st_lux::NamedTuple,
-        z::AbstractArray{T, 3},
-    )::Tuple{AbstractArray{T, 3}, NamedTuple} where {T <: Float32}
+        ps,
+        st_kan,
+        st_lux,
+        z,
+    )
     """
     Generate data from the Transformer decoder.
 

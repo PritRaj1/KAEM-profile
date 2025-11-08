@@ -19,23 +19,23 @@ end
 
 ## Fcns for model with Importance Sampling ##
 function cross_entropy_IS(
-        x::AbstractArray{T, 3},
-        x̂::AbstractArray{T, 4},
-        ε::T,
-        scale::T,
-    )::AbstractArray{T, 2} where {T <: Float32}
+        x,
+        x̂,
+        ε,
+        scale,
+    )
     D, L, S, B = size(x̂)
     ll =
         dropdims(sum(log.(x̂ .+ ε) .* reshape(x, D, L, 1, B), dims = (1, 2)), dims = (1, 2))
-    return ll' ./ T(D) ./ scale
+    return ll' ./ Float32(D) ./ scale
 end
 
 function l2_IS(
-        x::AbstractArray{T, 4},
-        x̂::AbstractArray{T, 5},
-        ε::T,
-        scale::T,
-    )::AbstractArray{T, 2} where {T <: Float32}
+        x,
+        x̂,
+        ε,
+        scale,
+    )
     W, H, C, S, B = size(x̂)
     ll =
         -dropdims(
@@ -46,58 +46,58 @@ function l2_IS(
 end
 
 function l2_IS_PCA(
-        x::AbstractArray{T, 2},
-        x̂::AbstractArray{T, 3},
-        ε::T,
-        scale::T,
-    )::AbstractArray{T, 2} where {T <: Float32}
+        x,
+        x̂,
+        ε,
+        scale,
+    )
     D, S, B = size(x̂)
     ll = -dropdims(sum((reshape(x, D, 1, B) .- x̂) .^ 2, dims = 1), dims = 1)
     return ll' ./ scale
 end
 
 function IS_loss(
-        x::AbstractArray{T},
-        x̂::AbstractArray{T},
-        ε::T,
-        scale::T,
-        B::Int,
-        S::Int,
-        SEQ::Bool,
-    )::AbstractArray{T, 2} where {T <: Float32}
+        x,
+        x̂,
+        ε,
+        scale,
+        B,
+        S,
+        SEQ,
+    )
     loss_fcn = (SEQ ? cross_entropy_IS : (ndims(x) == 2 ? l2_IS_PCA : l2_IS))
     return loss_fcn(x, x̂, ε, scale)
 end
 
 ## Fcns for model with Langevin methods ##
 function cross_entropy_MALA(
-        x::AbstractArray{T, 3},
-        x̂::AbstractArray{T, 3},
-        ε::T,
-        scale::T,
-    )::AbstractArray{T, 1} where {T <: Float32}
+        x,
+        x̂,
+        ε,
+        scale,
+    )
     ll = dropdims(sum(log.(x̂ .+ ε) .* x, dims = (1, 2)), dims = (1, 2))
-    return ll ./ T(size(x, 1)) ./ scale
+    return ll ./ Float32(size(x, 1)) ./ scale
 end
 
 function l2_PCA(
-        x::AbstractArray{T, 2},
-        x̂::AbstractArray{T, 2},
-        ε::T,
-        scale::T,
-        perceptual_scale::T,
-    )::AbstractArray{T, 1} where {T <: Float32}
+        x,
+        x̂,
+        ε,
+        scale,
+        perceptual_scale,
+    )
     ll = -dropdims(sum((x .- x̂) .^ 2, dims = 1), dims = 1)
     return ll ./ scale
 end
 
 function l2_MALA(
-        x::AbstractArray{T, 4},
-        x̂::AbstractArray{T, 4},
-        ε::T,
-        scale::T,
-        perceptual_scale::T,
-    )::AbstractArray{T, 1} where {T <: Float32}
+        x,
+        x̂,
+        ε,
+        scale,
+        perceptual_scale,
+    )
     ll = -dropdims(sum((x .- x̂) .^ 2, dims = (1, 2, 3)), dims = (1, 2, 3))
     return ll ./ scale
 end
@@ -122,12 +122,12 @@ const C₂ = 0.03^2 |> Float32
 const kernel = repeat(reshape(SSIM_KERNEL * SSIM_KERNEL', 11, 11, 1, 1), 1, 1, 3, 1) |> pu
 
 function ssim_MALA(
-        x::AbstractArray{T, 4},
-        x̂::AbstractArray{T, 4},
-        ε::T,
-        scale::T,
-        perceptual_scale::T,
-    )::AbstractArray{T, 1} where {T <: Float32}
+        x,
+        x̂,
+        ε,
+        scale,
+        perceptual_scale,
+    )
     μx = conv(x, kernel)
     μy = conv(x̂, kernel)
     μx² = μx .^ 2
@@ -142,10 +142,10 @@ function ssim_MALA(
 end
 
 function gramm_loss(
-        x::AbstractArray{T, 4},
-        x̂::AbstractArray{T, 4},
-        scale::T,
-    )::AbstractArray{T, 1} where {T <: Float32}
+        x,
+        x̂,
+        scale,
+    )
     H, W, C, B = size(x)
     real = reshape(x, H * W, C, B)
     fake = reshape(x̂, H * W, C, B)
@@ -157,12 +157,12 @@ function gramm_loss(
 end
 
 function feature_loss(
-        x::AbstractArray{T, 4},
-        x̂::AbstractArray{T, 4},
-        ε::T,
-        scale::T,
-        perceptual_scale::T,
-    )::AbstractArray{T, 1} where {T <: Float32}
+        x,
+        x̂,
+        ε,
+        scale,
+        perceptual_scale,
+    )
     loss = l2_MALA(x, x̂, ε, scale, perceptual_scale)
     real_features, fake_features = x, x̂
     for (idx, layer) in enumerate(feature_extractor)
@@ -183,14 +183,14 @@ function feature_loss(
 end
 
 function MALA_loss(
-        x::AbstractArray{T},
-        x̂::AbstractArray{T},
-        ε::T,
-        scale::T,
-        B::Int,
-        SEQ::Bool,
-        perceptual_scale::T,
-    )::AbstractArray{T, 1} where {T <: Float32}
+        x,
+        x̂,
+        ε,
+        scale,
+        B,
+        SEQ,
+        perceptual_scale,
+    )
     loss_fcn = (
         SEQ ? cross_entropy_MALA :
             (ndims(x) == 2 ? l2_PCA : (perceptual_loss ? feature_loss : l2_MALA))
