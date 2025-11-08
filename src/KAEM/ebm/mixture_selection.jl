@@ -53,7 +53,7 @@ function choose_component(
     Returns:
         chosen_components: The one-hot mask for each mixture model, (num_samples, q, p).    
     """
-    rand_vals = rand(Float32, rng, q_size, num_samples) |> pu
+    rand_vals = rand(rng, Float32, q_size, num_samples) |> pu
     α = cumsum(softmax(α; dims = 2); dims = 2)
 
     mask = zeros(Float32, q_size, p_size, num_samples) |> pu

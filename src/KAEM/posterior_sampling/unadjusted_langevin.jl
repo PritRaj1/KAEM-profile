@@ -34,7 +34,7 @@ struct ULA_sampler{T <: Float32}
 end
 
 function initialize_ULA_sampler(;
-        η::T = Float32(1.0e-3),
+        η::T = 1.0f-3,
         prior_sampling_bool::Bool = false,
         N::Int = 20,
         RE_frequency::Int = 10,
@@ -44,14 +44,14 @@ function initialize_ULA_sampler(;
 end
 
 function (sampler::ULA_sampler)(
-        model::T_KAM{T},
-        ps::ComponentArray{T},
-        st_kan::ComponentArray{T},
-        st_lux::NamedTuple,
-        x::AbstractArray{T};
-        temps::AbstractArray{T} = [one(T)],
-        rng::AbstractRNG = Random.default_rng(),
-    )::Tuple{AbstractArray{T}, NamedTuple} where {T <: Float32}
+        model,
+        ps,
+        st_kan,
+        st_lux,
+        x;
+        temps = [1.0f0],
+        rng = Random.default_rng(),
+    )
     """
     Unadjusted Langevin Algorithm (ULA) sampler to generate posterior samples.
 
@@ -106,8 +106,8 @@ function (sampler::ULA_sampler)(
     temps_gpu = pu(repeat(temps, S))
 
     # Pre-allocate for both precisions
-    z_fq = (reshape(z_hq, Q, P, S * num_temps))
-    ∇z_fq = zero(T) .* z_fq
+    z_fq = reshape(z_hq, Q, P, S * num_temps)
+    ∇z_fq = 0.0f0 .* z_fq
     z_copy = similar(z_hq[:, :, :, 1]) |> pu
     z_t, z_t1 = z_copy, z_copy
 
@@ -117,17 +117,17 @@ function (sampler::ULA_sampler)(
     )
 
     # Pre-allocate noise
-    noise = randn(rng, T, Q, P, S * num_temps, sampler.N)
-    log_u_swap = log.(rand(rng, T, num_temps - 1, sampler.N))
-    ll_noise = randn(rng, T, model.lkhood.x_shape..., S, 2, num_temps, sampler.N) |> pu
+    noise = randn(rng, Float32, Q, P, S * num_temps, sampler.N)
+    log_u_swap = log.(rand(rng, Float32, num_temps - 1, sampler.N))
+    ll_noise = randn(rng, Float32, model.lkhood.x_shape..., S, 2, num_temps, sampler.N) |> pu
     swap_replica_idxs = num_temps > 1 ? rand(rng, 1:(num_temps - 1), sampler.N) : nothing
 
     for i in 1:sampler.N
         ξ = pu(noise[:, :, :, i])
         ∇z_fq .=
             unadjusted_logpos_grad(
-            (z_fq),
-            zero(T) .* (z_fq),
+            z_fq,
+            0.0f0 .* z_fq,
             x_t,
             temps_gpu,
             model,

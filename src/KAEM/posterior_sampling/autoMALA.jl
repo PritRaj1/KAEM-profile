@@ -28,25 +28,25 @@ using .autoMALA_StepSearch
 const target_rate = 0.574  # Optimal acceptance rate for MALA
 
 struct autoMALA_sampler{T <: Float32}
-    N::Int
-    N_unadjusted::Int
-    η::AbstractArray{T}
+    N
+    N_unadjusted
+    η
     Δη::T
     η_min::T
     η_max::T
-    RE_frequency::Int
+    RE_frequency
 end
 
 function initialize_autoMALA_sampler(;
-        N::Int = 20,
-        N_unadjusted::Int = 1,
-        RE_frequency::Int = 10,
+        N = 20,
+        N_unadjusted = 1,
+        RE_frequency = 10,
         η::T = Float32(1.0e-3),
         Δη::T = Float32(2),
         η_min::T = Float32(1.0e-5),
-        η_max::T = one(Float32),
-        samples::Int = 100,
-        num_temps::Int = 1,
+        η_max::T = 1.0f0,
+        samples = 100,
+        num_temps = 1,
     ) where {T <: Float32}
 
     return autoMALA_sampler(
@@ -61,14 +61,14 @@ function initialize_autoMALA_sampler(;
 end
 
 function (sampler::autoMALA_sampler)(
-        model::T_KAM{T},
-        ps::ComponentArray{T},
-        st_kan::ComponentArray{T},
-        st_lux::NamedTuple,
-        x::AbstractArray{T};
-        temps::AbstractArray{T} = [one(T)],
-        rng::AbstractRNG = Random.default_rng(),
-    )::Tuple{AbstractArray{T}, NamedTuple} where {T <: Float32}
+        model,
+        ps,
+        st_kan,
+        st_lux,
+        x;
+        temps = [1.0f0],
+        rng = Random.default_rng(),
+    )
     """
     Metropolis-adjusted Langevin algorithm (MALA) sampler to generate posterior samples.
 
@@ -95,11 +95,11 @@ function (sampler::autoMALA_sampler)(
 
     num_temps, Q, P, S = length(temps), size(z_hq)[1:2]..., size(x)[end]
     z_hq = reshape(z_hq, Q, P, S, num_temps)
-    ∇z_hq = zero(T) .* z_hq
+    ∇z_hq = 0.0f0 .* z_hq
 
     # Pre-allocate for both precisions
     z_fq = (reshape(z_hq, Q, P, S * num_temps))
-    ∇z_fq = zero(T) .* z_fq
+    ∇z_fq = 0.0f0 .* z_fq
     z_copy = similar(z_hq[:, :, :, 1]) |> pu
     z_t, z_t1 = z_copy, z_copy
 
@@ -113,16 +113,16 @@ function (sampler::autoMALA_sampler)(
     M = init_mass_matrix(z_fq)
     @reset sampler.η = pu(sampler.η)
 
-    log_u = log.(rand(rng, T, S * num_temps, sampler.N)) |> pu
-    ratio_bounds = log.(rand(rng, T, S * num_temps, 2, sampler.N)) |> pu
-    log_u_swap = log.(rand(rng, T, num_temps - 1, sampler.N))
-    ll_noise = randn(rng, T, model.lkhood.x_shape..., S, 2, num_temps, sampler.N) |> pu
+    log_u = log.(rand(rng, Float32, S * num_temps, sampler.N)) |> pu
+    ratio_bounds = log.(rand(rng, Float32, S * num_temps, 2, sampler.N)) |> pu
+    log_u_swap = log.(rand(rng, Float32, num_temps - 1, sampler.N))
+    ll_noise = randn(rng, Float32, model.lkhood.x_shape..., S, 2, num_temps, sampler.N) |> pu
     swap_replica_idxs = num_temps > 1 ? rand(rng, 1:(num_temps - 1), sampler.N) : nothing
 
     num_acceptances = zeros(Int, S * num_temps) |> pu
-    mean_η = zeros(T, S * num_temps) |> pu
-    accept = zeros(T, S * num_temps) |> pu
-    momentum = zero(T) .* z_fq
+    mean_η = zeros(Float32, S * num_temps) |> pu
+    accept = zeros(Float32, S * num_temps) |> pu
+    momentum = 0.0f0 .* z_fq
 
     burn_in = 0
     η = sampler.η
@@ -181,7 +181,7 @@ function (sampler::autoMALA_sampler)(
 
             mh = (log_u[:, i] .< log_r)
             accept = mh .* reversible
-            reject = one(Float32) .- accept
+            reject = 1.0f0 .- accept
             accept_v, reject_v = reshape(accept, 1, 1, S), reshape(reject, 1, 1, S)
 
             @. z_fq = ẑ * accept_v + z_before * reject_v
@@ -231,8 +231,8 @@ function (sampler::autoMALA_sampler)(
                 @reset st_lux.gen = st_gen
 
                 # Swap population if likelihood of population in new temperature is higher on average
-                z_hq[:, :, :, t] .= swap .* z_t1 .+ (one(T) - swap) .* z_t
-                z_hq[:, :, :, t + 1] .= (one(T) - swap) .* z_t1 .+ swap .* z_t
+                z_hq[:, :, :, t] .= swap .* z_t1 .+ (1.0f0 - swap) .* z_t
+                z_hq[:, :, :, t + 1] .= (1.0f0 - swap) .* z_t1 .+ swap .* z_t
                 z_fq .= (reshape(z_hq, Q, P, S * num_temps))
             end
         end
@@ -242,7 +242,7 @@ function (sampler::autoMALA_sampler)(
     mean_η = ifelse.(isnan.(mean_η), sampler.η, mean_η) |> pu
 
     acceptance_rate = num_acceptances ./ sampler.N
-    η_adjustment = ifelse.(acceptance_rate .> target_rate, sampler.Δη, one(T) ./ sampler.Δη)
+    η_adjustment = ifelse.(acceptance_rate .> target_rate, sampler.Δη, 1.0f0 ./ sampler.Δη)
     mean_η = clamp.(mean_η .* η_adjustment, sampler.η_min, sampler.η_max)
     @reset sampler.η = mean_η
 

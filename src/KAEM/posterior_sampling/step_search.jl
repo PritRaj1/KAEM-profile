@@ -9,21 +9,21 @@ using ..T_KAM_model
 using ..LangevinUpdates
 
 function safe_step_size_update(
-        η::AbstractArray{T, 1},
-        δ::AbstractArray{Int},
-        Δη::T,
-    ) where {T <: Float32}
+        η,
+        δ,
+        Δη,
+    )
     η_new = η .* Δη .^ δ
     return ifelse.(isfinite.(η_new), η_new, η)
 end
 
 function check_reversibility(
-        ẑ::AbstractArray{T, 3},
-        z::AbstractArray{T, 3},
-        η::AbstractArray{T, 1},
-        η_prime::AbstractArray{T, 1};
-        tol::T = Float32(1.0e-3),
-    )::AbstractArray{Bool, 1} where {T <: Float32}
+        ẑ,
+        z,
+        η,
+        η_prime;
+        tol = 1.0f-3,
+    )
     # Check both position differences and step size differences for detailed balance
     pos_diff =
         dropdims(maximum(abs.(ẑ - z); dims = (1, 2)); dims = (1, 2)) .<
@@ -33,38 +33,29 @@ function check_reversibility(
 end
 
 function select_step_size(
-        log_a::AbstractArray{T, 1},
-        log_b::AbstractArray{T, 1},
-        z::AbstractArray{T, 3},
-        ∇z::AbstractArray{T, 3},
-        x::AbstractArray{T},
-        temps::AbstractArray{T, 1},
-        logpos_z::AbstractArray{T, 1},
-        momentum::AbstractArray{T, 3},
-        M::AbstractArray{T, 2},
-        η_init::AbstractArray{T, 1},
-        Δη::T,
-        model::T_KAM{T},
-        ps::ComponentArray{T},
-        st_kan::ComponentArray{T},
-        st_lux::NamedTuple;
-        η_min::T = Float32(1.0e-5),
-        η_max::T = one(Float32),
-    )::Tuple{
-        AbstractArray{T, 3},
-        AbstractArray{T, 1},
-        AbstractArray{T, 3},
-        AbstractArray{T, 3},
-        AbstractArray{T, 1},
-        AbstractArray{T, 1},
-        NamedTuple,
-    } where {T <: Float32}
-
+        log_a,
+        log_b,
+        z,
+        ∇z,
+        x,
+        temps,
+        logpos_z,
+        momentum,
+        M,
+        η_init,
+        Δη,
+        model,
+        ps,
+        st_kan,
+        st_lux;
+        η_min = 1.0f-5,
+        η_max = 1.0f0
+    )
     ẑ, logpos_ẑ, ∇ẑ, p̂, log_r, st_lux =
         leapfrog(z, ∇z, x, temps, logpos_z, momentum, M, η_init, model, ps, st_kan, st_lux)
 
     δ = (log_r .>= log_b) - (log_r .<= log_a)
-    active_chains = findall(δ .!= 0) |> cpu_device()
+    active_chains = findall(δ .!= 0)
     isempty(active_chains) && return ẑ, logpos_ẑ, ∇ẑ, p̂, η_init, log_r, st_lux
 
     geq_bool = (log_r .>= log_b)
@@ -118,32 +109,24 @@ function select_step_size(
 end
 
 function autoMALA_step(
-        log_a::AbstractArray{T, 1},
-        log_b::AbstractArray{T, 1},
-        z::AbstractArray{T, 3},
-        ∇z::AbstractArray{T, 3},
-        x::AbstractArray{T},
-        temps::AbstractArray{T, 1},
-        logpos_z::AbstractArray{T, 1},
-        momentum::AbstractArray{T, 3},
-        M::AbstractArray{T, 2},
-        model::T_KAM{T},
-        ps::ComponentArray{T},
-        st_kan::ComponentArray{T},
-        st_lux::NamedTuple,
-        η_init::AbstractArray{T, 1},
-        Δη::T,
-        η_min::T,
-        η_max::T,
-    )::Tuple{
-        AbstractArray{T, 3},
-        AbstractArray{T, 1},
-        AbstractArray{T, 1},
-        AbstractArray{T, 1},
-        AbstractArray{T, 1},
-        NamedTuple,
-    } where {T <: Float32}
-
+        log_a,
+        log_b,
+        z,
+        ∇z,
+        x,
+        temps,
+        logpos_z,
+        momentum,
+        M,
+        model,
+        ps,
+        st_kan,
+        st_lux,
+        η_init,
+        Δη,
+        η_min,
+        η_max,
+    )
     z_before, η_before = copy(z), copy(η_init)
     ẑ, logpos_ẑ, ∇ẑ, p̂, η, log_r, st_lux = select_step_size(
         log_a,
@@ -185,7 +168,7 @@ function autoMALA_step(
         η_max = η_max,
     )
 
-    reversible = check_reversibility(z_before, z_rev, η_before, η_prime; tol = T(model.ε))
+    reversible = check_reversibility(z_before, z_rev, η_before, η_prime; tol = model.ε)
     return ẑ, η, η_prime, reversible, log_r, st_lux
 end
 

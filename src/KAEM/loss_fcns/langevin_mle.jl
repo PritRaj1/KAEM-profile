@@ -34,7 +34,7 @@ function marginal_llhood(
         st_lux_ebm,
         st_lux_gen,
         noise
-    )::Tuple{T, NamedTuple, NamedTuple} where {T <: Float32}
+    )
 
     logprior_pos, st_ebm =
         model.log_prior(z_posterior, model.prior, ps.ebm, st_kan.ebm, st_lux_ebm)
