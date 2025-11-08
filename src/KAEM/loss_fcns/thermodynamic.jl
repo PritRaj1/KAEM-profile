@@ -1,8 +1,8 @@
 module ThermodynamicIntegration
 
-export initialize_thermo_loss, ThermodynamicLoss
+export thermodynamic_loss
 
-using ComponentArrays, Random, Zygote, Statistics, Lux
+using ComponentArrays, Random, Enzyme, Statistics, Lux
 
 using ..Utils
 using ..T_KAM_model
@@ -11,21 +11,15 @@ include("../gen/loglikelihoods.jl")
 using .LogLikelihoods: log_likelihood_MALA
 
 function sample_thermo(
-        ps::ComponentArray{T},
-        st_kan::ComponentArray{T},
-        st_lux::NamedTuple,
-        model::T_KAM{T},
-        x::AbstractArray{T};
-        train_idx::Int = 1,
-        rng::AbstractRNG = Random.default_rng(),
-    )::Tuple{
-        AbstractArray{T, 4},
-        AbstractArray{T, 1},
-        NamedTuple,
-        AbstractArray{T},
-        AbstractArray{T},
-    } where {T <: Float32}
-    temps = collect(T, [(k / model.N_t)^model.p[train_idx] for k in 0:model.N_t])
+        ps,
+        st_kan,
+        st_lux,
+        model,
+        x;
+        train_idx = 1,
+        rng = Random.default_rng(),
+    )
+    temps = collect(Flaot32, [(k / model.N_t)^model.p[train_idx] for k in 0:model.N_t])
     z, st_lux = model.posterior_sampler(
         model,
         ps,
@@ -37,24 +31,24 @@ function sample_thermo(
     )
 
     Δt = pu(temps[2:end] - temps[1:(end - 1)])
-    tempered_noise = randn(rng, T, model.lkhood.x_shape..., prod(size(z)[3:4])) |> pu
-    noise = randn(rng, T, model.lkhood.x_shape..., size(x)[end]) |> pu
+    tempered_noise = randn(rng, Float32, model.lkhood.x_shape..., prod(size(z)[3:4])) |> pu
+    noise = randn(rng, Float32, model.lkhood.x_shape..., size(x)[end]) |> pu
     return z, Δt, st_lux, noise, tempered_noise
 end
 
 function marginal_llhood(
-        ps::ComponentArray{T},
-        z_posterior::AbstractArray{T, 4},
-        z_prior::AbstractArray{T, 3},
-        x::AbstractArray{T},
-        Δt::AbstractArray{T, 1},
-        model::T_KAM{T},
-        st_kan::ComponentArray{T},
-        st_lux_ebm::NamedTuple,
-        st_lux_gen::NamedTuple,
-        noise::AbstractArray{T},
-        tempered_noise::AbstractArray{T}
-    )::Tuple{T, NamedTuple, NamedTuple} where {T <: Float32}
+        ps,
+        z_posterior,
+        z_prior,
+        x,
+        Δt,
+        model,
+        st_kan,
+        st_lux_ebm,
+        st_lux_gen,
+        noise,
+        tempered_noise
+    )
     Q, P, S, num_temps = size(z_posterior)
     log_ss = 0.0f0
 
@@ -102,18 +96,18 @@ function marginal_llhood(
 end
 
 function closure(
-        ps::ComponentArray{T},
-        z_posterior::AbstractArray{T, 4},
-        z_prior::AbstractArray{T, 3},
-        x::AbstractArray{T},
-        Δt::AbstractArray{T, 1},
-        model::T_KAM{T},
-        st_kan::ComponentArray{T},
-        st_lux_ebm::NamedTuple,
-        st_lux_gen::NamedTuple,
-        noise::AbstractArray{T},
-        tempered_noise::AbstractArray{T}
-    )::T where {T <: Float32}
+        ps,
+        z_posterior,
+        z_prior,
+        x,
+        Δt,
+        model,
+        st_kan,
+        st_lux_ebm,
+        st_lux_gen,
+        noise,
+        tempered_noise
+    )
     return first(
         marginal_llhood(
             ps,
@@ -132,22 +126,7 @@ function closure(
 end
 
 function grad_thermo_llhood(
-        ps::ComponentArray{T},
-        z_posterior::AbstractArray{T, 4},
-        z_prior::AbstractArray{T, 3},
-        x::AbstractArray{T},
-        Δt::AbstractArray{T, 1},
-        model::T_KAM{T},
-        st_kan::ComponentArray{T},
-        st_lux_ebm::NamedTuple,
-        st_lux_gen::NamedTuple,
-        noise::AbstractArray{T},
-        tempered_noise::AbstractArray{T}
-    )::AbstractArray{T} where {T <: Float32}
-
-    f =
-        p -> closure(
-        p,
+        ps,
         z_posterior,
         z_prior,
         x,
@@ -157,24 +136,36 @@ function grad_thermo_llhood(
         st_lux_ebm,
         st_lux_gen,
         noise,
-        tempered_noise,
+        tempered_noise
     )
-
-    return first(Zygote.gradient(f, ps))
+    return first(
+        Enzyme.gradient(
+            Enzyme.Reverse,
+            Enzyme.Const(closure),
+            ps,
+            Enzyme.Const(z_posterior),
+            Enzyme.Const(z_prior),
+            Enzyme.Const(x),
+            Enzyme.Const(Δt),
+            Enzyme.Const(model),
+            Enzyme.Const(st_kan),
+            Enzyme.Const(st_lux_ebm),
+            Enzyme.Const(st_lux_gen),
+            Enzyme.Const(noise),
+            Enzyme.Const(tempered_noise)
+        )
+    )
 end
 
-struct ThermodynamicLoss end
-
-function (l::ThermodynamicLoss)(
-        ps::ComponentArray{T},
-        ∇::ComponentArray{T},
-        st_kan::ComponentArray{T},
-        st_lux::NamedTuple,
-        model::T_KAM{T},
-        x::AbstractArray{T};
-        train_idx::Int = 1,
-        rng::AbstractRNG = Random.default_rng(),
-    )::Tuple{T, AbstractArray{T}, NamedTuple, NamedTuple} where {T <: Float32}
+function thermodynamic_loss(
+        ps,
+        st_kan,
+        st_lux,
+        model,
+        x;
+        train_idx = 1,
+        rng = Random.default_rng(),
+    )
     z_posterior, Δt, st_lux, noise, tempered_noise = sample_thermo(
         ps,
         st_kan,
@@ -188,7 +179,7 @@ function (l::ThermodynamicLoss)(
     z_prior, st_ebm =
         model.sample_prior(model, size(x)[end], ps, st_kan, Lux.testmode(st_lux), rng)
 
-    ∇ .= grad_thermo_llhood(
+    ∇ = grad_thermo_llhood(
         ps,
         z_posterior,
         z_prior,

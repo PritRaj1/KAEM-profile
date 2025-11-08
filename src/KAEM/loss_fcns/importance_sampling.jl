@@ -185,7 +185,6 @@ end
 
 function importance_loss(
         ps,
-        ∇,
         st_kan,
         st_lux,
         model,

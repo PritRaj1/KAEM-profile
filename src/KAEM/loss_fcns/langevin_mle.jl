@@ -1,8 +1,8 @@
 module LangevinMLE
 
-export LangevinLoss, initialize_langevin_loss
+export langevin_loss
 
-using ComponentArrays, Random, Zygote, Statistics, Lux
+using ComponentArrays, Random, Enzyme, Statistics, Lux
 
 using ..Utils
 using ..T_KAM_model
@@ -11,29 +11,29 @@ include("../gen/loglikelihoods.jl")
 using .LogLikelihoods: log_likelihood_MALA
 
 function sample_langevin(
-        ps::ComponentArray{T},
-        st_kan::ComponentArray{T},
-        st_lux::NamedTuple,
-        model::T_KAM{T},
-        x::AbstractArray{T};
-        rng::AbstractRNG = Random.default_rng(),
-    )::Tuple{AbstractArray{T, 3}, NamedTuple, AbstractArray{T}} where {T <: Float32}
+        ps,
+        st_kan,
+        st_lux,
+        model,
+        x;
+        rng = Random.default_rng(),
+    )
     z, st_lux, = model.posterior_sampler(model, ps, st_kan, st_lux, x; rng = rng)
     z = z[:, :, :, 1]
-    noise = randn(rng, T, model.lkhood.x_shape..., size(z)[end]) |> pu
+    noise = randn(rng, Float32, model.lkhood.x_shape..., size(z)[end]) |> pu
     return z, st_lux, noise
 end
 
 function marginal_llhood(
-        ps::ComponentArray{T},
-        z_posterior::AbstractArray{T, 3},
-        z_prior::AbstractArray{T, 3},
-        x::AbstractArray{T},
-        model::T_KAM{T},
-        st_kan::ComponentArray{T},
-        st_lux_ebm::NamedTuple,
-        st_lux_gen::NamedTuple,
-        noise::AbstractArray{T}
+        ps,
+        z_posterior,
+        z_prior,
+        x,
+        model,
+        st_kan,
+        st_lux_ebm,
+        st_lux_gen,
+        noise
     )::Tuple{T, NamedTuple, NamedTuple} where {T <: Float32}
 
     logprior_pos, st_ebm =
@@ -58,16 +58,16 @@ function marginal_llhood(
 end
 
 function closure(
-        ps::ComponentArray{T},
-        z_posterior::AbstractArray{T, 3},
-        z_prior::AbstractArray{T, 3},
-        x::AbstractArray{T},
-        model::T_KAM{T},
-        st_kan::ComponentArray{T},
-        st_lux_ebm::NamedTuple,
-        st_lux_gen::NamedTuple,
-        noise::AbstractArray{T}
-    )::T where {T <: Float32}
+        ps,
+        z_posterior,
+        z_prior,
+        x,
+        model,
+        st_kan,
+        st_lux_ebm,
+        st_lux_gen,
+        noise
+    )
     return first(
         marginal_llhood(
             ps,
@@ -84,20 +84,7 @@ function closure(
 end
 
 function grad_langevin_llhood(
-        ps::ComponentArray{T},
-        z_posterior::AbstractArray{T, 3},
-        z_prior::AbstractArray{T, 3},
-        x::AbstractArray{T},
-        model::T_KAM{T},
-        st_kan::ComponentArray{T},
-        st_lux_ebm::NamedTuple,
-        st_lux_gen::NamedTuple,
-        noise::AbstractArray{T}
-    )::AbstractArray{T} where {T <: Float32}
-
-    f =
-        p -> closure(
-        p,
+        ps,
         z_posterior,
         z_prior,
         x,
@@ -105,31 +92,42 @@ function grad_langevin_llhood(
         st_kan,
         st_lux_ebm,
         st_lux_gen,
-        noise,
+        noise
     )
-
-    return first(Zygote.gradient(f, ps))
+    return first(
+        Enzyme.gradient(
+            Enzyme.Reverse,
+            Enzyme.Const(closure),
+            ps,
+            Enzyme.Const(z_posterior),
+            Enzyme.Const(z_prior),
+            Enzyme.Const(x),
+            Enzyme.Const(model),
+            Enzyme.Const(st_kan),
+            Enzyme.Const(st_lux_ebm),
+            Enzyme.Const(st_lux_gen),
+            Enzyme.Const(noise)
+        )
+    )
 end
 
-struct LangevinLoss end
 
-function (l::LangevinLoss)(
-        ps::ComponentArray{T},
-        ∇::ComponentArray{T},
-        st_kan::ComponentArray{T},
-        st_lux::NamedTuple,
-        model::T_KAM{T},
-        x::AbstractArray{T};
-        train_idx::Int = 1,
-        rng::AbstractRNG = Random.default_rng(),
-    )::Tuple{T, AbstractArray{T}, NamedTuple, NamedTuple} where {T <: Float32}
+function langevin_loss(
+        ps,
+        st_kan,
+        st_lux,
+        model,
+        x;
+        train_idx = 1,
+        rng = Random.default_rng(),
+    )
     z_posterior, st_new, noise =
         sample_langevin(ps, st_kan, Lux.testmode(st_lux), model, x; rng = rng)
     st_lux_ebm, st_lux_gen = st_new.ebm, st_new.gen
     z_prior, st_lux_ebm =
         model.sample_prior(model, size(x)[end], ps, st_kan, Lux.testmode(st_lux), rng)
 
-    ∇ .= grad_langevin_llhood(
+    ∇ = grad_langevin_llhood(
         ps,
         z_posterior,
         z_prior,

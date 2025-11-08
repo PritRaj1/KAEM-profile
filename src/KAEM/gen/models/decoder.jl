@@ -4,7 +4,6 @@ export SEQ_Generator, init_SEQ_Generator
 
 using Lux, ComponentArrays, Accessors, Random, ConfParser
 using NNlib: softmax, gelu, batched_mul
-using ChainRules.ChainRulesCore: @ignore_derivatives
 using ..Utils
 
 struct BoolConfig <: AbstractBoolConfig

@@ -1,6 +1,6 @@
 module LogPosteriors
 
-using ComponentArrays, Statistics, Lux, LinearAlgebra, Random, Zygote
+using ComponentArrays, Statistics, Lux, LinearAlgebra, Random, Enzyme
 
 using ..Utils
 using ..T_KAM_model
@@ -66,7 +66,21 @@ function unadjusted_logpos_grad(
         zero_vector,
     )
 
-    return first(Zygote.gradient(f, z))
+    return first(
+        Enzyme.gradient(
+            Enzyme.Reverse,
+            Enzyme.Const(unadjusted_logpos),
+            z,
+            Enzyme.Const(x),
+            Enzyme.Const(temps),
+            Enzyme.Const(model),
+            Enzyme.Const(ps),
+            Enzyme.Const(st_kan),
+            Enzyme.Const(st_lux),
+            Enzyme.Const(prior_sampling_bool),
+            Enzyme.Const(zero_vector)
+        )
+    )
 end
 
 ### autoMALA ###
@@ -127,7 +141,20 @@ function autoMALA_value_and_grad(
     zero_vector = zeros(T, model.lkhood.x_shape..., size(z)[end]) |> pu
 
     f = z_i -> closure(z_i, x, temps, model, ps, st_kan, st_lux, zero_vector)
-    ∇z .= first(Zygote.gradient(f, z))
+    ∇z = first(
+        Enzyme.gradient(
+            Enzyme.Reverse,
+            Enzyme.Const(closure),
+            z,
+            Enzyme.Const(x),
+            Enzyme.Const(temps),
+            Enzyme.Const(model),
+            Enzyme.Const(ps),
+            Enzyme.Const(st_kan),
+            Enzyme.Const(st_lux),
+            Enzyme.Const(zero_vector)
+        )
+    )
 
     logpos, st_ebm, st_gen =
         autoMALA_logpos(z, x, temps, model, ps, st_kan, st_lux, zero_vector)

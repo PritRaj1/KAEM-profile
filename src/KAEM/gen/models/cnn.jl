@@ -3,7 +3,6 @@ module CNN_Model
 export CNN_Generator, init_CNN_Generator
 
 using Lux, ComponentArrays, Accessors, Random, ConfParser
-using ChainRules.ChainRulesCore: @ignore_derivatives
 
 using ..Utils
 

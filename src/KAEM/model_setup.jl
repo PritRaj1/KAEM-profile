@@ -69,12 +69,28 @@ function setup_training(
     )
 
     if model.N_t > 1
-        @reset model.loss_fcn = ThermodynamicLoss()
+        @reset model.loss_fcn = Reactant.@compile thermodynamic_loss(
+            ps,
+            st_kan,
+            st_lux,
+            model,
+            x;
+            train_idx = 1,
+            rng = rng
+        )
 
         type = autoMALA_bool ? "Thermo autoMALA" : "Thermo ULA"
         println("Posterior sampler: $type")
     elseif model.MALA || model.prior.bool_config.ula
-        @reset model.loss_fcn = LangevinLoss()
+        @reset model.loss_fcn = Reactant.@compile langevin_loss(
+            ps,
+            st_kan,
+            st_lux,
+            model,
+            x;
+            train_idx = 1,
+            rng = rng
+        )
         type = autoMALA_bool ? "autoMALA" : "ULA"
         println("Posterior sampler: $type")
     else

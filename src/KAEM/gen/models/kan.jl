@@ -3,7 +3,6 @@ module KAN_Model
 export KAN_Generator, init_KAN_Generator
 
 using Lux, ComponentArrays, Accessors, Random, ConfParser
-using ChainRules.ChainRulesCore: @ignore_derivatives
 
 using ..Utils
 using ..UnivariateFunctions
