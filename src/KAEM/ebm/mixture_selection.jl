@@ -4,47 +4,43 @@ export choose_component
 
 using NNlib: softmax
 using Flux: onehotbatch
-using CUDA, LinearAlgebra, Random, ParallelStencil
+using LinearAlgebra, Random
 
 using ..Utils
 
-@static if CUDA.has_cuda() && parse(Bool, get(ENV, "GPU", "false"))
-    @init_parallel_stencil(CUDA, Float32, 3)
-else
-    @init_parallel_stencil(Threads, Float32, 3)
-end
+function mask_kernel!(
+        mask,
+        α,
+        rand_vals,
+        p_size,
+    )
+    for q in 1:size(rand_vals, 1), b in 1:size(rand_vals, 2)
+        idx = p_size
+        val = rand_vals[q, b]
 
-@parallel_indices (q, b) function mask_kernel!(
-        mask::AbstractArray{T, 3},
-        α::AbstractArray{T, 2},
-        rand_vals::AbstractArray{T, 2},
-        p_size::Int,
-    )::Nothing where {T <: Float32}
-    idx = p_size
-    val = rand_vals[q, b]
-
-    # Potential thread divergence on GPU
-    for j in 1:p_size
-        if α[q, j] >= val
-            idx = j
-            break
+        # Potential thread divergence on GPU
+        for j in 1:p_size
+            if α[q, j] >= val
+                idx = j
+                break
+            end
         end
-    end
 
-    # One-hot vector for this (q, b)
-    for k in 1:p_size
-        mask[q, k, b] = (idx == k) ? 1.0f0 : 0.0f0
+        # One-hot vector for this (q, b)
+        for k in 1:p_size
+            mask[q, k, b] = (idx == k) ? 1.0f0 : 0.0f0
+        end
     end
     return nothing
 end
 
 function choose_component(
-        α::AbstractArray{T, 2},
-        num_samples::Int,
-        q_size::Int,
-        p_size::Int;
-        rng::AbstractRNG = Random.default_rng(),
-    )::AbstractArray{T, 3} where {T <: Float32}
+        α,
+        num_samples,
+        q_size,
+        p_size;
+        rng = Random.default_rng(),
+    )
     """
     Creates a one-hot mask for mixture model, q, to select one component, p.
 
@@ -57,11 +53,11 @@ function choose_component(
     Returns:
         chosen_components: The one-hot mask for each mixture model, (num_samples, q, p).    
     """
-    rand_vals = @rand(q_size, num_samples)
+    rand_vals = rand(Float32, rng, q_size, num_samples) |> pu
     α = cumsum(softmax(α; dims = 2); dims = 2)
 
-    mask = @zeros(q_size, p_size, num_samples)
-    @parallel (1:q_size, 1:num_samples) mask_kernel!(mask, α, rand_vals, p_size)
+    mask = zeros(Float32, q_size, p_size, num_samples) |> pu
+    mask_kernel!(mask, α, rand_vals, p_size)
     return mask
 end
 

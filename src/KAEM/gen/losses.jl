@@ -4,7 +4,7 @@ export IS_loss, MALA_loss
 
 using ..Utils
 
-using CUDA, Statistics, Lux
+using Statistics, Lux
 using NNlib: conv, batched_mul
 
 perceptual_loss = parse(Bool, get(ENV, "PERCEPTUAL", "false"))

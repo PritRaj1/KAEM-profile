@@ -1,6 +1,6 @@
 module LogPosteriors
 
-using CUDA, ComponentArrays, Statistics, Lux, LuxCUDA, LinearAlgebra, Random, Zygote
+using ComponentArrays, Statistics, Lux, LinearAlgebra, Random, Zygote
 
 using ..Utils
 using ..T_KAM_model
@@ -66,7 +66,7 @@ function unadjusted_logpos_grad(
         zero_vector,
     )
 
-    return CUDA.@fastmath first(Zygote.gradient(f, z))
+    return first(Zygote.gradient(f, z))
 end
 
 ### autoMALA ###
@@ -127,10 +127,10 @@ function autoMALA_value_and_grad(
     zero_vector = zeros(T, model.lkhood.x_shape..., size(z)[end]) |> pu
 
     f = z_i -> closure(z_i, x, temps, model, ps, st_kan, st_lux, zero_vector)
-    ∇z .= CUDA.@fastmath first(Zygote.gradient(f, z))
+    ∇z .= first(Zygote.gradient(f, z))
 
     logpos, st_ebm, st_gen =
-        CUDA.@fastmath autoMALA_logpos(z, x, temps, model, ps, st_kan, st_lux, zero_vector)
+        autoMALA_logpos(z, x, temps, model, ps, st_kan, st_lux, zero_vector)
     return logpos, ∇z, st_ebm, st_gen
 end
 

@@ -3,8 +3,6 @@ module RefPriors
 export prior_map,
     UniformPrior, GaussianPrior, LogNormalPrior, LearnableGaussianPrior, EbmPrior
 
-using CUDA, Lux, KernelAbstractions, Tullio
-
 using ..Utils
 
 struct UniformPrior{T <: Float32} <: AbstractPrior

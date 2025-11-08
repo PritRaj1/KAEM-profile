@@ -2,7 +2,7 @@ module Quadrature
 
 export TrapeziumQuadrature, GaussLegendreQuadrature
 
-using CUDA, LinearAlgebra, Random, Lux, LuxCUDA, ComponentArrays
+using LinearAlgebra, Random, ComponentArrays
 
 using ..Utils
 
@@ -13,47 +13,47 @@ struct TrapeziumQuadrature <: AbstractQuadrature end
 struct GaussLegendreQuadrature <: AbstractQuadrature end
 
 function qfirst_exp_kernel(
-        f::AbstractArray{T, 3},
-        π0::AbstractArray{T, 2},
-    )::AbstractArray{T, 3} where {T <: Float32}
+        f,
+        π0,
+    )
     return exp.(f) .* π0
 end
 
 function pfirst_exp_kernel(
-        f::AbstractArray{T, 3},
-        π0::AbstractArray{T, 2},
-    )::AbstractArray{T, 3} where {T <: Float32}
+        f,
+        π0,
+    )
     return exp.(f) .* π0
 end
 
 function apply_mask(
-        exp_fg::AbstractArray{T, 3},
-        component_mask::AbstractArray{T, 3},
-    )::AbstractArray{T, 3} where {T <: Float32}
+        exp_fg,
+        component_mask,
+    )
     return dropdims(sum(permutedims(exp_fg[:, :, :, :], (1, 2, 4, 3)) .* component_mask; dims = 2); dims = 2)
 end
 
 function weight_kernel(
-        trapz::AbstractArray{T, 3},
-        weights::AbstractArray{T, 2},
-    )::AbstractArray{T, 3} where {T <: Float32}
+        trapz,
+        weights,
+    )
     return reshape(weights, 1, size(weights)...) .* trapz
 end
 
 function gauss_kernel(
-        trapz::AbstractArray{T, 3},
-        weights::AbstractArray{T, 2},
-    )::AbstractArray{T, 3} where {T <: Float32}
+        trapz,
+        weights,
+    )
     return reshape(weights, size(weights, 1), 1, size(weights, 2)) .* trapz
 end
 
 function (tq::TrapeziumQuadrature)(
-        ebm::Lux.AbstractLuxLayer,
-        ps::ComponentArray{T},
-        st_kan::ComponentArray{T},
+        ebm,
+        ps,
+        st_kan,
         st_lyrnorm::NamedTuple;
-        component_mask::AbstractArray{T, 3} = negative_one,
-    )::Tuple{AbstractArray{T, 3}, AbstractArray{T, 2}, NamedTuple} where {T <: Float32}
+        component_mask = negative_one,
+    )
     """Trapezoidal rule for numerical integration: 1/2 * (u(z_{i-1}) + u(z_i)) * Δx"""
 
     # Evaluate prior on grid [0,1]
@@ -87,10 +87,10 @@ function (tq::TrapeziumQuadrature)(
 end
 
 function get_gausslegendre(
-        ebm::Lux.AbstractLuxLayer,
-        ps::ComponentArray{T},
-        st_kan::ComponentArray{T},
-    )::Tuple{AbstractArray{T}, AbstractArray{T}} where {T <: Float32}
+        ebm,
+        ps,
+        st_kan,
+    )
     """Get Gauss-Legendre nodes and weights for prior's domain"""
 
     a, b = minimum(st_kan[:a].grid; dims = 2), maximum(st_kan[:a].grid; dims = 2)
@@ -107,12 +107,12 @@ function get_gausslegendre(
 end
 
 function (gq::GaussLegendreQuadrature)(
-        ebm::Lux.AbstractLuxLayer,
-        ps::ComponentArray{T},
-        st_kan::ComponentArray{T},
-        st_lyrnorm::NamedTuple;
-        component_mask::AbstractArray{T, 3} = negative_one,
-    )::Tuple{AbstractArray{T, 3}, AbstractArray{T, 2}, NamedTuple} where {T <: Float32}
+        ebm,
+        ps,
+        st_kan,
+        st_lyrnorm;
+        component_mask = negative_one,
+    )
     """Gauss-Legendre quadrature for numerical integration"""
 
     nodes, weights = get_gausslegendre(ebm, ps, st_kan)

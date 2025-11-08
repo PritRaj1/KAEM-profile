@@ -1,10 +1,9 @@
 module ImportanceSampling
 
-using CUDA, ComponentArrays, Random, Enzyme, Reactant
-using Statistics, Lux, LuxCUDA
+using ComponentArrays, Random, Enzyme, Statistics, Lux
 using NNlib: softmax
 
-export ImportanceLoss, initialize_importance_loss
+export importance_loss
 
 using ..Utils
 using ..T_KAM_model
@@ -43,22 +42,13 @@ function loss_accum(
 end
 
 function sample_importance(
-        ps::ComponentArray{T},
-        st_kan::ComponentArray{T},
-        st_lux::NamedTuple,
-        m::T_KAM{T},
-        x::AbstractArray{T};
-        rng::AbstractRNG = Random.default_rng(),
-    )::Tuple{
-        AbstractArray{T, 3},
-        AbstractArray{T, 3},
-        NamedTuple,
-        NamedTuple,
-        AbstractArray{T, 2},
-        AbstractArray{Int, 2},
-        AbstractArray{T},
-    } where {T <: Float32}
-
+        ps,
+        st_kan,
+        st_lux,
+        m,
+        x;
+        rng = Random.default_rng(),
+    )
     # Prior is proposal for importance sampling
     z_posterior, st_lux_ebm = m.sample_prior(m, m.IS_samples, ps, st_kan, st_lux, rng)
     noise = pu(randn(rng, T, m.lkhood.x_shape..., size(z_posterior)[end], size(x)[end]))
@@ -174,139 +164,71 @@ function grad_importance_llhood(
         noise,
     )
 
-    return Enzyme.gradient(
-        Enzyme.Reverse,
-        Enzyme.Const(closure),
+    return first(
+        Enzyme.gradient(
+            Enzyme.Reverse,
+            Enzyme.Const(closure),
+            ps,
+            Enzyme.Const(z_posterior),
+            Enzyme.Const(z_prior),
+            Enzyme.Const(x),
+            Enzyme.Const(weights_resampled),
+            Enzyme.Const(resampled_idxs),
+            Enzyme.Const(model),
+            Enzyme.Const(st_kan),
+            Enzyme.Const(st_lux_ebm),
+            Enzyme.Const(st_lux_gen),
+            Enzyme.Const(noise),
+        )
+    )
+end
+
+function importance_loss(
         ps,
-        Enzyme.Const(z_posterior),
-        Enzyme.Const(z_prior),
-        Enzyme.Const(x),
-        Enzyme.Const(weights_resampled),
-        Enzyme.Const(resampled_idxs),
-        Enzyme.Const(model),
-        Enzyme.Const(st_kan),
-        Enzyme.Const(st_lux_ebm),
-        Enzyme.Const(st_lux_gen),
-        Enzyme.Const(noise),
-    )[1]
-end
-
-struct ImportanceLoss
-    compiled_loss
-    compiled_grad
-end
-
-function ImportanceLoss(
-        ps::ComponentArray{T},
-        st_kan::ComponentArray{T},
-        st_lux::NamedTuple,
-        model::T_KAM{T},
-        x::AbstractArray{T};
-        rng::AbstractRNG = Random.default_rng(),
-    )::ImportanceLoss where {T <: Float32}
-    z_posterior, z_prior, st_lux_ebm, st_lux_gen, weights_resampled, resampled_idxs, noise =
-        sample_importance(ps, st_kan, Lux.testmode(st_lux), model, x; rng = rng)
-
-    # Move all arguments to XLA device
-    ps_xdev, z_posterior_xdev, z_prior_xdev, x_xdev = CUDA.@allowscalar (
-        ps |> xdev, z_posterior |> xdev, z_prior |> xdev, x |> xdev,
-    )
-    weights_xdev, idxs_xdev, noise_xdev, st_kan_xdev = CUDA.@allowscalar (
-        weights_resampled |> xdev, resampled_idxs |> xdev, noise |> xdev, st_kan |> xdev,
-    )
-    st_ebm_xdev = CUDA.@allowscalar Lux.trainmode(st_lux_ebm) |> xdev
-    st_gen_xdev = CUDA.@allowscalar Lux.trainmode(st_lux_gen) |> xdev
-
-    compiled_loss = Reactant.@compile marginal_llhood(
-        ps_xdev,
-        z_posterior_xdev,
-        z_prior_xdev,
-        x_xdev,
-        weights_xdev,
-        idxs_xdev,
+        ∇,
+        st_kan,
+        st_lux,
         model,
-        st_kan_xdev,
-        st_ebm_xdev,
-        st_gen_xdev,
-        noise_xdev,
+        x;
+        train_idx = 1,
+        rng = Random.default_rng(),
     )
-
-    compiled_grad = Reactant.@compile grad_importance_llhood(
-        ps_xdev,
-        z_posterior_xdev,
-        z_prior_xdev,
-        x_xdev,
-        weights_xdev,
-        idxs_xdev,
-        model,
-        st_kan_xdev,
-        st_ebm_xdev,
-        st_gen_xdev,
-        noise_xdev,
-    )
-
-    return ImportanceLoss(
-        compiled_loss,
-        compiled_grad
-        # marginal_llhood,
-        # grad_importance_llhood!
-    )
-end
-
-
-function (l::ImportanceLoss)(
-        ps::ComponentArray{T},
-        ∇::ComponentArray{T},
-        st_kan::ComponentArray{T},
-        st_lux::NamedTuple,
-        model::T_KAM{T},
-        x::AbstractArray{T};
-        train_idx::Int = 1,
-        rng::AbstractRNG = Random.default_rng(),
-    )::Tuple{T, AbstractArray{T}, NamedTuple, NamedTuple} where {T <: Float32}
 
     z_posterior, z_prior, st_lux_ebm, st_lux_gen, weights_resampled, resampled_idxs, noise =
         sample_importance(ps, st_kan, Lux.testmode(st_lux), model, x; rng = rng)
 
-    # Move all arguments to XLA device once
-    ps_xdev, z_posterior_xdev, z_prior_xdev, x_xdev = CUDA.@allowscalar (
-        ps |> xdev, z_posterior |> xdev, z_prior |> xdev, x |> xdev,
-    )
-    weights_xdev, idxs_xdev, noise_xdev, st_kan_xdev = CUDA.@allowscalar (
-        weights_resampled |> xdev, resampled_idxs |> xdev, noise |> xdev, st_kan |> xdev,
-    )
-    st_ebm_xdev = CUDA.@allowscalar Lux.trainmode(st_lux_ebm) |> xdev
-    st_gen_xdev = CUDA.@allowscalar Lux.trainmode(st_lux_gen) |> xdev
+    st_ebm = Lux.trainmode(st_lux_ebm)
+    st_gen = Lux.trainmode(st_lux_gen)
 
-    ∇ = l.compiled_grad(
-        ps_xdev,
-        z_posterior_xdev,
-        z_prior_xdev,
-        x_xdev,
-        weights_xdev,
-        idxs_xdev,
+    ∇ = grad_importance_llhood(
+        ps,
+        z_posterior,
+        z_prior,
+        x,
+        weights_resampled,
+        resampled_idxs,
         model,
-        st_kan_xdev,
-        st_ebm_xdev,
-        st_gen_xdev,
-        noise_xdev,
+        st_kan,
+        st_ebm,
+        st_gen,
+        noise,
     )
 
     all(iszero.(∇)) && error("All zero importance grad")
     any(isnan.(∇)) && error("NaN in importance grad")
 
-    loss, st_lux_ebm, st_lux_gen = l.compiled_loss(
-        ps_xdev,
-        z_posterior_xdev,
-        z_prior_xdev,
-        x_xdev,
-        weights_xdev,
-        idxs_xdev,
+    loss, st_lux_ebm, st_lux_gen = marginal_llhood(
+        ps,
+        z_posterior,
+        z_prior,
+        x,
+        weights_resampled,
+        resampled_idxs,
         model,
-        st_kan_xdev,
-        st_ebm_xdev,
-        st_gen_xdev,
-        noise_xdev,
+        st_kan,
+        st_ebm,
+        st_gen,
+        noise,
     )
 
     return loss, ∇, st_lux_ebm, st_lux_gen

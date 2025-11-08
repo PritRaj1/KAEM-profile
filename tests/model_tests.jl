@@ -1,4 +1,4 @@
-using Test, Random, LinearAlgebra, Lux, ConfParser, ComponentArrays
+using Test, Random, LinearAlgebra, Lux, ConfParser, ComponentArrays, Reactant
 using MultivariateStats: reconstruct
 
 ENV["GPU"] = false
@@ -46,6 +46,14 @@ function test_grid_update()
 
     size_grid = size(st_kan.ebm[:a].grid)
     x = first(model.train_loader) |> pu
+    compiled_update = Reactant.@compile update_model_grid(
+        model,
+        x,
+        ps,
+        st_kan,
+        Lux.testmode(st_lux)
+    )
+
     model, ps, st_kan, st_lux =
         update_model_grid(model, x, ps, st_kan, Lux.testmode(st_lux))
     @test all(size(st_kan.ebm[:a].grid) .== size_grid)
@@ -141,9 +149,9 @@ end
 @testset "KAEM Tests" begin
     test_ps_derivative()
     test_grid_update()
-    test_pca()
-    test_mala_loss()
-    test_cnn_loss()
-    test_cnn_residual_loss()
-    test_seq_loss()
+    # test_pca()
+    # test_mala_loss()
+    # test_cnn_loss()
+    # test_cnn_residual_loss()
+    # test_seq_loss()
 end

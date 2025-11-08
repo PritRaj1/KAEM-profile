@@ -2,8 +2,8 @@ module UnivariateFunctions
 
 export univariate_function, init_function, activation_mapping
 
-using CUDA, Accessors, ComponentArrays, NNlib
-using Lux, NNlib, LinearAlgebra, Random, LuxCUDA
+using Accessors, ComponentArrays, NNlib
+using Lux, NNlib, LinearAlgebra, Random
 
 using ..Utils
 
@@ -58,7 +58,7 @@ function init_function(
         spline_function == "FFT" ? collect(T, 0:grid_size) :
         range(grid_range[1], grid_range[2], length = grid_size + 1)
     grid = T.(grid) |> collect |> x -> reshape(x, 1, length(x))
-    grid = repeat(grid, in_dim, 1) |> pu
+    grid = repeat(grid, in_dim, 1)
     grid =
         !(spline_function == "Cheby" || spline_function == "FFT") ?
         extend_grid(grid; k_extend = spline_degree) : grid
@@ -114,15 +114,14 @@ function Lux.initialparameters(
             (
             (rand(rng, T, l.in_dim, l.out_dim, l.grid_size + 1) .- 0.5f0) .*
                 l.ε_scale ./ l.grid_size
-        ) |> pu
-        coef = cpu_device()(
-            curve2coef(
-                l.basis_function,
-                l.init_grid[:, (l.spline_degree + 1):(end - l.spline_degree)],
-                ε,
-                l.init_grid,
-                pu(l.init_τ),
-            ),
+        )
+        coef = curve2coef(
+            l.basis_function,
+            l.init_grid[:, (l.spline_degree + 1):(end - l.spline_degree)],
+            ε,
+            l.init_grid,
+            l.init_τ;
+            init = true
         )
     end
 
@@ -143,7 +142,7 @@ function Lux.initialstates(
         rng::AbstractRNG,
         l::univariate_function{T, A},
     )::NamedTuple where {T <: Float32, A <: AbstractActivation}
-    return (grid = T.(cpu_device()(l.init_grid)), basis_τ = T.(l.init_τ))
+    return (grid = l.init_grid, basis_τ = l.init_τ)
 
 end
 

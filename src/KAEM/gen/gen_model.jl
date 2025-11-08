@@ -2,9 +2,8 @@ module GeneratorModel
 
 export GenModel, init_GenModel, generator, importance_resampler
 
-using CUDA
 using ConfParser,
-    Random, Lux, LuxCUDA, Statistics, LinearAlgebra, ComponentArrays, Accessors
+    Random, Lux, Statistics, LinearAlgebra, ComponentArrays, Accessors
 
 using ..Utils
 using ..UnivariateFunctions

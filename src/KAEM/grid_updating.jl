@@ -2,7 +2,7 @@ module ModelGridUpdating
 
 export update_model_grid
 
-using CUDA, Accessors, ComponentArrays, Lux, NNlib, LinearAlgebra, Random, LuxCUDA
+using Accessors, ComponentArrays, Lux, NNlib, LinearAlgebra, Random
 
 using ..Utils
 using ..T_KAM_model
@@ -12,19 +12,14 @@ include("kan/grid_updating.jl")
 using .GridUpdating
 
 function update_model_grid(
-        model::T_KAM{T},
-        x::AbstractArray{T},
-        ps::ComponentArray{T},
-        st_kan::ComponentArray{T},
-        st_lux::NamedTuple;
-        train_idx::Int = 1,
-        rng::AbstractRNG = Random.default_rng(),
-    )::Tuple{
-        Any,
-        ComponentArray{T},
-        ComponentArray{T},
-        NamedTuple,
-    } where {T <: Float32}
+        model,
+        x,
+        ps,
+        st_kan,
+        st_lux;
+        train_idx = 1,
+        rng = Random.default_rng(),
+    )
     """
     Update the grid of the likelihood model using samples from the prior.
 

@@ -2,17 +2,13 @@ module autoMALA_sampling
 
 export initialize_autoMALA_sampler, autoMALA_sampler
 
-using CUDA,
-    LinearAlgebra,
+using LinearAlgebra,
     Random,
     Lux,
-    LuxCUDA,
     Distributions,
     Accessors,
     Statistics,
-    ComponentArrays,
-    KernelAbstractions,
-    Tullio
+    ComponentArrays
 
 using ..Utils
 using ..T_KAM_model
@@ -184,13 +180,15 @@ function (sampler::autoMALA_sampler)(
             )
 
             mh = (log_u[:, i] .< log_r)
-            @tullio accept[s] = mh[s] * reversible[s]
-            reject = one(T) .- accept
+            accept = mh .* reversible
+            reject = one(Float32) .- accept
+            accept_v, reject_v = reshape(accept, 1, 1, S), reshape(reject, 1, 1, S)
 
-            @tullio z_fq[q, p, s] = ẑ[q, p, s] * accept[s] + z_before[q, p, s] * reject[s]
-            @tullio mean_η[s] = mean_η[s] + η_prop[s] * accept[s]
-            @tullio η[s] = η_prop[s] * accept[s] + η_before[s] * reject[s]
-            @tullio num_acceptances[s] = num_acceptances[s] + accept[s]
+            @. z_fq = ẑ * accept_v + z_before * reject_v
+            @. z_fq = ẑ * accept + z_before * reject
+            @. mean_η[s] = mean_η + η_prop * accept
+            @. η = η_prop * accept + η_before * reject
+            @. num_acceptances = num_acceptances + accept
 
             z_hq .= (reshape(z_fq, Q, P, S, num_temps))
 

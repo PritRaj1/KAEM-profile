@@ -2,7 +2,7 @@ module Transformer_Model
 
 export SEQ_Generator, init_SEQ_Generator
 
-using CUDA, Lux, LuxCUDA, ComponentArrays, Accessors, Random, ConfParser
+using Lux, ComponentArrays, Accessors, Random, ConfParser
 using NNlib: softmax, gelu, batched_mul
 using ChainRules.ChainRulesCore: @ignore_derivatives
 using ..Utils

@@ -2,17 +2,15 @@ module EBM_Model
 
 export EbmModel, init_EbmModel
 
-using CUDA, FastGaussQuadrature
-using ChainRules.ChainRulesCore: @ignore_derivatives
 using ConfParser,
     Random,
     Distributions,
     Lux,
     Accessors,
-    LuxCUDA,
     Statistics,
     LinearAlgebra,
-    ComponentArrays
+    ComponentArrays,
+    FastGaussQuadrature
 
 using ..Utils
 using ..UnivariateFunctions

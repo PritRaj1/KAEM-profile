@@ -10,8 +10,7 @@ export extend_grid,
     FFT_basis,
     Cheby_basis
 
-using CUDA, Lux, ComponentArrays
-using LinearAlgebra, NNlib
+using ComponentArrays, LinearAlgebra, NNlib
 
 using ..Utils
 
@@ -134,28 +133,28 @@ function coef2curve_Spline(
 end
 
 function curve2coef(
-        b::AbstractBasis,
-        x::AbstractArray{T, 2},
-        y::AbstractArray{T, 3},
-        grid::AbstractArray{T, 2},
-        σ::AbstractArray{T, 1},
-    )::AbstractArray{T, 3} where {T <: Float32}
+        b,
+        x,
+        y,
+        grid,
+        σ;
+        init = false
+    )
     J, S, O = size(x)..., size(y, 2)
 
-    B = b(x, grid, σ) .|> Float32
-    y = y .|> Float32
+    B = b(x, grid, σ)
     G = size(B, 2)
 
     B = permutedims(B, [1, 3, 2]) # in_dim x b_size x n_grid
 
-    coef = Array{Float32}(undef, J, O, G) |> pu
+    coef = init ? Array{Float32}(undef, J, O, G) : Array{Float32}(undef, J, O, G) |> pu
     for i in 1:J
         for o in 1:O
             coef[i, o, :] .= B[i, :, :] \ y[i, o, :]
         end
     end
 
-    return Float32.(coef)
+    return coef
 end
 
 ## FFT basis functions ###

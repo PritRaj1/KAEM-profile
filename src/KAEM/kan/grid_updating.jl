@@ -2,18 +2,18 @@ module GridUpdating
 
 export update_fcn_grid
 
-using CUDA, Accessors, ComponentArrays, Lux, NNlib, LinearAlgebra, Random, LuxCUDA
+using Accessors, ComponentArrays, Lux, NNlib, LinearAlgebra, Random
 
 using ..Utils
 using ..UnivariateFunctions
 using ..UnivariateFunctions.spline_functions
 
 function update_fcn_grid(
-        l::univariate_function{T, A},
-        ps::ComponentArray{T},
-        st::ComponentArray{T},
-        x::AbstractArray{T, 2},
-    )::Tuple{AbstractArray{T, 2}, AbstractArray{T, 3}} where {T <: Float32, A <: AbstractActivation}
+        l,
+        ps,
+        st,
+        x,
+    )
     """
     Adapt the function's grid to the distribution of the input data.
 

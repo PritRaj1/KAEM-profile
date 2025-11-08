@@ -2,7 +2,7 @@ module LogLikelihoods
 
 export log_likelihood_IS, log_likelihood_MALA
 
-using CUDA, ComponentArrays, Random
+using ComponentArrays, Random
 using NNlib: softmax, sigmoid
 
 using ..Utils

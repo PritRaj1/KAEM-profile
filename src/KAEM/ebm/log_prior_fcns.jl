@@ -3,8 +3,7 @@ module LogPriorFCNs
 export LogPriorULA, LogPriorMix, LogPriorUnivariate
 
 using NNlib: logsoftmax, softmax
-using CUDA, Lux, LuxCUDA, LinearAlgebra, Accessors, Random, ComponentArrays
-using KernelAbstractions, Tullio
+using LinearAlgebra, Accessors, Random, ComponentArrays
 
 using ..Utils
 using ..EBM_Model
@@ -23,7 +22,7 @@ function log_mix_pdf(
         P,
         S,
     )
-    @tullio lp[q, s] := exp(f[q, p, s]) * π_0[q, 1, s] * α[q, p] / Z[q, p]
+    lp = dropdims(sum(exp.(f) .* π_0 .* α ./ Z; dims = 2); dims = 2)
     return log.(dropdims(prod(lp; dims = 1) .+ ε; dims = 1))
 end
 
@@ -104,8 +103,7 @@ function dotprod_attn(
         z,
     )
     scale = sqrt(Float32(size(z)[end]))
-    @tullio QK[q, p] := (Q[q, p] * z[q, 1, b]) * (K[q, p] * z[q, 1, b])
-    return QK ./ scale
+    return dropdims(sum(Q .* z .* K .* z; dims = 3); dims = 3) ./ scale
 end
 
 function (lp::LogPriorMix)(
@@ -138,7 +136,7 @@ function (lp::LogPriorMix)(
     alpha =
         ebm.bool_config.use_attention_kernel ?
         dotprod_attn(ps.attention.Q, ps.attention.K, z) :
-        (ebm.bool_config.train_props ? ps.dist.α : pu(ones(T, ebm.q_size, ebm.p_size)))
+        (ebm.bool_config.train_props ? ps.dist.α : pu(ones(Float32, ebm.q_size, ebm.p_size)))
 
     alpha = softmax(alpha; dims = 2)
     Q, P, S = size(alpha)..., size(z)[end]
@@ -149,7 +147,7 @@ function (lp::LogPriorMix)(
     Z =
         lp.normalize && !ula ?
         dropdims(sum(first(ebm.quad(ebm, ps, st_kan, st_lyrnorm)), dims = 3), dims = 3) :
-        ones(T, Q, P) |> pu
+        ones(Float32, Q, P) |> pu
 
     reg = ebm.λ > 0 ? ebm.λ * sum(abs.(alpha)) : 0.0f0
     log_p = log_mix_pdf(f, alpha, π_0, Z, lp.ε, Q, P, S)

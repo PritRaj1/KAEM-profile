@@ -2,7 +2,7 @@ module KAN_Model
 
 export KAN_Generator, init_KAN_Generator
 
-using CUDA, Lux, LuxCUDA, ComponentArrays, Accessors, Random, ConfParser
+using Lux, ComponentArrays, Accessors, Random, ConfParser
 using ChainRules.ChainRulesCore: @ignore_derivatives
 
 using ..Utils

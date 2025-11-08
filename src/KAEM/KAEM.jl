@@ -2,10 +2,10 @@ module T_KAM_model
 
 export T_KAM, init_T_KAM
 
-using CUDA
-using ConfParser, Random, Lux, Accessors, ComponentArrays, Statistics, LuxCUDA
+using ConfParser, Random, Lux, Accessors, ComponentArrays, Statistics
 using Flux: DataLoader
 using MultivariateStats: PCA, transform, fit
+using MLDataDevices: cpu_device
 
 using ..Utils
 
@@ -206,13 +206,14 @@ function Lux.initialstates(
     return ComponentArray(ebm = ebm_kan, gen = gen_kan), (ebm = ebm_lux, gen = gen_lux)
 end
 
-function (model::T_KAM{T})(
-        ps::ComponentArray{T},
-        st_kan::ComponentArray{T},
-        st_lux::NamedTuple,
-        num_samples::Int;
-        rng::AbstractRNG = Random.default_rng(),
-    )::Tuple{AbstractArray{T}, NamedTuple, NamedTuple} where {T <: Float32}
+function generate_new(
+        model,
+        ps,
+        st_kan,
+        st_lux,
+        num_samples;
+        rng = Random.default_rng(),
+    )
     """
     Inference pass to generate a batch of data from the model.
     This is the same for both the standard and thermodynamic models.

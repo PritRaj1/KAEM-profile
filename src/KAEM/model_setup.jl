@@ -2,7 +2,7 @@ module ModelSetup
 
 export prep_model
 
-using ConfParser, CUDA, Lux, Accessors, ComponentArrays, LuxCUDA, Random
+using ConfParser, Lux, Accessors, ComponentArrays, Random, Reactant, Enzyme
 
 using ..Utils
 using ..T_KAM_model
@@ -51,7 +51,17 @@ function setup_training(
     x = zeros(T, model.lkhood.x_shape..., max_samples) |> pu
 
     # Defaults
-    @reset model.loss_fcn = ImportanceLoss(ps, st_kan, st_lux, model, x; rng = rng)
+    @reset model.loss_fcn = Reactant.@compile importance_loss(
+        ps,
+        Enzyme.make_zero(ps),
+        st_kan,
+        st_lux,
+        model,
+        x;
+        train_idx = 1,
+        rng = rng
+    )
+
     @reset model.posterior_sampler = initialize_ULA_sampler(;
         η = η_init,
         N = num_steps,

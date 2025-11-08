@@ -2,16 +2,13 @@ module ULA_sampling
 
 export initialize_ULA_sampler, ULA_sampler
 
-using CUDA,
-    LinearAlgebra,
+using LinearAlgebra,
     Random,
     Lux,
-    LuxCUDA,
     Distributions,
     Accessors,
     Statistics,
-    ComponentArrays,
-    ParallelStencil
+    ComponentArrays
 
 using ..Utils
 using ..T_KAM_model

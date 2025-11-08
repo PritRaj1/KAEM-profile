@@ -2,8 +2,7 @@ module ThermodynamicIntegration
 
 export initialize_thermo_loss, ThermodynamicLoss
 
-using CUDA, ComponentArrays, Random, Zygote
-using Statistics, Lux, LuxCUDA
+using ComponentArrays, Random, Zygote, Statistics, Lux
 
 using ..Utils
 using ..T_KAM_model
@@ -161,7 +160,7 @@ function grad_thermo_llhood(
         tempered_noise,
     )
 
-    return CUDA.@fastmath first(Zygote.gradient(f, ps))
+    return first(Zygote.gradient(f, ps))
 end
 
 struct ThermodynamicLoss end

@@ -2,7 +2,7 @@ module LangevinUpdates
 
 export update_z!, logpos_withgrad, leapfrog
 
-using CUDA, KernelAbstractions, Lux, LuxCUDA, ComponentArrays, Accessors, Tullio
+using Lux, ComponentArrays, Accessors
 
 using ..Utils
 using ..T_KAM_model
@@ -21,7 +21,7 @@ function update_z!(
         P::Int,
         S::Int,
     )::Nothing where {T <: Float32}
-    @tullio z[q, p, s] = z[q, p, s] + η * ∇z[q, p, s] + sqrt_2η * ξ[q, p, s]
+    @. z = z + η * ∇z + sqrt_2η * ξ
     return nothing
 end
 
@@ -33,8 +33,9 @@ function position_update!(
         M::AbstractArray{T, 2},
         η::AbstractArray{T, 1},
     )::Nothing where {T <: Float32}
-    @tullio momentum[q, p, s] = momentum[q, p, s] + (η[s] / 2) * ∇z[q, p, s] / M[q, p]
-    @tullio z[q, p, s] = z[q, p, s] + η[s] * momentum[q, p, s] / M[q, p]
+    η = reshape(η, 1, 1, length(η))
+    @. momentum = momentum + (η / 2) * ∇z / M
+    @. z = z + η * momentum / M
     return nothing
 end
 
@@ -44,7 +45,8 @@ function momentum_update!(
         M::AbstractArray{T, 2},
         η::AbstractArray{T, 1},
     )::Nothing where {T <: Float32}
-    @tullio momentum[q, p, s] = momentum[q, p, s] + (η[s] / 2) * ∇ẑ[q, p, s] / M[q, p]
+    η = reshape(η, 1, 1, length(η))
+    @. momentum = momentum + (η / 2) * ∇ẑ / M
     return nothing
 end
 

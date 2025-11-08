@@ -2,8 +2,7 @@ module LangevinMLE
 
 export LangevinLoss, initialize_langevin_loss
 
-using CUDA, ComponentArrays, Random, Zygote
-using Statistics, Lux, LuxCUDA
+using ComponentArrays, Random, Zygote, Statistics, Lux
 
 using ..Utils
 using ..T_KAM_model
@@ -109,7 +108,7 @@ function grad_langevin_llhood(
         noise,
     )
 
-    return CUDA.@fastmath first(Zygote.gradient(f, ps))
+    return first(Zygote.gradient(f, ps))
 end
 
 struct LangevinLoss end
