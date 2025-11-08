@@ -45,8 +45,7 @@ function (prior::GaussianPrior)(
         log_bool = false,
     )
     scale = Float32(1 / sqrt(2π))
-    @tullio pdf[q, p, s] := exp(-z[q, p, s]^2 / 2)
-    @. z = scale * exp(-z^2 / 2) 
+    @. z = scale * exp(-z^2 / 2)
     log_bool && return stable_log(z, prior.ε)
     return z
 end

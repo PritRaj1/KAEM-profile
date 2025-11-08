@@ -2,7 +2,7 @@ module Quadrature
 
 export TrapeziumQuadrature, GaussLegendreQuadrature
 
-using CUDA, KernelAbstractions, LinearAlgebra, Random, Lux, LuxCUDA, ComponentArrays, Tullio
+using CUDA, LinearAlgebra, Random, Lux, LuxCUDA, ComponentArrays
 
 using ..Utils
 
@@ -16,35 +16,35 @@ function qfirst_exp_kernel(
         f::AbstractArray{T, 3},
         π0::AbstractArray{T, 2},
     )::AbstractArray{T, 3} where {T <: Float32}
-    return @tullio exp_fg[q, p, g] := exp(f[q, p, g]) * π0[q, g]
+    return exp.(f) .* π0
 end
 
 function pfirst_exp_kernel(
         f::AbstractArray{T, 3},
         π0::AbstractArray{T, 2},
     )::AbstractArray{T, 3} where {T <: Float32}
-    return @tullio exp_fg[q, p, g] := exp(f[q, p, g]) * π0[p, g]
+    return exp.(f) .* π0
 end
 
 function apply_mask(
         exp_fg::AbstractArray{T, 3},
         component_mask::AbstractArray{T, 3},
     )::AbstractArray{T, 3} where {T <: Float32}
-    return @tullio trapz[q, b, g] := exp_fg[q, p, g] * component_mask[q, p, b]
+    return dropdims(sum(permutedims(exp_fg[:, :, :, :], (1, 2, 4, 3)) .* component_mask; dims = 2); dims = 2)
 end
 
 function weight_kernel(
         trapz::AbstractArray{T, 3},
-        weight::AbstractArray{T, 2},
+        weights::AbstractArray{T, 2},
     )::AbstractArray{T, 3} where {T <: Float32}
-    return @tullio trapz_weighted[q, p, g] := weight[p, g] * trapz[q, p, g]
+    return reshape(weights, 1, size(weights)...) .* trapz
 end
 
 function gauss_kernel(
         trapz::AbstractArray{T, 3},
-        weight::AbstractArray{T, 2},
+        weights::AbstractArray{T, 2},
     )::AbstractArray{T, 3} where {T <: Float32}
-    return @tullio trapz_weighted[q, b, g] := weight[q, g] * trapz[q, b, g]
+    return reshape(weights, size(weights, 1), 1, size(weights, 2)) .* trapz
 end
 
 function (tq::TrapeziumQuadrature)(
@@ -103,8 +103,7 @@ function get_gausslegendre(
         b = fill(Float32(last(ebm.prior_domain)), size(b)) |> pu
     end
 
-    nodes, weights = pu(ebm.nodes), pu(ebm.weights)
-    return ((a + b) / 2 + (b - a) / 2) .* nodes, (b - a) ./ 2 .* weights
+    return ((a + b) / 2 + (b - a) / 2) .* ebm.nodes, (b - a) ./ 2 .* ebm.weights
 end
 
 function (gq::GaussLegendreQuadrature)(

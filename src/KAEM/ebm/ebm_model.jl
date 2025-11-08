@@ -138,8 +138,8 @@ function init_EbmModel(conf::ConfParse; rng::AbstractRNG = Random.default_rng())
 
     N_quad = parse(Int, retrieve(conf, "EbmModel", "GaussQuad_nodes"))
     nodes, weights = gausslegendre(N_quad)
-    nodes = repeat(nodes', first(widths), 1)
-    weights = weights'
+    nodes = repeat(nodes', first(widths), 1) |> pu
+    weights = weights' |> pu
 
     ref_initializer = get(prior_map, prior_type, prior_map["uniform"])
     use_attention_kernel =
