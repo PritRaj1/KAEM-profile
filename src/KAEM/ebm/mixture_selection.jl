@@ -8,30 +8,20 @@ using LinearAlgebra, Random
 
 using ..Utils
 
-function mask_kernel!(
-        mask,
+function mask_kernel(
         α,
         rand_vals,
-        p_size,
+        Q,
+        P,
     )
-    for q in 1:size(rand_vals, 1), b in 1:size(rand_vals, 2)
-        idx = p_size
-        val = rand_vals[q, b]
-
-        # Potential thread divergence on GPU
-        for j in 1:p_size
-            if α[q, j] >= val
-                idx = j
-                break
-            end
-        end
-
-        # One-hot vector for this (q, b)
-        for k in 1:p_size
-            mask[q, k, b] = (idx == k) ? 1.0f0 : 0.0f0
-        end
-    end
-    return nothing
+    indices = reduce(
+        vcat,
+        map(q -> searchsortedfirst.(Ref(α[q, :]), rand_vals[q, :])', 1:Q)
+    )
+    indices = clamp.(indices, 1, size(α, 2))
+    return premutedims(
+        collect(Float32, onehotbatch(indices, 1:P)), (2, 1, 3)
+    )
 end
 
 function choose_component(
@@ -53,12 +43,9 @@ function choose_component(
     Returns:
         chosen_components: The one-hot mask for each mixture model, (num_samples, q, p).    
     """
-    rand_vals = rand(rng, Float32, q_size, num_samples) |> pu
+    rand_vals = rand(rng, Float32, q_size, num_samples)
     α = cumsum(softmax(α; dims = 2); dims = 2)
-
-    mask = zeros(Float32, q_size, p_size, num_samples) |> pu
-    mask_kernel!(mask, α, rand_vals, p_size)
-    return mask
+    return mask_kernel(α, rand_vals, q_size, p_size)
 end
 
 end

@@ -9,49 +9,55 @@ using ..Utils
 include("mixture_selection.jl")
 using .MixtureChoice: choose_component
 
-function interp_kernel!(
-        z,
+function interpolate_single(
+        idx,
+        cdf,
+        grid,
+        rv,
+    )
+    idx <= 1 && return grid[1]
+    idx > size(grid, 2) && return grid[end]
+    z1, z2 = grid[idx - 1], grid[idx]
+    cd1, cd2 = cdf[idx - 1], cdf[idx]
+    length = cd2 - cd1
+    length == 0 && return z1
+    return z1 + (z2 - z1) * ((rv - cd1) / length)
+end
+
+function interpolate_batch(
+        cdf,
+        grid,
+        rv,
+    )
+    indices = searchsortedfirst.(Ref(cdf), rv)
+    z = interpolate_single.(indices, Ref(cdf), Ref(grid), rv)
+    return z'
+end
+
+function interpolate_p(
+        cdf,
+        grid,
+        rv,
+        P
+    )
+    z = reduce(
+        vcat,
+        map(p -> interpolate_batch(cdf[p, :], grid[p, :], rv[p, :]), 1:P)
+    )
+    return reshape(z, 1, P, size(rv, 2))
+end
+
+function interpolate_kernel(
         cdf,
         grid,
         rand_vals,
-        grid_size,
+        Q,
+        P
     )
-    for q in 1:size(z, 1), p in 1:size(z, 2), b in 1:size(z, 3)
-        rv = rand_vals[q, p, b]
-        idx = 1
-
-        # Manual searchsortedfirst over cdf[q, p, :] - potential thread divergence on GPU
-        for j in 1:(grid_size + 1)
-            if cdf[q, p, j] >= rv
-                idx = j
-                break
-            end
-            idx = j
-        end
-
-        # Edge case 1: Random value is smaller than first CDF value
-        if idx == 1
-            z[q, p, b] = grid[p, 1]
-
-            # Edge case 2: Random value is larger than last CDF value
-        elseif idx > grid_size
-            z[q, p, b] = grid[p, grid_size]
-
-            # Interpolate into interval
-        else
-            z1, z2 = grid[p, idx - 1], grid[p, idx]
-            cd1, cd2 = cdf[q, p, idx - 1], cdf[q, p, idx]
-
-            # Handle exact match without instability
-            length = cd2 - cd1
-            if length == 0
-                z[q, p, b] = z1
-            else
-                z[q, p, b] = z1 + (z2 - z1) * ((rv - cd1) / length)
-            end
-        end
-    end
-    return nothing
+    return reduce(
+        vcat,
+        map(q -> interpolate_p(cdf[q, :, :], grid, rand_vals[q, :, :], P), 1:Q)
+    )
 end
 
 function sample_univariate(
@@ -72,65 +78,18 @@ function sample_univariate(
         dims = 3,
     )
 
-    rand_vals = pu(rand(rng, Float32, 1, ebm.p_size, num_samples)) .* cdf[:, :, end]
-    z = zeros(Float32, ebm.q_size, ebm.p_size, num_samples) |> pu
-    interp_kernel!(
-        z,
+    rand_vals = rand(rng, Float32, 1, ebm.p_size, num_samples) .* cdf[:, :, end]
+    z = interpolate_kernel(
         cdf,
         grid,
         rand_vals,
-        grid_size,
+        ebm.q_size,
+        ebm.p_size,
     )
     return z, st_lyrnorm_new
 end
 
-function interp_kernel_mixture!(
-        z,
-        cdf,
-        grid,
-        rand_vals,
-        grid_size,
-    )
-    for q in 1:size(rand_vals, 1), b in 1:size(rand_vals, 2)
-        rv = rand_vals[q, b]
-        idx = 1
-
-        # Manual searchsortedfirst over cdf[q, b, :] - potential thread divergence on GPU
-        for j in 1:(grid_size + 1)
-            if cdf[q, b, j] >= rv
-                idx = j
-                break
-            end
-            idx = j
-        end
-
-        # Edge case 1: Random value is smaller than first CDF value
-        if idx == 1
-            z[q, 1, b] = grid[q, 1]
-
-            # Edge case 2: Random value is larger than last CDF value
-        elseif idx > grid_size
-            z[q, 1, b] = grid[q, grid_size]
-
-            # Interpolate into interval
-        else
-            z1, z2 = grid[q, idx - 1], grid[q, idx]
-            cd1, cd2 = cdf[q, b, idx - 1], cdf[q, b, idx]
-
-            # Handle exact match without instability
-            length = cd2 - cd1
-            if length == 0
-                z[q, 1, b] = z1
-            else
-                z[q, 1, b] = z1 + (z2 - z1) * ((rv - cd1) / length)
-            end
-        end
-    end
-    return nothing
-end
-
-function dotprod_attn_kernel!(
-        QK,
+function dotprod_attn(
         Q,
         K,
         z,
@@ -138,11 +97,8 @@ function dotprod_attn_kernel!(
         min_z,
         max_z,
     )
-    for q in 1:size(z, 1), p in 1:size(K, 2), b in 1:size(z, 2)
-        z_mapped = z[q, b] * (max_z - min_z) + min_z
-        QK[q, p] = ((Q[q, p] * z_mapped) * (K[q, p] * z_mapped)) / scale
-    end
-    return nothing
+    z = reshape(z, size(z, 1), 1, size(z, 2)) .* ((max_z - min_z) + min_z)
+    return dropdims(sum((Q .* z) .* (K .* z); dims = 3); dims = 3) ./ scale
 end
 
 function sample_mixture(
@@ -168,12 +124,11 @@ function sample_mixture(
     """
     alpha = ps.dist.α
     if ebm.bool_config.use_attention_kernel
-        z = rand(Float32, rng, ebm.q_size, num_samples) |> pu
-        alpha = zeros(Float32, ebm.q_size, ebm.p_size) |> pu
+        z = rand(rng, Float32, ebm.q_size, num_samples)
+        alpha = similar(ebm.p_size, ebm.q_size, ebm.p_size) .* 0
         scale = sqrt(Float32(num_samples))
         min_z, max_z = ebm.prior_domain
-        dotprod_attn_kernel!(
-            alpha,
+        alpha = dotprod_attn(
             ps.attention.Q,
             ps.attention.K,
             z,
@@ -193,15 +148,13 @@ function sample_mixture(
         dims = 3,
     )
 
-    rand_vals = pu(rand(rng, Float32, ebm.q_size, num_samples)) .* cdf[:, :, end]
-
-    z = zeros(Float32, ebm.q_size, 1, num_samples) |> pu
-    interp_kernel_mixture!(
-        z,
+    rand_vals = rand(rng, Float32, ebm.q_size, num_samples) .* cdf[:, :, end]
+    z = interpolate_kernel(
         cdf,
         grid,
         rand_vals,
-        grid_size,
+        ebm.q_size,
+        1,
     )
     return z, st_lyrnorm_new
 end
