@@ -7,7 +7,7 @@ include("../src/utils.jl")
 using .Utils
 
 include("../src/KAEM/KAEM.jl")
-using .T_KAM_model
+using .KAEM_model
 
 include("../src/KAEM/model_setup.jl")
 using .ModelSetup
@@ -23,7 +23,7 @@ out_dim = parse(Int, retrieve(conf, "GeneratorModel", "output_dim"))
 function test_model_derivative()
     Random.seed!(42)
     dataset = randn(Float32, 32, 32, 1, 50)
-    model = init_T_KAM(dataset, conf, (32, 32, 1))
+    model = init_KAEM(dataset, conf, (32, 32, 1))
     x_test = first(model.train_loader) |> pu
     model, ps, st_kan, st_lux = prep_model(model, x_test)
 

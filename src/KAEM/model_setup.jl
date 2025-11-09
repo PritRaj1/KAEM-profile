@@ -5,9 +5,9 @@ export prep_model
 using ConfParser, Lux, Accessors, ComponentArrays, Random, Reactant, Enzyme
 
 using ..Utils
-using ..T_KAM_model
-using ..T_KAM_model.LogPriorFCNs
-using ..T_KAM_model.InverseTransformSampling
+using ..KAEM_model
+using ..KAEM_model.LogPriorFCNs
+using ..KAEM_model.InverseTransformSampling
 
 include("loss_fcns/langevin_mle.jl")
 include("loss_fcns/importance_sampling.jl")
@@ -25,7 +25,7 @@ function setup_training(
         ps::ComponentArray{T},
         st_kan::ComponentArray{T},
         st_lux::NamedTuple,
-        model::T_KAM{T},
+        model::KAEM{T},
         x::AbstractArray{T};
         rng::AbstractRNG = Random.default_rng()
     ) where {T <: Float32}
@@ -146,7 +146,7 @@ function setup_training(
 end
 
 function prep_model(
-        model::T_KAM{T},
+        model::KAEM{T},
         x::AbstractArray{T};
         rng::AbstractRNG = Random.default_rng(),
     ) where {T <: Float32}
@@ -154,7 +154,7 @@ function prep_model(
     st_kan, st_lux = Lux.initialstates(rng, model)
     ps, st_kan, st_lux =
         ps |> ComponentArray |> Lux.f32 |> pu, st_kan |> ComponentArray |> Lux.f32 |> pu, st_lux |> Lux.f32 |> pu
-    model = setup_training(ps, st_kan, st_lux, model::T_KAM{T}, x; rng = rng)
+    model = setup_training(ps, st_kan, st_lux, model::KAEM{T}, x; rng = rng)
     return model, ps, st_kan, st_lux
 end
 

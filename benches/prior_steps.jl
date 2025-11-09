@@ -1,4 +1,4 @@
-# using BenchmarkTools, ConfParser, Lux, Random, CUDA, ComponentArrays, CSV, DataFrames
+# using BenchmarkTools, ConfParser, Lux, Random, ComponentArrays, CSV, DataFrames
 
 # ENV["GPU"] = true
 
@@ -9,7 +9,7 @@
 # using .Utils
 
 # include("../src/KAEM/KAEM.jl")
-# using .T_KAM_model
+# using .KAEM_model
 
 # include("../src/KAEM/model_setup.jl")
 # using .ModelSetup
@@ -36,7 +36,7 @@
 
 # function setup_model(N_l)
 #     commit!(conf, "PRIOR_LANGEVIN", "iters", "$(N_l)")
-#     model = init_T_KAM(dataset, conf, img_size; rng = rng)
+#     model = init_KAEM(dataset, conf, img_size; rng = rng)
 
 #     x_test, loader_state = iterate(model.train_loader)
 #     x_test = pu(x_test)
@@ -64,7 +64,6 @@
 
 #     model, ps, st_kan, st_lux = setup_model(N_l)
 
-#     CUDA.reclaim()
 #     GC.gc()
 
 #     b = @benchmark benchmark_prior($model, $ps, $st_kan, $st_lux)

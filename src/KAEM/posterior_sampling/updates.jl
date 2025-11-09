@@ -5,7 +5,7 @@ export update_z!, logpos_withgrad, leapfrog
 using Lux, ComponentArrays, Accessors
 
 using ..Utils
-using ..T_KAM_model
+using ..KAEM_model
 
 include("log_posteriors.jl")
 using .LogPosteriors: autoMALA_value_and_grad

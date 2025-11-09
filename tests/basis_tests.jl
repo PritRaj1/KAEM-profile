@@ -1,6 +1,6 @@
-using Test, Random, LinearAlgebra, CUDA
+using Test, Random, LinearAlgebra
 
-ENV["GPU"] = true
+ENV["GPU"] = false
 
 include("../src/utils.jl")
 using .Utils

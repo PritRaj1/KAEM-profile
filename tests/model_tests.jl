@@ -7,7 +7,7 @@ include("../src/utils.jl")
 using .Utils
 
 include("../src/KAEM/KAEM.jl")
-using .T_KAM_model
+using .KAEM_model
 
 include("../src/KAEM/model_setup.jl")
 using .ModelSetup
@@ -23,7 +23,7 @@ commit!(conf, "THERMODYNAMIC_INTEGRATION", "num_temps", "-1")
 function test_ps_derivative()
     Random.seed!(42)
     dataset = randn(Float32, 32, 32, 1, 50)
-    model = init_T_KAM(dataset, conf, (32, 32, 1))
+    model = init_KAEM(dataset, conf, (32, 32, 1))
     x_test = first(model.train_loader) |> pu
     model, ps, st_kan, st_lux = prep_model(model, x_test)
 
@@ -37,7 +37,7 @@ end
 function test_grid_update()
     Random.seed!(42)
     dataset = randn(Float32, 32, 32, 1, 50)
-    model = init_T_KAM(dataset, conf, (32, 32, 1))
+    model = init_KAEM(dataset, conf, (32, 32, 1))
     x_test = first(model.train_loader) |> pu
     model, ps, st_kan, st_lux = prep_model(model, x_test)
 
@@ -62,7 +62,7 @@ function test_pca()
     dataset = randn(Float32, 32, 32, 1, 50)
     commit!(conf, "PCA", "use_pca", "true")
     commit!(conf, "PCA", "pca_components", "10")
-    model = init_T_KAM(dataset, conf, (32, 32, 1))
+    model = init_KAEM(dataset, conf, (32, 32, 1))
     x_test = first(model.train_loader) |> pu
     model, ps, st_kan, st_lux = prep_model(model, x_test)
 
@@ -77,7 +77,7 @@ function test_mala_loss()
     Random.seed!(42)
     dataset = randn(Float32, 32, 32, 1, 50)
     commit!(conf, "POST_LANGEVIN", "use_langevin", "true")
-    model = init_T_KAM(dataset, conf, (32, 32, 1))
+    model = init_KAEM(dataset, conf, (32, 32, 1))
     x_test = first(model.train_loader) |> pu
     model, ps, st_kan, st_lux = prep_model(model, x_test)
 
@@ -93,7 +93,7 @@ function test_cnn_loss()
     commit!(conf, "CNN", "use_cnn_lkhood", "true")
     commit!(conf, "CNN", "latent_concat", "false")
     commit!(conf, "PCA", "use_pca", "false")
-    model = init_T_KAM(dataset, conf, (32, 32, 3))
+    model = init_KAEM(dataset, conf, (32, 32, 3))
     x_test = first(model.train_loader) |> pu
     model, ps, st_kan, st_lux = prep_model(model, x_test)
 
@@ -109,7 +109,7 @@ function test_cnn_residual_loss()
     dataset = randn(Float32, 32, 32, 3, 50)
     commit!(conf, "CNN", "use_cnn_lkhood", "true")
     commit!(conf, "CNN", "latent_concat", "true")
-    model = init_T_KAM(dataset, conf, (32, 32, 3))
+    model = init_KAEM(dataset, conf, (32, 32, 3))
     x_test = first(model.train_loader) |> pu
     model, ps, st_kan, st_lux = prep_model(model, x_test)
 
@@ -125,7 +125,7 @@ function test_seq_loss()
     dataset = randn(Float32, 50, 10, 100)
     commit!(conf, "SEQ", "sequence_length", "10")
     commit!(conf, "SEQ", "vocab_size", "50")
-    model = init_T_KAM(dataset, conf, (50, 10))
+    model = init_KAEM(dataset, conf, (50, 10))
     x_test = first(model.train_loader) |> pu
     model, ps, st_kan, st_lux = prep_model(model, x_test)
 
@@ -138,9 +138,9 @@ end
 @testset "KAEM Tests" begin
     test_ps_derivative()
     test_grid_update()
-    # test_pca()
-    # test_mala_loss()
-    # test_cnn_loss()
-    # test_cnn_residual_loss()
-    # test_seq_loss()
+    test_pca()
+    test_mala_loss()
+    test_cnn_loss()
+    test_cnn_residual_loss()
+    test_seq_loss()
 end

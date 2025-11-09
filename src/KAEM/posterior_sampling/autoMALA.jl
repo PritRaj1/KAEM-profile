@@ -11,7 +11,7 @@ using LinearAlgebra,
     ComponentArrays
 
 using ..Utils
-using ..T_KAM_model
+using ..KAEM_model
 
 include("preconditioner.jl")
 using .Preconditioning

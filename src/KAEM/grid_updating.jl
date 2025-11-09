@@ -5,8 +5,8 @@ export update_model_grid
 using Accessors, ComponentArrays, Lux, NNlib, LinearAlgebra, Random
 
 using ..Utils
-using ..T_KAM_model
-using ..T_KAM_model.UnivariateFunctions
+using ..KAEM_model
+using ..KAEM_model.UnivariateFunctions
 
 include("kan/grid_updating.jl")
 using .GridUpdating
@@ -43,7 +43,7 @@ function update_model_grid(
     if model.update_prior_grid
 
         if model.N_t > 1
-            temps = collect(T, [(k / model.N_t)^model.p[train_idx] for k in 1:model.N_t])
+            temps = collect(Float32, [(k / model.N_t)^model.p[train_idx] for k in 1:model.N_t])
             z = first(
                 model.posterior_sampler(
                     model,
@@ -149,7 +149,7 @@ function update_model_grid(
         return model, ps, st_kan, st_lux
 
     if model.N_t > 1
-        temps = collect(T, [(k / model.N_t)^model.p[train_idx] for k in 1:model.N_t])
+        temps = collect(Float32, [(k / model.N_t)^model.p[train_idx] for k in 1:model.N_t])
         z = first(
             model.posterior_sampler(model, ps, st_kan, st_lux, x; temps = temps, rng = rng),
         )[
@@ -205,7 +205,7 @@ function update_model_grid(
 
             if model.lkhood.generator.Φ_fcns[i].spline_string == "RBF"
                 @reset model.lkhood.generator.Φ_fcns[i].basis_function.scale =
-                    (maximum(new_grid) - minimum(new_grid)) / (size(new_grid, 2) - 1) |> T
+                    (maximum(new_grid) - minimum(new_grid)) / (size(new_grid, 2) - 1) |> Float32
             end
         end
 

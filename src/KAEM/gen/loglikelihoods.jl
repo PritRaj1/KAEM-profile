@@ -6,7 +6,7 @@ using ComponentArrays, Random
 using NNlib: softmax, sigmoid
 
 using ..Utils
-using ..T_KAM_model: GenModel
+using ..KAEM_model: GenModel
 
 include("losses.jl")
 using .Losses

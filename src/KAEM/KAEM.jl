@@ -1,6 +1,6 @@
-module T_KAM_model
+module KAEM_model
 
-export T_KAM, init_T_KAM, generate_new
+export KAEM, init_KAEM, generate_new
 
 using ConfParser, Random, Lux, Accessors, ComponentArrays, Statistics
 using Flux: DataLoader
@@ -26,7 +26,7 @@ using .GeneratorModel
 include("ebm/log_prior_fcns.jl")
 using .LogPriorFCNs
 
-struct T_KAM{T <: Float32} <: Lux.AbstractLuxLayer
+struct KAEM{T <: Float32} <: Lux.AbstractLuxLayer
     prior::EbmModel
     lkhood::GenModel
     train_loader::DataLoader
@@ -53,13 +53,13 @@ struct T_KAM{T <: Float32} <: Lux.AbstractLuxLayer
     original_data_size::Tuple
 end
 
-function init_T_KAM(
+function init_KAEM(
         dataset::AbstractArray{Float32},
         conf::ConfParse,
         x_shape::Tuple;
         file_loc::AbstractString = "logs/",
         rng::AbstractRNG = Random.default_rng(),
-    )::T_KAM{Float32}
+    )::KAEM{Float32}
 
     batch_size = parse(Int, retrieve(conf, "TRAINING", "batch_size"))
     IS_samples = parse(Int, retrieve(conf, "TRAINING", "importance_sample_size"))
@@ -147,7 +147,7 @@ function init_T_KAM(
 
     verbose && println("Using $(Threads.nthreads()) threads.")
 
-    return T_KAM(
+    return KAEM(
         prior_model,
         lkhood_model,
         train_loader,
@@ -187,7 +187,7 @@ end
 
 function Lux.initialparameters(
         rng::AbstractRNG,
-        model::T_KAM{T},
+        model::KAEM{T},
     )::ComponentArray where {T <: Float32}
     return ComponentArray(
         ebm = Lux.initialparameters(rng, model.prior),
@@ -197,7 +197,7 @@ end
 
 function Lux.initialstates(
         rng::AbstractRNG,
-        model::T_KAM{T},
+        model::KAEM{T},
     )::Tuple{ComponentArray, NamedTuple} where {T <: Float32}
 
     ebm_kan, ebm_lux = Lux.initialstates(rng, model.prior)

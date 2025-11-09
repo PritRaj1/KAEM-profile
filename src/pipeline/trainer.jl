@@ -1,6 +1,6 @@
 module trainer
 
-export T_KAM_trainer, init_trainer, train!
+export KAEM_trainer, init_trainer, train!
 
 using Flux: onecold, mse
 using Random, ComponentArrays, CSV, HDF5, JLD2, ConfParser, Reactant
@@ -12,7 +12,7 @@ include("../utils.jl")
 using .Utils
 
 include("../KAEM/KAEM.jl")
-using .T_KAM_model
+using .KAEM_model
 
 include("../KAEM/model_setup.jl")
 using .ModelSetup
@@ -25,7 +25,7 @@ include("data_utils.jl")
 using .optimization
 using .DataUtils: get_vision_dataset, get_text_dataset
 
-mutable struct T_KAM_trainer{T <: Float32}
+mutable struct KAEM_trainer{T <: Float32}
     model::Any
     cnn::Bool
     o::opt
@@ -127,7 +127,7 @@ function init_trainer(
     mkpath(file_loc)
 
     println("Initializing model...")
-    model = init_T_KAM(dataset, conf, x_shape; file_loc = file_loc, rng = rng)
+    model = init_KAEM(dataset, conf, x_shape; file_loc = file_loc, rng = rng)
     x, loader_state = iterate(model.train_loader)
     x = pu(x)
     model, params, st_kan, st_lux = prep_model(model, x; rng = rng)
@@ -151,7 +151,7 @@ function init_trainer(
         write(file, "Time (s),Epoch,Train MLE Loss,Test MSE Loss,Grid Updated\n")
     end
 
-    return T_KAM_trainer(
+    return KAEM_trainer(
         model,
         cnn,
         optimizer,
@@ -175,7 +175,7 @@ function init_trainer(
     )
 end
 
-function train!(t::T_KAM_trainer; train_idx::Int = 1)
+function train!(t::KAEM_trainer; train_idx::Int = 1)
 
     num_batches = length(t.model.train_loader)
     grid_updated = 0

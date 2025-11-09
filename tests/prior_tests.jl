@@ -1,4 +1,4 @@
-using Test, Random, LinearAlgebra, Lux, ConfParser, ComponentArrays, CUDA
+using Test, Random, LinearAlgebra, Lux, ConfParser, ComponentArrays
 
 ENV["GPU"] = false
 
@@ -6,7 +6,7 @@ include("../src/utils.jl")
 using .Utils
 
 include("../src/KAEM/KAEM.jl")
-using .T_KAM_model
+using .KAEM_model
 
 include("../src/KAEM/model_setup.jl")
 using .ModelSetup
@@ -19,7 +19,7 @@ q_size = last(parse.(Int, retrieve(conf, "EbmModel", "layer_widths")))
 
 Random.seed!(42)
 dataset = randn(Float32, 32, 32, 1, b_size * 10)
-model = init_T_KAM(dataset, conf, (32, 32, 1))
+model = init_KAEM(dataset, conf, (32, 32, 1))
 x_test = first(model.train_loader) |> pu
 model, ps, st_kan, st_lux = prep_model(model, x_test)
 ps = ps

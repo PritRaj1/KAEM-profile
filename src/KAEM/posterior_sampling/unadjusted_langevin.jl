@@ -11,7 +11,7 @@ using LinearAlgebra,
     ComponentArrays
 
 using ..Utils
-using ..T_KAM_model
+using ..KAEM_model
 
 include("log_posteriors.jl")
 using .LogPosteriors: unadjusted_logpos_grad, log_likelihood_MALA

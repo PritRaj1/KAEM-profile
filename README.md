@@ -117,11 +117,11 @@ using Random, Lux, Enzyme, ComponentArrays, Accessors
 include("src/KAEM/KAEM.jl")
 include("src/KAEM/model_setup.jl")
 include("src/utils.jl")
-using .T_KAM_model
+using .KAEM_model
 using .ModelSetup
 using .Utils
 
-model = init_T_KAM(
+model = init_KAEM(
       dataset, 
       conf, 
       x_shape; 

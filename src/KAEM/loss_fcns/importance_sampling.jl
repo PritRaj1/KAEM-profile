@@ -6,7 +6,7 @@ using NNlib: softmax
 export importance_loss
 
 using ..Utils
-using ..T_KAM_model
+using ..KAEM_model
 
 include("../gen/loglikelihoods.jl")
 using .LogLikelihoods: log_likelihood_IS

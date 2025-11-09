@@ -126,10 +126,11 @@ function coef2curve_Spline(
     )
     spl = b(x_eval, grid, σ)
     I, G, S, O = size(spl)..., size(coef, 2)
-    coef_perm = permutedims(coef, (2, 3, 1)) # [O, G, I]
-    spl_perm = permutedims(spl, (2, 3, 1)) # [G, S, I]
-    y_perm = NNlib.batched_mul(coef_perm, spl_perm)
-    return permutedims(y_perm, (3, 1, 2)) # [I, O, S]
+    return dropdims(
+        sum(
+            reshape(spl, I, 1, S, G) .* reshape(coef, I, O, 1, G); dims = 4
+        ); dims = 4
+    )
 end
 
 function curve2coef(
@@ -183,15 +184,11 @@ function coef2curve_FFT(
     even, odd = b(x_eval, grid, σ)
     even_coef = @view coef[1, :, :, :]
     odd_coef = @view coef[2, :, :, :]
+    I, G, S, O = size(even)..., size(odd_coef, 2)
 
-    even_coef_perm = permutedims(even_coef, (2, 3, 1))
-    odd_coef_perm = permutedims(odd_coef, (2, 3, 1))
-    even_perm = permutedims(even, (2, 3, 1))
-    odd_perm = permutedims(odd, (2, 3, 1))
-
-    y_even = NNlib.batched_mul(even_coef_perm, even_perm)  # [O, S, I]
-    y_odd = NNlib.batched_mul(odd_coef_perm, odd_perm) # [O, S, I]
-    return permutedims(y_even .+ y_odd, (3, 1, 2))
+    y_even = sum(reshape(even, I, 1, S, G) .* reshape(even_coef, I, O, 1, G); dims = 4)
+    y_odd = sum(reshape(odd, I, 1, S, G) .* reshape(odd_coef, I, O, 1, G); dims = 4)
+    return dropdims(y_even + y_odd; dims = 4)
 end
 
 end

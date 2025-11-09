@@ -1,4 +1,4 @@
-using BenchmarkTools, ConfParser, Lux, Random, CUDA, ComponentArrays, CSV, DataFrames
+using BenchmarkTools, ConfParser, Lux, Random, ComponentArrays, CSV, DataFrames
 
 ENV["GPU"] = true
 
@@ -9,7 +9,7 @@ include("../src/utils.jl")
 using .Utils
 
 include("../src/KAEM/KAEM.jl")
-using .T_KAM_model
+using .KAEM_model
 
 include("../src/KAEM/model_setup.jl")
 using .ModelSetup
@@ -36,7 +36,7 @@ dataset, img_size = get_vision_dataset(
 function setup_model(N_t)
     commit!(conf, "THERMODYNAMIC_INTEGRATION", "num_temps", "$(N_t)")
 
-    model = init_T_KAM(dataset, conf, img_size; rng = rng)
+    model = init_KAEM(dataset, conf, img_size; rng = rng)
     x_test, loader_state = iterate(model.train_loader)
     x_test = pu(x_test)
     model, ps, st_kan, st_lux = prep_model(model, x_test; rng = rng)

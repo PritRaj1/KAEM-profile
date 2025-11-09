@@ -1,4 +1,4 @@
-using Test, Random, LinearAlgebra, Lux, ConfParser, ComponentArrays, CUDA
+using Test, Random, LinearAlgebra, Lux, ConfParser, ComponentArrays
 
 
 ENV["GPU"] = false
@@ -7,7 +7,7 @@ include("../src/utils.jl")
 using .Utils
 
 include("../src/KAEM/KAEM.jl")
-using .T_KAM_model
+using .KAEM_model
 
 include("../src/KAEM/model_setup.jl")
 using .ModelSetup
@@ -28,7 +28,7 @@ function test_generate()
     Random.seed!(42)
     commit!(conf, "CNN", "use_cnn_lkhood", "false")
     dataset = randn(Float32, 32, 32, 1, 50)
-    model = init_T_KAM(dataset, conf, (32, 32, 1))
+    model = init_KAEM(dataset, conf, (32, 32, 1))
     x_test = first(model.train_loader) |> pu
     model, ps, st_kan, st_lux = prep_model(model, x_test)
     ps = ps
@@ -42,7 +42,7 @@ end
 function test_logllhood()
     Random.seed!(42)
     dataset = randn(Float32, 32, 32, 1, 50)
-    model = init_T_KAM(dataset, conf, (32, 32, 1))
+    model = init_KAEM(dataset, conf, (32, 32, 1))
     x_test = first(model.train_loader) |> pu
     model, ps, st_kan, st_lux = prep_model(model, x_test)
     ps = ps
@@ -60,7 +60,7 @@ function test_cnn_generate()
     Random.seed!(42)
     commit!(conf, "CNN", "use_cnn_lkhood", "true")
     dataset = randn(Float32, 32, 32, out_dim, 50)
-    model = init_T_KAM(dataset, conf, (32, 32, out_dim))
+    model = init_KAEM(dataset, conf, (32, 32, out_dim))
     x_test = first(model.train_loader) |> pu
     model, ps, st_kan, st_lux = prep_model(model, x_test)
     ps = ps
@@ -77,7 +77,7 @@ function test_seq_generate()
     commit!(conf, "SEQ", "sequence_length", "8")
 
     dataset = randn(Float32, out_dim, 8, 50)
-    model = init_T_KAM(dataset, conf, (out_dim, 8))
+    model = init_KAEM(dataset, conf, (out_dim, 8))
     x_test = first(model.train_loader) |> pu
     model, ps, st_kan, st_lux = prep_model(model, x_test)
     ps = ps

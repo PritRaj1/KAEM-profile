@@ -1,7 +1,5 @@
 using JLD2,
-    CUDA,
     Lux,
-    LuxCUDA,
     ComponentArrays,
     ConfParser,
     LaTeXStrings,
@@ -16,7 +14,7 @@ include("src/utils.jl")
 using .Utils
 
 include("src/KAEM/KAEM.jl")
-using .T_KAM_model
+using .KAEM_model
 
 include("src/pipeline/trainer.jl")
 using .trainer

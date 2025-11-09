@@ -5,7 +5,7 @@ export autoMALA_step
 using Accessors, Lux, Statistics, ComponentArrays
 
 using ..Utils
-using ..T_KAM_model
+using ..KAEM_model
 using ..LangevinUpdates
 
 function safe_step_size_update(
