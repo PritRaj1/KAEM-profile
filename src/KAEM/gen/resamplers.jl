@@ -45,54 +45,39 @@ struct ResidualResampler <: AbstractResampler
     verbose::Bool
 end
 
-function residual_kernel!(
-        idxs,
+function residual_single(
         ESS_bool,
         cdf,
         u,
-        num_remaining,
         integer_counts,
+        N,
+    )
+    !ESS_bool && return collect(1:N)
+    deterministic_part = reduce(vcat, map(i -> fill(i, integer_counts[i]), 1:N))
+    residual_part = reduce(vcat, searchsortedfirst.(Ref(cdf), u))
+    return vcat(deterministic_part, clamp.(residual_part, 1, N))
+end
+
+function residual_kernel(
+        ESS_bool,
+        cdf,
+        u,
+        integer_counts,
+        num_remaining,
         B,
         N,
     )
-    for b in 1:B
-        c = 1
-
-        if !ESS_bool[b] # No resampling
-            for n in 1:N
-                idxs[b, n] = n
-            end
-        else
-
-            # Deterministic replication
-            for s in 1:N
-                count = integer_counts[b, s]
-                if count > 0
-                    for i in c:(c + count - 1)
-                        idxs[b, i] = s
-                    end
-                    c += count
-                end
-            end
-
-            # Multinomial resampling
-            if num_remaining[b] > 0
-                for k in 1:num_remaining[b]
-                    idx = N
-                    for j in 1:N
-                        if cdf[b, j] >= u[b, k]
-                            idx = j
-                            break
-                        end
-                    end
-                    idx = idx > N ? N : idx
-                    idxs[b, c] = idx
-                    c += 1
-                end
-            end
-        end
-    end
-    return nothing
+    return reduce(
+        hcat,
+        map(
+            b -> residual_single(
+                ESS_bool[b],
+                cdf[b, (N - num_remaining[b] + 1):N],
+                u[b, (N - num_remaining[b] + 1):N],
+                integer_counts[b, :], N
+            ), 1:B
+        )
+    )'
 end
 
 function (r::ResidualResampler)(
@@ -110,7 +95,11 @@ function (r::ResidualResampler)(
     Returns:
         - The resampled indices.
     """
-    ESS_bool, resample_bool, B, N = check_ESS(weights; ESS_threshold = r.ESS_threshold, verbose = r.verbose)
+    ESS_bool, resample_bool, B, N = check_ESS(
+        weights;
+        ESS_threshold = r.ESS_threshold,
+        verbose = r.verbose,
+    )
     !resample_bool && return repeat(collect(1:N)', B, 1)
 
     # Number times to replicate each sample
@@ -121,21 +110,9 @@ function (r::ResidualResampler)(
     residual_weights = softmax(weights .* (N .- integer_counts), dims = 2)
 
     # CDF and variate for resampling
-    u = pu(rand(rng, Float32, B, N))
+    u = rand(rng, Float32, B, N)
     cdf = cumsum(residual_weights, dims = 2)
-
-    idxs = zeros(Float32, B, N) |> pu
-    residual_kernel!(
-        idxs,
-        ESS_bool,
-        cdf,
-        u,
-        num_remaining,
-        integer_counts,
-        B,
-        N,
-    )
-    return Int.(idxs)
+    return residual_kernel(ESS_bool, cdf, u, integer_counts, num_remaining, B, N)
 end
 
 struct SystematicResampler <: AbstractResampler
@@ -143,35 +120,28 @@ struct SystematicResampler <: AbstractResampler
     verbose::Bool
 end
 
-function systematic_kernel!(
-        idxs,
+function systematic_single(
+        ESS_bool,
+        cdf,
+        u,
+        N,
+    )
+    !ESS_bool && return collect(1:N)
+    indices = searchsortedfirst.(Ref(cdf), u)
+    return clamp.(indices, 1, N)
+end
+
+function systematic_kernel(
         ESS_bool,
         cdf,
         u,
         B,
         N,
     )
-    for b in 1:B
-        if !ESS_bool[b] # No resampling
-            for n in 1:N
-                idxs[b, n] = n
-            end
-        else
-            # Searchsortedfirst
-            for n in 1:N
-                idx = N
-                for j in 1:N
-                    if cdf[b, j] >= u[b, n]
-                        idx = j
-                        break
-                    end
-                end
-                idx = idx > N ? N : idx
-                idxs[b, n] = idx
-            end
-        end
-    end
-    return nothing
+    return reduce(
+        hcat,
+        map(b -> systematic_single(ESS_bool[b], cdf[b, :], u[b, :], N), 1:B)
+    )'
 end
 
 function (r::SystematicResampler)(
@@ -195,11 +165,8 @@ function (r::SystematicResampler)(
     cdf = cumsum(weights, dims = 2)
 
     # Systematic thresholds
-    u = pu((rand(rng, Float32, B, 1) .+ (0:(N - 1))') ./ N)
-
-    idxs = zeros(Float32, B, N) |> pu
-    systematic_kernel!(idxs, ESS_bool, cdf, u, B, N)
-    return Int.(idxs)
+    u = (rand(rng, Float32, B, 1) .+ (0:(N - 1))') ./ N
+    return systematic_kernel(ESS_bool, cdf, u, B, N)
 end
 
 struct StratifiedResampler <: AbstractResampler
@@ -228,11 +195,8 @@ function (r::StratifiedResampler)(
     cdf = cumsum(weights, dims = 2)
 
     # Stratified thresholds
-    u = pu((rand(rng, Float32, B, N) .+ (0:(N - 1))') ./ N)
-
-    idxs = zeros(Float32, B, N) |> pu
-    systematic_kernel!(idxs, ESS_bool, cdf, u, B, N)
-    return Int.(idxs)
+    u = (rand(rng, Float32, B, N) .+ (0:(N - 1))') ./ N
+    return systematic_kernel(ESS_bool, cdf, u, B, N)
 end
 
 const resampler_map::Dict{String, Function} = Dict(

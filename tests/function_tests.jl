@@ -13,13 +13,13 @@
 
 # function test_fwd()
 #     Random.seed!(42)
-#     x = rand(Float32, 5, 3) 
+#     x = rand(Float32, 5, 3)
 #     f = init_function(5, 2)
 
 #     Random.seed!(42)
 #     ps, st = Lux.setup(Random.GLOBAL_RNG, f)
-#     ps = ps |> ComponentArray 
-#     st = st |> ComponentArray 
+#     ps = ps |> ComponentArray
+#     st = st |> ComponentArray
 
 #     y = f(x, ps, st)
 #     return @test size(y) == (5, 2, 3)
@@ -27,11 +27,11 @@
 
 # function test_grid_update()
 #     Random.seed!(42)
-#     x = rand(Float32, 5, 3) 
+#     x = rand(Float32, 5, 3)
 #     f = init_function(5, 2)
 #     ps, st = Lux.setup(Random.GLOBAL_RNG, f)
-#     ps = ps |> ComponentArray 
-#     st = st |> ComponentArray 
+#     ps = ps |> ComponentArray
+#     st = st |> ComponentArray
 
 #     y = f(x, ps, st)
 #     grid, coef = update_fcn_grid(f, ps, st, x)
