@@ -67,7 +67,7 @@ function sample_univariate(
     grid_size = size(grid, 2)
 
     cdf = cat(
-        pu(zeros(T, ebm.q_size, ebm.p_size, 1)), # Add 0 to start of CDF
+        cdf[:, :, 1:1] .* 0, # Add 0 to start of CDF
         cumsum(cdf; dims = 3), # Cumulative trapezium = CDF
         dims = 3,
     )
@@ -188,7 +188,7 @@ function sample_mixture(
     grid_size = size(grid, 2)
 
     cdf = cat(
-        pu(zeros(T, ebm.q_size, num_samples, 1)), # Add 0 to start of CDF
+        cdf[:, :, 1:1] .* 0, # Add 0 to start of CDF
         cumsum(cdf; dims = 3), # Cumulative trapezium = CDF
         dims = 3,
     )

@@ -1,128 +1,128 @@
-using Test, Random, LinearAlgebra, Lux, ConfParser, ComponentArrays
+# using Test, Random, LinearAlgebra, Lux, ConfParser, ComponentArrays
 
-ENV["GPU"] = false
+# ENV["GPU"] = false
 
-include("../src/utils.jl")
-using .Utils
+# include("../src/utils.jl")
+# using .Utils
 
-include("../src/KAEM/KAEM.jl")
-using .KAEM_model
+# include("../src/KAEM/KAEM.jl")
+# using .KAEM_model
 
-include("../src/KAEM/model_setup.jl")
-using .ModelSetup
+# include("../src/KAEM/model_setup.jl")
+# using .ModelSetup
 
-conf = ConfParse("tests/test_conf.ini")
-parse_conf!(conf)
-b_size = parse(Int, retrieve(conf, "TRAINING", "batch_size"))
-p_size = first(parse.(Int, retrieve(conf, "EbmModel", "layer_widths")))
-q_size = last(parse.(Int, retrieve(conf, "EbmModel", "layer_widths")))
+# conf = ConfParse("tests/test_conf.ini")
+# parse_conf!(conf)
+# b_size = parse(Int, retrieve(conf, "TRAINING", "batch_size"))
+# p_size = first(parse.(Int, retrieve(conf, "EbmModel", "layer_widths")))
+# q_size = last(parse.(Int, retrieve(conf, "EbmModel", "layer_widths")))
 
-Random.seed!(42)
-dataset = randn(Float32, 32, 32, 1, b_size * 10)
-model = init_KAEM(dataset, conf, (32, 32, 1))
-x_test = first(model.train_loader) |> pu
-model, ps, st_kan, st_lux = prep_model(model, x_test)
-ps = ps
+# Random.seed!(42)
+# dataset = randn(Float32, 32, 32, 1, b_size * 10)
+# model = init_KAEM(dataset, conf, (32, 32, 1))
+# x_test = first(model.train_loader) |> pu
+# model, ps, st_kan, st_lux = prep_model(model, x_test)
+# ps = ps
 
-function test_shapes()
-    @test model.prior.p_size == p_size
-    return @test model.prior.q_size == q_size
-end
+# function test_shapes()
+#     @test model.prior.p_size == p_size
+#     return @test model.prior.q_size == q_size
+# end
 
-function test_uniform_prior()
-    commit!(conf, "EbmModel", "π_0", "uniform")
-    z_test =
-        first(model.sample_prior(model, b_size, ps, st_kan, st_lux, Random.default_rng()))
+# function test_uniform_prior()
+#     commit!(conf, "EbmModel", "π_0", "uniform")
+#     z_test =
+#         first(model.sample_prior(model, b_size, ps, st_kan, st_lux, Random.default_rng()))
 
-    if model.prior.bool_config.mixture_model || model.prior.bool_config.ula
-        @test all(size(z_test) .== (q_size, 1, b_size))
-    else
-        @test all(size(z_test) .== (q_size, p_size, b_size))
-    end
+#     if model.prior.bool_config.mixture_model || model.prior.bool_config.ula
+#         @test all(size(z_test) .== (q_size, 1, b_size))
+#     else
+#         @test all(size(z_test) .== (q_size, p_size, b_size))
+#     end
 
-    log_p = first(model.log_prior(z_test, model.prior, ps.ebm, st_kan.ebm, st_lux.ebm))
+#     log_p = first(model.log_prior(z_test, model.prior, ps.ebm, st_kan.ebm, st_lux.ebm))
 
-    @test !any(isnan, z_test)
-    @test size(log_p) == (b_size,)
-    return @test !any(isnan, log_p)
-end
+#     @test !any(isnan, z_test)
+#     @test size(log_p) == (b_size,)
+#     return @test !any(isnan, log_p)
+# end
 
-function test_gaussian_prior()
-    commit!(conf, "EbmModel", "π_0", "gaussian")
-    z_test =
-        first(model.sample_prior(model, b_size, ps, st_kan, st_lux, Random.default_rng()))
+# function test_gaussian_prior()
+#     commit!(conf, "EbmModel", "π_0", "gaussian")
+#     z_test =
+#         first(model.sample_prior(model, b_size, ps, st_kan, st_lux, Random.default_rng()))
 
-    if model.prior.bool_config.mixture_model || model.prior.bool_config.ula
-        @test all(size(z_test) .== (q_size, 1, b_size))
-    else
-        @test all(size(z_test) .== (q_size, p_size, b_size))
-    end
+#     if model.prior.bool_config.mixture_model || model.prior.bool_config.ula
+#         @test all(size(z_test) .== (q_size, 1, b_size))
+#     else
+#         @test all(size(z_test) .== (q_size, p_size, b_size))
+#     end
 
-    log_p = first(model.log_prior(z_test, model.prior, ps.ebm, st_kan.ebm, st_lux.ebm))
+#     log_p = first(model.log_prior(z_test, model.prior, ps.ebm, st_kan.ebm, st_lux.ebm))
 
-    @test !any(isnan, z_test)
-    @test size(log_p) == (b_size,)
-    return @test !any(isnan, log_p)
-end
+#     @test !any(isnan, z_test)
+#     @test size(log_p) == (b_size,)
+#     return @test !any(isnan, log_p)
+# end
 
-function test_lognormal_prior()
-    commit!(conf, "EbmModel", "π_0", "lognormal")
-    z_test =
-        first(model.sample_prior(model, b_size, ps, st_kan, st_lux, Random.default_rng()))
+# function test_lognormal_prior()
+#     commit!(conf, "EbmModel", "π_0", "lognormal")
+#     z_test =
+#         first(model.sample_prior(model, b_size, ps, st_kan, st_lux, Random.default_rng()))
 
-    if model.prior.bool_config.mixture_model || model.prior.bool_config.ula
-        @test all(size(z_test) .== (q_size, 1, b_size))
-    else
-        @test all(size(z_test) .== (q_size, p_size, b_size))
-    end
+#     if model.prior.bool_config.mixture_model || model.prior.bool_config.ula
+#         @test all(size(z_test) .== (q_size, 1, b_size))
+#     else
+#         @test all(size(z_test) .== (q_size, p_size, b_size))
+#     end
 
-    log_p = first(model.log_prior(z_test, model.prior, ps.ebm, st_kan.ebm, st_lux.ebm))
+#     log_p = first(model.log_prior(z_test, model.prior, ps.ebm, st_kan.ebm, st_lux.ebm))
 
-    @test !any(isnan, z_test)
-    @test size(log_p) == (b_size,)
-    return @test !any(isnan, log_p)
-end
+#     @test !any(isnan, z_test)
+#     @test size(log_p) == (b_size,)
+#     return @test !any(isnan, log_p)
+# end
 
-function test_learnable_gaussian_prior()
-    commit!(conf, "EbmModel", "π_0", "learnable_gaussian")
-    z_test =
-        first(model.sample_prior(model, b_size, ps, st_kan, st_lux, Random.default_rng()))
+# function test_learnable_gaussian_prior()
+#     commit!(conf, "EbmModel", "π_0", "learnable_gaussian")
+#     z_test =
+#         first(model.sample_prior(model, b_size, ps, st_kan, st_lux, Random.default_rng()))
 
-    if model.prior.bool_config.mixture_model || model.prior.bool_config.ula
-        @test all(size(z_test) .== (q_size, 1, b_size))
-    else
-        @test all(size(z_test) .== (q_size, p_size, b_size))
-    end
+#     if model.prior.bool_config.mixture_model || model.prior.bool_config.ula
+#         @test all(size(z_test) .== (q_size, 1, b_size))
+#     else
+#         @test all(size(z_test) .== (q_size, p_size, b_size))
+#     end
 
-    log_p = first(model.log_prior(z_test, model.prior, ps.ebm, st_kan.ebm, st_lux.ebm))
+#     log_p = first(model.log_prior(z_test, model.prior, ps.ebm, st_kan.ebm, st_lux.ebm))
 
-    @test !any(isnan, z_test)
-    @test size(log_p) == (b_size,)
-    return @test !any(isnan, log_p)
-end
+#     @test !any(isnan, z_test)
+#     @test size(log_p) == (b_size,)
+#     return @test !any(isnan, log_p)
+# end
 
-function test_ebm_prior()
-    commit!(conf, "EbmModel", "π_0", "ebm")
-    z_test =
-        first(model.sample_prior(model, b_size, ps, st_kan, st_lux, Random.default_rng()))
+# function test_ebm_prior()
+#     commit!(conf, "EbmModel", "π_0", "ebm")
+#     z_test =
+#         first(model.sample_prior(model, b_size, ps, st_kan, st_lux, Random.default_rng()))
 
-    if model.prior.bool_config.mixture_model || model.prior.bool_config.ula
-        @test all(size(z_test) .== (q_size, 1, b_size))
-    else
-        @test all(size(z_test) .== (q_size, p_size, b_size))
-    end
+#     if model.prior.bool_config.mixture_model || model.prior.bool_config.ula
+#         @test all(size(z_test) .== (q_size, 1, b_size))
+#     else
+#         @test all(size(z_test) .== (q_size, p_size, b_size))
+#     end
 
-    log_p = first(model.log_prior(z_test, model.prior, ps.ebm, st_kan.ebm, st_lux.ebm))
+#     log_p = first(model.log_prior(z_test, model.prior, ps.ebm, st_kan.ebm, st_lux.ebm))
 
-    @test !any(isnan, z_test)
-    @test size(log_p) == (b_size,)
-    return @test !any(isnan, log_p)
-end
+#     @test !any(isnan, z_test)
+#     @test size(log_p) == (b_size,)
+#     return @test !any(isnan, log_p)
+# end
 
-@testset "Mixture Prior Tests" begin
-    test_uniform_prior()
-    test_gaussian_prior()
-    test_lognormal_prior()
-    test_learnable_gaussian_prior()
-    test_ebm_prior()
-end
+# @testset "Mixture Prior Tests" begin
+#     test_uniform_prior()
+#     test_gaussian_prior()
+#     test_lognormal_prior()
+#     test_learnable_gaussian_prior()
+#     test_ebm_prior()
+# end

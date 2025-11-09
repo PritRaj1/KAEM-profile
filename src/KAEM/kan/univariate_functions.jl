@@ -100,19 +100,19 @@ function Lux.initialparameters(
         l::univariate_function{T, A},
     )::NamedTuple where {T <: Float32, A <: AbstractActivation}
 
-    w_base = glorot_normal(rng, T, l.in_dim, l.out_dim) .* l.σ_base
-    w_sp = glorot_normal(rng, T, l.in_dim, l.out_dim) .* l.σ_spline
+    w_base = glorot_normal(rng, Float32, l.in_dim, l.out_dim) .* l.σ_base
+    w_sp = glorot_normal(rng, Float32, l.in_dim, l.out_dim) .* l.σ_spline
 
     coef = [0.0f0]
     if l.spline_string == "FFT"
         grid_norm_factor = collect(T, 1:(l.grid_size + 1)) .^ 2
         coef =
-            glorot_normal(rng, T, 2, l.in_dim, l.out_dim, l.grid_size + 1) ./
+            glorot_normal(rng, Float32, 2, l.in_dim, l.out_dim, l.grid_size + 1) ./
             (sqrt(l.in_dim) .* permutedims(grid_norm_factor[:, :, :, :], [2, 3, 4, 1]))
     elseif !(l.spline_string == "Cheby")
         ε =
             (
-            (rand(rng, T, l.in_dim, l.out_dim, l.grid_size + 1) .- 0.5f0) .*
+            (rand(rng, Float32, l.in_dim, l.out_dim, l.grid_size + 1) .- 0.5f0) .*
                 l.ε_scale ./ l.grid_size
         )
         coef = curve2coef(
@@ -127,7 +127,7 @@ function Lux.initialparameters(
 
     if l.spline_string == "Cheby"
         return (
-            coef = glorot_normal(rng, T, l.in_dim, l.out_dim, l.spline_degree + 1) .*
+            coef = glorot_normal(rng, Float32, l.in_dim, l.out_dim, l.spline_degree + 1) .*
                 (1 / (l.in_dim * (l.spline_degree + 1))),
             basis_τ = l.init_τ,
         )
