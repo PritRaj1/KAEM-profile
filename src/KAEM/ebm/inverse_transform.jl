@@ -30,8 +30,7 @@ function interpolate_batch(
         rv,
     )
     indices = searchsortedfirst.(Ref(cdf), rv)
-    z = interpolate_single.(indices, Ref(cdf), Ref(grid), rv)
-    return z'
+    return interpolate_single.(indices, Ref(cdf), Ref(grid), rv)
 end
 
 function interpolate_p(
@@ -41,8 +40,14 @@ function interpolate_p(
         P
     )
     z = reduce(
-        vcat,
-        map(p -> interpolate_batch(cdf[p, :], grid[p, :], rv[p, :]), 1:P)
+        hcat,
+        map(
+            p -> interpolate_batch(
+                selectdim(cdf, 1, p),
+                selectdim(grid, 1, p),
+                selectdim(rv, 1, p)
+            ), 1:P
+        )
     )
     return reshape(z, 1, P, size(rv, 2))
 end
@@ -56,7 +61,13 @@ function interpolate_kernel(
     )
     return reduce(
         vcat,
-        map(q -> interpolate_p(cdf[q, :, :], grid, rand_vals[q, :, :], P), 1:Q)
+        map(
+            q -> interpolate_p(
+                selectdim(cdf, 1, q),
+                grid,
+                selectdim(rand_vals, 1, q), P
+            ), 1:Q
+        )
     )
 end
 
