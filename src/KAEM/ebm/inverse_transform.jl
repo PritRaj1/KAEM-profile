@@ -10,18 +10,19 @@ include("mixture_selection.jl")
 using .MixtureChoice: choose_component
 
 function interpolate_single(
-        idx,
         cdf,
         grid,
         rv,
     )
-    idx <= 1 && return grid[1]
-    idx > size(grid, 2) && return grid[end]
-    z1, z2 = grid[idx - 1], grid[idx]
-    cd1, cd2 = cdf[idx - 1], cdf[idx]
+    idx = searchsortedfirst(cdf, rv)
+    early_return = ifelse(idx <= 1, grid[1], grid[end])
+    early_bool = (idx <= 1) + (idx > size(grid, 2))
+
+    z1, z2 = view(grid, max(1, idx - 1)), view(grid, min(size(grid, 2), idx))
+    cd1, cd2 = view(cdf, max(1, idx - 1)), view(cdf, min(size(cdf, 2), idx))
     length = cd2 - cd1
-    length == 0 && return z1
-    return z1 + (z2 - z1) * ((rv - cd1) / length)
+    inter_return = ifelse(length == 0, z1, z1 + (z2 - z1) * ((rv - cd1) / length))
+    return ifelse(early_bool, early_return, inter_return)
 end
 
 function interpolate_batch(
@@ -29,27 +30,7 @@ function interpolate_batch(
         grid,
         rv,
     )
-    indices = searchsortedfirst.(Ref(cdf), rv)
-    return interpolate_single.(indices, Ref(cdf), Ref(grid), rv)
-end
-
-function interpolate_p(
-        cdf,
-        grid,
-        rv,
-        P
-    )
-    z = reduce(
-        hcat,
-        map(
-            p -> interpolate_batch(
-                selectdim(cdf, 1, p),
-                selectdim(grid, 1, p),
-                selectdim(rv, 1, p)
-            ), 1:P
-        )
-    )
-    return reshape(z, 1, P, size(rv, 2))
+    return interpolate_single.(Ref(cdf), Ref(grid), rv)
 end
 
 function interpolate_kernel(
@@ -59,16 +40,20 @@ function interpolate_kernel(
         Q,
         P
     )
-    return reduce(
+    cdf_flat = reshape(cdf, Q * P, size(cdf, 3))
+    grid_exp = repeat(grid, Q, 1)
+    rand_vals_flat = reshape(rand_vals, Q * P, size(rand_vals, 3))
+    z_flat = reduce(
         vcat,
         map(
-            q -> interpolate_p(
-                selectdim(cdf, 1, q),
-                grid,
-                selectdim(rand_vals, 1, q), P
-            ), 1:Q
+            n -> interpolate_batch(
+                view(cdf_flat, n, :),
+                view(grid_exp, n, :),
+                view(rand_vals_flat, n, :)
+            ), 1:(Q * P)
         )
     )
+    return reshape(z_flat, Q, P, size(rand_vals, 3))
 end
 
 function sample_univariate(
@@ -81,7 +66,6 @@ function sample_univariate(
     )
 
     cdf, grid, st_lyrnorm_new = ebm.quad(ebm, ps, st_kan, st_lyrnorm)
-    grid_size = size(grid, 2)
 
     cdf = cat(
         cdf[:, :, 1:1] .* 0, # Add 0 to start of CDF
