@@ -13,9 +13,6 @@ using LinearAlgebra,
 using ..Utils
 using ..KAEM_model
 
-include("log_posteriors.jl")
-using .LogPosteriors: unadjusted_logpos_grad, log_likelihood_MALA
-
 include("updates.jl")
 using .LangevinUpdates
 
@@ -103,12 +100,12 @@ function (sampler::ULA_sampler)(
     num_temps, Q, P, S = length(temps), size(z_hq)[1:2]..., size(x)[end]
     S = sampler.prior_sampling_bool ? size(z_hq)[end] : S
     z_hq = reshape(z_hq, Q, P, S, num_temps)
-    temps_gpu = pu(repeat(temps, S))
+    temps_gpu = repeat(temps, S)
 
     # Pre-allocate for both precisions
     z_fq = reshape(z_hq, Q, P, S * num_temps)
     ∇z_fq = 0.0f0 .* z_fq
-    z_copy = similar(z_hq[:, :, :, 1]) |> pu
+    z_copy = similar(z_hq[:, :, :, 1])
     z_t, z_t1 = z_copy, z_copy
 
     x_t = (
@@ -119,15 +116,14 @@ function (sampler::ULA_sampler)(
     # Pre-allocate noise
     noise = randn(rng, Float32, Q, P, S * num_temps, sampler.N)
     log_u_swap = log.(rand(rng, Float32, num_temps - 1, sampler.N))
-    ll_noise = randn(rng, Float32, model.lkhood.x_shape..., S, 2, num_temps, sampler.N) |> pu
+    ll_noise = randn(rng, Float32, model.lkhood.x_shape..., S, 2, num_temps, sampler.N)
     swap_replica_idxs = num_temps > 1 ? rand(rng, 1:(num_temps - 1), sampler.N) : nothing
 
     for i in 1:sampler.N
-        ξ = pu(noise[:, :, :, i])
+        ξ = noise[:, :, :, i]
         ∇z_fq .=
             unadjusted_logpos_grad(
             z_fq,
-            0.0f0 .* z_fq,
             x_t,
             temps_gpu,
             model,

@@ -12,12 +12,10 @@ using ..KAEM_model.InverseTransformSampling
 include("loss_fcns/langevin_mle.jl")
 include("loss_fcns/importance_sampling.jl")
 include("loss_fcns/thermodynamic.jl")
-include("posterior_sampling/autoMALA.jl")
 include("posterior_sampling/unadjusted_langevin.jl")
 using .ImportanceSampling
 using .LangevinMLE
 using .ThermodynamicIntegration
-using .autoMALA_sampling
 using .ULA_sampling
 
 
@@ -30,7 +28,6 @@ function setup_training(
         rng::AbstractRNG = Random.default_rng()
     ) where {T <: Float32}
     conf = model.conf
-    autoMALA_bool = parse(Bool, retrieve(conf, "POST_LANGEVIN", "use_autoMALA"))
 
     # Posterior samplers
     initial_step_size =
@@ -38,8 +35,6 @@ function setup_training(
     num_steps = parse(Int, retrieve(conf, "POST_LANGEVIN", "iters"))
     N_unadjusted = parse(Int, retrieve(conf, "POST_LANGEVIN", "N_unadjusted"))
     η_init = parse(Float32, retrieve(conf, "POST_LANGEVIN", "initial_step_size"))
-    Δη = parse(Float32, retrieve(conf, "POST_LANGEVIN", "autoMALA_η_changerate"))
-    η_minmax = parse.(Float32, retrieve(conf, "POST_LANGEVIN", "step_size_bounds"))
     replica_exchange_frequency = parse(
         Int,
         retrieve(conf, "THERMODYNAMIC_INTEGRATION", "replica_exchange_frequency"),
@@ -78,8 +73,7 @@ function setup_training(
             rng = rng
         )
 
-        type = autoMALA_bool ? "Thermo autoMALA" : "Thermo ULA"
-        println("Posterior sampler: $type")
+        println("Posterior sampler: Thermo ULA")
     elseif model.MALA || model.prior.bool_config.ula
         @reset model.loss_fcn = Reactant.@compile langevin_loss(
             ps,
@@ -90,11 +84,10 @@ function setup_training(
             train_idx = 1,
             rng = rng
         )
-        type = autoMALA_bool ? "autoMALA" : "ULA"
-        println("Posterior sampler: $type")
+        println("Posterior sampler: MLE ULA")
     else
 
-        println("Posterior sampler: IS")
+        println("Posterior sampler: MLE IS")
     end
 
     if model.prior.bool_config.ula
@@ -129,19 +122,6 @@ function setup_training(
         println("Prior sampler: Univar ITS, Quadrature method: $(model.prior.quad_type)")
     end
 
-    if autoMALA_bool
-        @reset model.posterior_sampler = initialize_autoMALA_sampler(;
-            N = num_steps,
-            N_unadjusted = N_unadjusted,
-            η = η_init,
-            Δη = Δη,
-            η_min = η_minmax[1],
-            η_max = η_minmax[2],
-            RE_frequency = replica_exchange_frequency,
-            samples = max_samples,
-            num_temps = model.N_t,
-        )
-    end
     return model
 end
 

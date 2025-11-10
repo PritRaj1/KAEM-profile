@@ -11,38 +11,18 @@ using ..Utils
 function check_ESS(
         weights;
         ESS_threshold = 0.5f0,
-        verbose = false,
     )
-    """
-    Filter the latent variable for a index of the Steppingstone sum using residual resampling.
-
-    Args:
-        logllhood: A matrix of log-likelihood values.
-        weights: The weights of the population.
-        t_resample: The temperature at which the last resample occurred.
-        t2: The temperature at which to update the weights.
-        rng: Random seed for reproducibility.
-        ESS_threshold: The threshold for the effective sample size.
-        resampler: The resampling function.
-
-    Returns:
-        - The resampled indices.    
-    """
+    """Effective sample size"""
     B, N = size(weights)
-
-    # Check effective sample size
     ESS = dropdims(1 ./ sum(weights .^ 2, dims = 2); dims = 2)
     ESS_bool = ESS .< ESS_threshold * N
     resample_bool = any(ESS_bool)
-
-    # Only resample when needed
-    verbose && (resample_bool && println("Resampling!"))
     return ESS_bool, resample_bool, B, N
 end
 
 struct ResidualResampler <: AbstractResampler
     ESS_threshold::Float32
-    verbose::Bool
+    _phantom::Bool
 end
 
 function residual_single(
@@ -98,7 +78,6 @@ function (r::ResidualResampler)(
     ESS_bool, resample_bool, B, N = check_ESS(
         weights;
         ESS_threshold = r.ESS_threshold,
-        verbose = r.verbose,
     )
 
     # Number times to replicate each sample
@@ -116,7 +95,7 @@ end
 
 struct SystematicResampler <: AbstractResampler
     ESS_threshold::Float32
-    verbose::Bool
+    _phantom::Bool
 end
 
 function systematic_single(
@@ -164,7 +143,7 @@ function (r::SystematicResampler)(
     Returns:
         - The resampled indices.
     """
-    ESS_bool, resample_bool, B, N = check_ESS(weights; ESS_threshold = r.ESS_threshold, verbose = r.verbose)
+    ESS_bool, resample_bool, B, N = check_ESS(weights; ESS_threshold = r.ESS_threshold)
 
     cdf = cumsum(weights, dims = 2)
 
@@ -175,7 +154,7 @@ end
 
 struct StratifiedResampler <: AbstractResampler
     ESS_threshold::Float32
-    verbose::Bool
+    _phantom::Bool
 end
 
 function (r::StratifiedResampler)(
@@ -193,7 +172,7 @@ function (r::StratifiedResampler)(
     Returns:
         - The resampled indices.
     """
-    ESS_bool, resample_bool, B, N = check_ESS(weights; ESS_threshold = r.ESS_threshold, verbose = r.verbose)
+    ESS_bool, resample_bool, B, N = check_ESS(weights; ESS_threshold = r.ESS_threshold)
 
     cdf = cumsum(weights, dims = 2)
 
