@@ -20,7 +20,7 @@ function sample_langevin(
     )
     z, st_lux, = model.posterior_sampler(model, ps, st_kan, st_lux, x; rng = rng)
     z = z[:, :, :, 1]
-    noise = randn(rng, Float32, model.lkhood.x_shape..., size(z)[end]) |> pu
+    noise = randn(rng, Float32, model.lkhood.x_shape..., size(z)[end])
     return z, st_lux, noise
 end
 

@@ -50,12 +50,11 @@ function residual_single(
         cdf,
         u,
         integer_counts,
-        N,
+        N
     )
-    !ESS_bool && return collect(1:N)
     deterministic_part = reduce(vcat, map(i -> fill(i, integer_counts[i]), 1:N))
-    residual_part = reduce(vcat, searchsortedfirst.(Ref(cdf), u))
-    return vcat(deterministic_part, clamp.(residual_part, 1, N))
+    residual_part = dropdims(sum(1 .+ (cdf .< u'); dims = 1); dims = 1)
+    return ifelse.(ESS_bool, vcat(deterministic_part, clamp.(residual_part, 1, N)), 1:N)
 end
 
 function residual_kernel(
@@ -71,10 +70,11 @@ function residual_kernel(
         hcat,
         map(
             b -> residual_single(
-                ESS_bool[b],
-                cdf[b, (N - num_remaining[b] + 1):N],
-                u[b, (N - num_remaining[b] + 1):N],
-                integer_counts[b, :], N
+                view(ESS_bool, b),
+                view(cdf, b, (N - num_remaining[b] + 1):N),
+                view(u, b, (N - num_remaining[b] + 1):N),
+                view(integer_counts, b, :),
+                N
             ), 1:B
         )
     )'
@@ -100,7 +100,6 @@ function (r::ResidualResampler)(
         ESS_threshold = r.ESS_threshold,
         verbose = r.verbose,
     )
-    !resample_bool && return repeat(collect(1:N)', B, 1)
 
     # Number times to replicate each sample
     integer_counts = Int.(floor.(weights .* N))
@@ -126,9 +125,8 @@ function systematic_single(
         u,
         N,
     )
-    !ESS_bool && return collect(1:N)
-    indices = searchsortedfirst.(Ref(cdf), u)
-    return clamp.(indices, 1, N)
+    indices = dropdims(sum(1 .+ (cdf .< u'); dims = 1); dims = 1)
+    return ifelse.(ESS_bool, clamp.(indices, 1, N), 1:N)
 end
 
 function systematic_kernel(
@@ -140,7 +138,14 @@ function systematic_kernel(
     )
     return reduce(
         hcat,
-        map(b -> systematic_single(ESS_bool[b], cdf[b, :], u[b, :], N), 1:B)
+        map(
+            b -> systematic_single(
+                view(ESS_bool, b),
+                view(cdf, b, :),
+                view(u, b, :),
+                N
+            ), 1:B
+        )
     )'
 end
 
@@ -160,7 +165,6 @@ function (r::SystematicResampler)(
         - The resampled indices.
     """
     ESS_bool, resample_bool, B, N = check_ESS(weights; ESS_threshold = r.ESS_threshold, verbose = r.verbose)
-    !resample_bool && return repeat(collect(1:N)', B, 1)
 
     cdf = cumsum(weights, dims = 2)
 
@@ -190,7 +194,6 @@ function (r::StratifiedResampler)(
         - The resampled indices.
     """
     ESS_bool, resample_bool, B, N = check_ESS(weights; ESS_threshold = r.ESS_threshold, verbose = r.verbose)
-    !resample_bool && return repeat(collect(1:N)', B, 1)
 
     cdf = cumsum(weights, dims = 2)
 

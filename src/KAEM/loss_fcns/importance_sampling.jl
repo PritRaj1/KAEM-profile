@@ -51,7 +51,7 @@ function sample_importance(
     )
     # Prior is proposal for importance sampling
     z_posterior, st_lux_ebm = m.sample_prior(m, m.IS_samples, ps, st_kan, st_lux, rng)
-    noise = pu(randn(rng, Float32, m.lkhood.x_shape..., size(z_posterior)[end], size(x)[end]))
+    noise = randn(rng, Float32, m.lkhood.x_shape..., size(z_posterior)[end], size(x)[end])
     logllhood, st_lux_gen = log_likelihood_IS(
         z_posterior,
         x,

@@ -32,7 +32,7 @@ function sample_thermo(
 
     Δt = pu(temps[2:end] - temps[1:(end - 1)])
     tempered_noise = randn(rng, Float32, model.lkhood.x_shape..., prod(size(z)[3:4])) |> pu
-    noise = randn(rng, Float32, model.lkhood.x_shape..., size(x)[end]) |> pu
+    noise = randn(rng, Float32, model.lkhood.x_shape..., size(x)[end])
     return z, Δt, st_lux, noise, tempered_noise
 end
 
