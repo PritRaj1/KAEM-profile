@@ -14,10 +14,9 @@ function check_ESS(
     )
     """Effective sample size"""
     B, N = size(weights)
-    ESS = dropdims(1 ./ sum(weights .^ 2, dims = 2); dims = 2)
+    ESS = 1 ./ sum(weights .^ 2, dims = 2)
     ESS_bool = ESS .< ESS_threshold * N
-    resample_bool = any(ESS_bool)
-    return ESS_bool, resample_bool, B, N
+    return ESS_bool, B, N
 end
 
 struct ResidualResampler <: AbstractResampler
@@ -25,17 +24,12 @@ struct ResidualResampler <: AbstractResampler
     _phantom::Bool
 end
 
-function residual_single(
-        ESS_bool,
-        cdf,
-        u,
+function deterministic_single(
         integer_counts,
         N
     )
     deterministic_part = reduce(vcat, map(i -> fill(i, integer_counts[i]), 1:N))
-    residual_part = dropdims(sum(1 .+ (cdf .< u'); dims = 1); dims = 1)
-    residual_part = ifelse.(residual_part .> N, N, residual_part)
-    return ifelse.(ESS_bool, vcat(deterministic_part, residual_part), 1:N)
+    return vcat(deterministic_part, zeros(Int, N - length(deterministic_part)))
 end
 
 function residual_kernel(
@@ -47,18 +41,22 @@ function residual_kernel(
         B,
         N,
     )
-    return reduce(
+    early_return = (1 .- ESS_bool) .* (1:N)'
+    mask = (1:N)' .>= (N .- num_remaining .+ 1) # Whether allcoated residual or not
+    residual_part = dropdims(sum(1 .+ (cdf .< reshape(u, B, 1, N)); dims = 2); dims = 2)
+    residual_part = ifelse.(residual_part .> N, N, residual_part)
+    deterministic_part = reduce(
         hcat,
         map(
-            b -> residual_single(
-                view(ESS_bool, b),
-                view(cdf, b, (N - num_remaining[b] + 1):N),
-                view(u, b, (N - num_remaining[b] + 1):N),
+            b -> deterministic_single(
                 view(integer_counts, b, :),
                 N
             ), 1:B
         )
     )'
+
+    indices = (mask .* residual_part) .+ deterministic_part
+    return early_return .+ ESS_bool .* indices
 end
 
 function (r::ResidualResampler)(
@@ -76,7 +74,7 @@ function (r::ResidualResampler)(
     Returns:
         - The resampled indices.
     """
-    ESS_bool, resample_bool, B, N = check_ESS(
+    ESS_bool, B, N = check_ESS(
         weights;
         ESS_threshold = r.ESS_threshold,
     )
@@ -99,17 +97,6 @@ struct SystematicResampler <: AbstractResampler
     _phantom::Bool
 end
 
-function systematic_single(
-        ESS_bool,
-        cdf,
-        u,
-        N,
-    )
-    indices = dropdims(sum(1 .+ (cdf .< u'); dims = 1); dims = 1)
-    indices = ifelse.(indices .> N, N, indices)
-    return ifelse.(ESS_bool, indices, 1:N)
-end
-
 function systematic_kernel(
         ESS_bool,
         cdf,
@@ -117,17 +104,10 @@ function systematic_kernel(
         B,
         N,
     )
-    return reduce(
-        hcat,
-        map(
-            b -> systematic_single(
-                view(ESS_bool, b),
-                view(cdf, b, :),
-                view(u, b, :),
-                N
-            ), 1:B
-        )
-    )'
+    early_return = (1 .- ESS_bool) .* (1:N)'
+    indices = dropdims(sum(1 .+ (cdf .< reshape(u, B, 1, N)); dims = 2); dims = 2)
+    indices = ifelse.(indices .> N, N, indices)
+    return early_return .+ ESS_bool .* indices
 end
 
 function (r::SystematicResampler)(
@@ -145,7 +125,7 @@ function (r::SystematicResampler)(
     Returns:
         - The resampled indices.
     """
-    ESS_bool, resample_bool, B, N = check_ESS(weights; ESS_threshold = r.ESS_threshold)
+    ESS_bool, B, N = check_ESS(weights; ESS_threshold = r.ESS_threshold)
 
     cdf = cumsum(weights, dims = 2)
 
@@ -174,7 +154,7 @@ function (r::StratifiedResampler)(
     Returns:
         - The resampled indices.
     """
-    ESS_bool, resample_bool, B, N = check_ESS(weights; ESS_threshold = r.ESS_threshold)
+    ESS_bool, B, N = check_ESS(weights; ESS_threshold = r.ESS_threshold)
 
     cdf = cumsum(weights, dims = 2)
 

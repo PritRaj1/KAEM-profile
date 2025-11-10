@@ -139,9 +139,6 @@ function langevin_loss(
         noise,
     )
 
-    all(iszero.(∇)) && error("All zero Langevin grad")
-    any(isnan.(∇)) && error("NaN in Langevin grad")
-
     loss, st_lux_ebm, st_lux_gen = marginal_llhood(
         ps,
         z_posterior,

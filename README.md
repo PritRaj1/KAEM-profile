@@ -129,16 +129,12 @@ model = init_KAEM(
       rng = rng
 )
 
-# Parse config to setup sampling and training criterions
+# MLIR-compiled loss, (slow to compile, fast to run, see https://mlir.llvm.org/).
 x, loader_state = iterate(model.train_loader)
 x = pu(x)
-
 model, ps, st_kan, st_lux = prep_model(model, x; rng = rng) 
-
-grads = Enzyme.make_zero(ps_hq) # or zero(ps_hq)
 loss, grads, st_ebm, st_gen = model.loss_fcn(
       ps,
-      grads,
       st_kan,
       st_lux,
       model,
