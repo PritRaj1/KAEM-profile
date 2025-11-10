@@ -12,7 +12,7 @@ using ..KAEM_model.InverseTransformSampling
 include("loss_fcns/langevin_mle.jl")
 include("loss_fcns/importance_sampling.jl")
 include("loss_fcns/thermodynamic.jl")
-include("posterior_sampling/unadjusted_langevin.jl")
+include("ula/unadjusted_langevin.jl")
 using .ImportanceSampling
 using .LangevinMLE
 using .ThermodynamicIntegration
