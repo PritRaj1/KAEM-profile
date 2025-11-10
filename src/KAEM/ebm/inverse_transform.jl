@@ -2,58 +2,31 @@ module InverseTransformSampling
 
 export sample_univariate, sample_mixture
 
-using LinearAlgebra, Random, ComponentArrays
+using LinearAlgebra, Random, ComponentArrays, Lux
 
 using ..Utils
 
 include("mixture_selection.jl")
 using .MixtureChoice: choose_component
 
-function interpolate_single(
-        cdf,
-        grid,
-        rv,
-    )
-    idx = searchsortedfirst(cdf, rv)
-    early_return = ifelse(idx <= 1, grid[1], grid[end])
-    early_bool = (idx <= 1) + (idx > size(grid, 2))
 
-    z1, z2 = view(grid, max(1, idx - 1)), view(grid, min(size(grid, 2), idx))
-    cd1, cd2 = view(cdf, max(1, idx - 1)), view(cdf, min(size(cdf, 2), idx))
-    length = cd2 - cd1
-    inter_return = ifelse(length == 0, z1, z1 + (z2 - z1) * ((rv - cd1) / length))
-    return ifelse(early_bool, early_return, inter_return)
-end
+function interpolate_kernel(cdf, grid, rand_vals)
+    Q, P, G, S = size(cdf)..., size(rand_vals)[end]
+    grid_idxs = reshape(1:G, 1, 1, G, 1) |> pu
 
-function interpolate_batch(
-        cdf,
-        grid,
-        rv,
-    )
-    return interpolate_single.(Ref(cdf), Ref(grid), rv)
-end
+    # First index, i, such that cdf[i] >= rand_vals
+    indices = sum(1 .+ (cdf .< reshape(rand_vals, Q, P, 1, S)); dims = 3)
+    mask2 = indices .== grid_idxs |> Lux.f32
+    mask1 = mask2 .- 1.0f0
+    first_bool = indices .== 1 |> Lux.f32
 
-function interpolate_kernel(
-        cdf,
-        grid,
-        rand_vals,
-        Q,
-        P
-    )
-    cdf_flat = reshape(cdf, Q * P, size(cdf, 3))
-    grid_exp = repeat(grid, Q, 1)
-    rand_vals_flat = reshape(rand_vals, Q * P, size(rand_vals, 3))
-    z_flat = reduce(
-        vcat,
-        map(
-            n -> interpolate_batch(
-                view(cdf_flat, n, :),
-                view(grid_exp, n, :),
-                view(rand_vals_flat, n, :)
-            ), 1:(Q * P)
-        )
-    )
-    return reshape(z_flat, Q, P, size(rand_vals, 3))
+    z1 = dropdims((first_bool .* grid[:, :, 1]) .+ sum((1.0f0 .- first_bool) .* mask1 .* grid; dims = 3); dims = 3)
+    z2 = dropdims(sum(mask2 .* grid; dims = 3); dims = 3)
+
+    c1 = dropdims(first_bool .* 0.0f0 .+ sum((1.0f0 .- first_bool) .* mask1 .* cdf; dims = 3); dims = 3)
+    c2 = dropdims(sum(mask2 .* cdf; dims = 3); dims = 3)
+
+    return @. z1 + (z2 - z1) * ((rand_vals - c1) / (c2 - c1))
 end
 
 function sample_univariate(
@@ -68,7 +41,6 @@ function sample_univariate(
     cdf, grid, st_lyrnorm_new = ebm.quad(ebm, ps, st_kan, st_lyrnorm)
 
     cdf = cat(
-        cdf[:, :, 1:1] .* 0, # Add 0 to start of CDF
         cumsum(cdf; dims = 3), # Cumulative trapezium = CDF
         dims = 3,
     )
@@ -76,10 +48,8 @@ function sample_univariate(
     rand_vals = rand(rng, Float32, 1, ebm.p_size, num_samples) .* cdf[:, :, end]
     z = interpolate_kernel(
         cdf,
-        grid,
+        reshape(grid, 1, size(grid)...),
         rand_vals,
-        ebm.q_size,
-        ebm.p_size,
     )
     return z, st_lyrnorm_new
 end
@@ -138,7 +108,6 @@ function sample_mixture(
     grid_size = size(grid, 2)
 
     cdf = cat(
-        cdf[:, :, 1:1] .* 0, # Add 0 to start of CDF
         cumsum(cdf; dims = 3), # Cumulative trapezium = CDF
         dims = 3,
     )
@@ -146,10 +115,8 @@ function sample_mixture(
     rand_vals = rand(rng, Float32, ebm.q_size, num_samples) .* cdf[:, :, end]
     z = interpolate_kernel(
         cdf,
-        grid,
+        reshape(grid, size(grid, 1), 1, size(grid, 2)),
         rand_vals,
-        ebm.q_size,
-        1,
     )
     return z, st_lyrnorm_new
 end

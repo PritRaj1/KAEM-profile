@@ -3,7 +3,6 @@ module MixtureChoice
 export choose_component
 
 using NNlib: softmax
-using Flux: onehotbatch
 using LinearAlgebra, Random
 
 using ..Utils
@@ -11,17 +10,13 @@ using ..Utils
 function mask_kernel(
         α,
         rand_vals,
-        Q,
-        P,
     )
-    indices = reduce(
-        vcat,
-        map(q -> searchsortedfirst.(Ref(α[q, :]), rand_vals[q, :])', 1:Q)
-    )
-    indices = clamp.(indices, 1, size(α, 2))
-    return premutedims(
-        collect(Float32, onehotbatch(indices, 1:P)), (2, 1, 3)
-    )
+    """One-hot mask for chosen index"""
+    Q, P, S = size(α)..., size(rand_vals, 2)
+    indices = sum(1 .+ (α .< reshape(rand_vals, Q, 1, S)); dims = 2)
+    p_range = reshape(1:P, 1, P, 1) |> pu
+    mask = indices .== p_range |> Lux.f32
+    return mask
 end
 
 function choose_component(
@@ -45,7 +40,7 @@ function choose_component(
     """
     rand_vals = rand(rng, Float32, q_size, num_samples)
     α = cumsum(softmax(α; dims = 2); dims = 2)
-    return mask_kernel(α, rand_vals, q_size, p_size)
+    return mask_kernel(α, rand_vals)
 end
 
 end
