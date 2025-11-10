@@ -34,7 +34,8 @@ function residual_single(
     )
     deterministic_part = reduce(vcat, map(i -> fill(i, integer_counts[i]), 1:N))
     residual_part = dropdims(sum(1 .+ (cdf .< u'); dims = 1); dims = 1)
-    return ifelse.(ESS_bool, vcat(deterministic_part, clamp.(residual_part, 1, N)), 1:N)
+    residual_part = ifelse.(residual_part .> N, N, residual_part)
+    return ifelse.(ESS_bool, vcat(deterministic_part, residual_part), 1:N)
 end
 
 function residual_kernel(
@@ -105,7 +106,8 @@ function systematic_single(
         N,
     )
     indices = dropdims(sum(1 .+ (cdf .< u'); dims = 1); dims = 1)
-    return ifelse.(ESS_bool, clamp.(indices, 1, N), 1:N)
+    indices = ifelse.(indices .> N, N, indices)
+    return ifelse.(ESS_bool, indices, 1:N)
 end
 
 function systematic_kernel(
