@@ -25,17 +25,6 @@ struct ResidualResampler <: AbstractResampler
     _phantom::Bool
 end
 
-function deterministic_single(
-        integer_counts,
-        N
-    )
-    """Replicates integer_counts times using stableho-compatible logic"""
-    c = cumsum(integer_counts)
-    L = sum(c)
-    deterministic_part = 1 .+ dropdims(sum(c .< (1:N)'; dims = 1); dims = 1)
-    return deterministic_part
-end
-
 function residual_kernel(
         ESS_bool,
         cdf,
@@ -48,18 +37,13 @@ function residual_kernel(
     early_return = (1 .- ESS_bool) .* (1:N)'
     mask = (1:N)' .>= (N .- num_remaining .+ 1) # Whether allcoated residual or not
 
+    # Replicate by integer_counts in a stableho-compatible manner
+    c = cumsum(integer_counts; dims = 2)
+    deterministic_part = 1 .+ dropdims(sum(c .< reshape(1:N, 1, 1, N); dims = 2); dims = 2)
+
+    # Fill remaining with multinomial sampling
     residual_part = dropdims(sum(1 .+ (cdf .< reshape(u, B, 1, N)); dims = 2); dims = 2)
     residual_part = ifelse.(residual_part .> N, N, residual_part)
-
-    deterministic_part = reduce(
-        hcat,
-        map(
-            b -> deterministic_single(
-                view(integer_counts, b, :),
-                N
-            ), 1:B
-        )
-    )'
 
     indices = (mask .* residual_part) .+ (1 .- mask) .* deterministic_part
     return early_return .+ ESS_bool .* indices
