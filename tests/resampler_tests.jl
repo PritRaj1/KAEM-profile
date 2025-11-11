@@ -16,6 +16,7 @@ function test_systematic_resampler()
     r = SystematicResampler(0.5, true)
 
     idxs = r(softmax(weights; dims = 2))
+    println(idxs)
     @test size(idxs) == (4, 6)
     return @test !any(isnan, idxs)
 end
@@ -27,6 +28,7 @@ function test_stratified_resampler()
     r = StratifiedResampler(0.5, true)
 
     idxs = r(softmax(weights; dims = 2))
+    println(idxs)
     @test size(idxs) == (4, 6)
     return @test !any(isnan, idxs)
 end
@@ -38,6 +40,7 @@ function test_residual_resampler()
     r = ResidualResampler(0.5, true)
 
     idxs = r(softmax(weights; dims = 2))
+    println(idxs)
     @test size(idxs) == (4, 6)
     return @test !any(isnan, idxs)
 end

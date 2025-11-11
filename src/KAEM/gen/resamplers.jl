@@ -4,6 +4,7 @@ export ResidualResampler, SystematicResampler, StratifiedResampler, resampler_ma
 
 using Random, Distributions, LinearAlgebra
 using NNlib: softmax
+using Reactant: @allowscalar
 
 using ..Utils
 
@@ -28,8 +29,11 @@ function deterministic_single(
         integer_counts,
         N
     )
-    deterministic_part = reduce(vcat, map(i -> fill(i, integer_counts[i]), 1:N))
-    return vcat(deterministic_part, zeros(Int, N - length(deterministic_part)))
+    """Replicates integer_counts times using stableho-compatible logic"""
+    c = cumsum(integer_counts)
+    L = sum(c)
+    deterministic_part = 1 .+ dropdims(sum(c .< (1:N)'; dims = 1); dims = 1)
+    return deterministic_part
 end
 
 function residual_kernel(
@@ -43,8 +47,10 @@ function residual_kernel(
     )
     early_return = (1 .- ESS_bool) .* (1:N)'
     mask = (1:N)' .>= (N .- num_remaining .+ 1) # Whether allcoated residual or not
+
     residual_part = dropdims(sum(1 .+ (cdf .< reshape(u, B, 1, N)); dims = 2); dims = 2)
     residual_part = ifelse.(residual_part .> N, N, residual_part)
+
     deterministic_part = reduce(
         hcat,
         map(
@@ -55,7 +61,7 @@ function residual_kernel(
         )
     )'
 
-    indices = (mask .* residual_part) .+ deterministic_part
+    indices = (mask .* residual_part) .+ (1 .- mask) .* deterministic_part
     return early_return .+ ESS_bool .* indices
 end
 
