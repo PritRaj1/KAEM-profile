@@ -81,7 +81,7 @@ function get_gausslegendre(
     )
     """Get Gauss-Legendre nodes and weights for prior's domain"""
 
-    a, b = minimum(st_kan[:a].grid; dims = 2), maximum(st_kan[:a].grid; dims = 2)
+    a, b = st_kan[:a].grid[:, 1], st_kan[:a].grid[:, end]
 
     no_grid =
         (ebm.fcns_qp[1].spline_string == "FFT" || ebm.fcns_qp[1].spline_string == "Cheby")
@@ -91,7 +91,11 @@ function get_gausslegendre(
         b = fill(Float32(last(ebm.prior_domain)), size(b)) |> pu
     end
 
-    return ((a + b) / 2 + (b - a) / 2) .* ebm.nodes, (b - a) ./ 2 .* ebm.weights
+    nodes = ebm.nodes
+    weights = ebm.weights
+    @. nodes = (a + b) / 2 + (b - a) / 2 * nodes
+    @. weights = (b - a) / 2 * weights
+    return nodes, weights
 end
 
 function (gq::GaussLegendreQuadrature)(

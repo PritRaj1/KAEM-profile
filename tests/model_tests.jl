@@ -1,7 +1,7 @@
 using Test, Random, LinearAlgebra, Lux, ConfParser, ComponentArrays, Reactant
 using MultivariateStats: reconstruct
 
-ENV["GPU"] = false
+ENV["GPU"] = true
 
 include("../src/utils.jl")
 using .Utils
