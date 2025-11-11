@@ -143,7 +143,7 @@ function init_KAEM(
 
     sample_prior =
         (m, n, p, sk, sl, r) ->
-    sample_univariate(m.prior, n, p.ebm, sk.ebm, sl.ebm; rng = r)
+    sample_univariate(m.prior, n, p.ebm, sk.ebm, sl.ebm, sk.quad; rng = r)
 
     verbose && println("Using $(Threads.nthreads()) threads.")
 
@@ -202,8 +202,12 @@ function Lux.initialstates(
 
     ebm_kan, ebm_lux = Lux.initialstates(rng, model.prior)
     gen_kan, gen_lux = Lux.initialstates(rng, model.lkhood)
-
-    return ComponentArray(ebm = ebm_kan, gen = gen_kan), (ebm = ebm_lux, gen = gen_lux)
+    n, w = get_gausslegendre(model.prior, ebm_kan)
+    st_quad = (nodes = n, weights = w)
+    return (
+        ComponentArray(ebm = ebm_kan, gen = gen_kan, quad = st_quad),
+        (ebm = ebm_lux, gen = gen_lux),
+    )
 end
 
 function (model::KAEM{T})(

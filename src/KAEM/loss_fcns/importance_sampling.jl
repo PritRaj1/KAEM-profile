@@ -11,33 +11,22 @@ using ..KAEM_model
 include("../gen/loglikelihoods.jl")
 using .LogLikelihoods: log_likelihood_IS
 
-function accumulator(
-        weights,
-        logprior,
-        logllhood,
-    )
-    return weights' * (logprior + logllhood)
-end
-
 function loss_accum(
         weights_resampled,
         logprior,
         logllhood,
-        resampled_idxs,
+        resampled_mask,
         B,
         S,
     )
 
-    loss = 0.0f0
-    for b in 1:B
-        loss =
-            loss + accumulator(
-            weights_resampled[b, :],
-            logprior[resampled_idxs[b, :]],
-            logllhood[b, resampled_idxs[b, :]],
+    loss = sum(
+        weights_resampled .*
+            (
+            sum(logprior' .* resampled_mask; dims = 3)
+                .+ sum(logllhood .* resampled_mask; dims = 3)
         )
-    end
-
+    )
     return loss / B
 end
 
@@ -65,10 +54,11 @@ function sample_importance(
 
     # Posterior weights and resampling
     weights = softmax(logllhood, dims = 2)
-    resampled_idxs = m.lkhood.resample_z(weights; rng = rng)
+    resampled_indices = m.lkhood.resample_z(weights; rng = rng)
+    resampled_mask = resampled_indices .== reshape(1:size(weights, 2), 1, 1, size(weights, 2)) |> Lux.f32
     weights_resampled = softmax(
-        reduce(vcat, map(b -> weights[b:b, resampled_idxs[b, :]], 1:size(x)[end])),
-        dims = 2,
+        dropdims(sum(weights .* resampled_mask; dims = 3); dims = 3);
+        dims = 2
     )
 
     # Works better with more samples
@@ -78,7 +68,7 @@ function sample_importance(
         st_lux_ebm,
         st_lux_gen,
         weights_resampled,
-        resampled_idxs,
+        resampled_mask,
         noise
 end
 
@@ -88,7 +78,7 @@ function marginal_llhood(
         z_prior,
         x,
         weights_resampled,
-        resampled_idxs,
+        resampled_mask,
         m,
         st_kan,
         st_lux_ebm,
@@ -111,7 +101,7 @@ function marginal_llhood(
     )
 
     marginal_llhood =
-        loss_accum(weights_resampled, logprior_posterior, logllhood, resampled_idxs, B, S)
+        loss_accum(weights_resampled, logprior_posterior, logllhood, resampled_mask, B, S)
 
     logprior_prior, st_ebm =
         m.log_prior(z_prior, m.prior, ps.ebm, st_kan.ebm, st_ebm)
@@ -126,7 +116,7 @@ function closure(
         z_prior,
         x,
         weights_resampled,
-        resampled_idxs,
+        resampled_mask,
         m,
         st_kan,
         st_lux_ebm,
@@ -140,7 +130,7 @@ function closure(
             z_prior,
             x,
             weights_resampled,
-            resampled_idxs,
+            resampled_mask,
             m,
             st_kan,
             st_lux_ebm,
@@ -156,7 +146,7 @@ function grad_importance_llhood(
         z_prior,
         x,
         weights_resampled,
-        resampled_idxs,
+        resampled_mask,
         model,
         st_kan,
         st_lux_ebm,
@@ -173,7 +163,7 @@ function grad_importance_llhood(
             Enzyme.Const(z_prior),
             Enzyme.Const(x),
             Enzyme.Const(weights_resampled),
-            Enzyme.Const(resampled_idxs),
+            Enzyme.Const(resampled_mask),
             Enzyme.Const(model),
             Enzyme.Const(st_kan),
             Enzyme.Const(st_lux_ebm),
@@ -193,7 +183,7 @@ function importance_loss(
         rng = Random.default_rng(),
     )
 
-    z_posterior, z_prior, st_lux_ebm, st_lux_gen, weights_resampled, resampled_idxs, noise =
+    z_posterior, z_prior, st_lux_ebm, st_lux_gen, weights_resampled, resampled_mask, noise =
         sample_importance(ps, st_kan, Lux.testmode(st_lux), model, x; rng = rng)
 
     st_ebm = Lux.trainmode(st_lux_ebm)
@@ -205,7 +195,7 @@ function importance_loss(
         z_prior,
         x,
         weights_resampled,
-        resampled_idxs,
+        resampled_mask,
         model,
         st_kan,
         st_ebm,
@@ -219,7 +209,7 @@ function importance_loss(
         z_prior,
         x,
         weights_resampled,
-        resampled_idxs,
+        resampled_mask,
         model,
         st_kan,
         st_ebm,

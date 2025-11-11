@@ -44,7 +44,7 @@ struct Cheby_basis <: AbstractBasis
 end
 
 function Cheby_basis(degree::Int)
-    lin = collect(Float32, 0:degree)' |> pu
+    lin = collect(Float32, 0:degree)'
     return Cheby_basis(degree, lin)
 end
 

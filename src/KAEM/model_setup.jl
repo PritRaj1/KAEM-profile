@@ -108,18 +108,18 @@ function setup_training(
     elseif model.prior.bool_config.mixture_model
         @reset model.sample_prior =
             (m, n, p, sk, sl, r) ->
-        sample_mixture(m.prior, n, p.ebm, sk.ebm, sl.ebm; rng = r)
+        sample_mixture(m.prior, n, p.ebm, sk.ebm, sl.ebm, sk.quad; rng = r)
 
         @reset model.log_prior =
             LogPriorMix(model.ε, !model.prior.bool_config.contrastive_div)
-        println("Prior sampler: Mix ITS, Quadrature method: $(model.prior.quad_type)")
+        println("Prior sampler: Mix ITS")
     else
         @reset model.sample_prior =
             (m, n, p, sk, sl, r) ->
-        sample_univariate(m.prior, n, p.ebm, sk.ebm, sl.ebm; rng = r)
+        sample_univariate(m.prior, n, p.ebm, sk.ebm, sl.ebm, sk.quad; rng = r)
         @reset model.log_prior =
             LogPriorUnivariate(model.ε, !model.prior.bool_config.contrastive_div)
-        println("Prior sampler: Univar ITS, Quadrature method: $(model.prior.quad_type)")
+        println("Prior sampler: Univar ITS")
     end
 
     return model

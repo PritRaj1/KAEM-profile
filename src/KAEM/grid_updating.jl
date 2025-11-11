@@ -7,6 +7,7 @@ using Accessors, ComponentArrays, Lux, NNlib, LinearAlgebra, Random
 using ..Utils
 using ..KAEM_model
 using ..KAEM_model.UnivariateFunctions
+using ..KAEM_model.EBM_Model
 
 include("kan/grid_updating.jl")
 using .GridUpdating
@@ -143,6 +144,10 @@ function update_model_grid(
             end
         end
     end
+
+    new_nodes, new_weights = get_gausslegendre(model.prior, st_kan.ebm)
+    @reset st_kan.quad.nodes = new_nodes |> pu
+    @reset st_kan.quad.weights = new_weights |> pu
 
     # Only update if KAN-type generator requires
     (!model.update_llhood_grid || model.lkhood.CNN || model.lkhood.SEQ) &&

@@ -1,6 +1,6 @@
 module EBM_Model
 
-export EbmModel, init_EbmModel
+export EbmModel, init_EbmModel, get_gausslegendre
 
 using ConfParser,
     Random,
@@ -9,8 +9,7 @@ using ConfParser,
     Accessors,
     Statistics,
     LinearAlgebra,
-    ComponentArrays,
-    FastGaussQuadrature
+    ComponentArrays
 
 using ..Utils
 using ..UnivariateFunctions
@@ -39,9 +38,6 @@ struct EbmModel{T <: Float32, A <: AbstractActivation} <: Lux.AbstractLuxLayer
     q_size::Int
     quad::AbstractQuadrature
     N_quad::Int
-    nodes::AbstractArray{T}
-    weights::AbstractArray{T}
-    quad_type::AbstractString
     λ::T
     prior_domain::Tuple{T, T}
 end
@@ -130,14 +126,8 @@ function init_EbmModel(conf::ConfParse; rng::AbstractRNG = Random.default_rng())
     contrastive_div =
         parse(Bool, retrieve(conf, "TRAINING", "contrastive_divergence_training")) && !ula
 
-    quad_type = retrieve(conf, "EbmModel", "quadrature_method")
-    quad_fcn =
-        quad_type == "gausslegendre" ? GaussLegendreQuadrature() : TrapeziumQuadrature()
-
+    quad_fcn = GaussLegendreQuadrature()
     N_quad = parse(Int, retrieve(conf, "EbmModel", "GaussQuad_nodes"))
-    nodes, weights = gausslegendre(N_quad)
-    nodes = repeat(nodes', first(widths), 1) |> pu
-    weights = weights' |> pu
 
     ref_initializer = get(prior_map, prior_type, prior_map["uniform"])
     use_attention_kernel =
@@ -164,9 +154,6 @@ function init_EbmModel(conf::ConfParse; rng::AbstractRNG = Random.default_rng())
         Q,
         quad_fcn,
         N_quad,
-        nodes,
-        weights,
-        quad_type,
         reg,
         Tuple(prior_domain),
     )

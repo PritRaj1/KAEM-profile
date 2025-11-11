@@ -34,11 +34,12 @@ function sample_univariate(
         num_samples,
         ps,
         st_kan,
-        st_lyrnorm;
+        st_lyrnorm,
+        st_quad;
         rng = Random.default_rng(),
     )
 
-    cdf, grid, st_lyrnorm_new = ebm.quad(ebm, ps, st_kan, st_lyrnorm)
+    cdf, grid, st_lyrnorm_new = ebm.quad(ebm, ps, st_kan, st_lyrnorm, st_quad)
 
     cdf = cat(
         cumsum(cdf; dims = 3), # Cumulative trapezium = CDF
@@ -71,7 +72,8 @@ function sample_mixture(
         num_samples,
         ps,
         st_kan,
-        st_lyrnorm;
+        st_lyrnorm,
+        st_quad;
         rng = Random.default_rng(),
     )
     """
@@ -104,8 +106,7 @@ function sample_mixture(
     end
     mask = choose_component(alpha, num_samples, ebm.q_size, ebm.p_size; rng = rng)
     cdf, grid, st_lyrnorm_new =
-        ebm.quad(ebm, ps, st_kan, st_lyrnorm; component_mask = mask)
-    grid_size = size(grid, 2)
+        ebm.quad(ebm, ps, st_kan, st_lyrnorm, st_quad; component_mask = mask, mix_bool = true)
 
     cdf = cat(
         cumsum(cdf; dims = 3), # Cumulative trapezium = CDF
