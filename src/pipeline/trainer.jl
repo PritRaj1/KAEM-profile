@@ -194,8 +194,7 @@ function train!(t::KAEM_trainer; train_idx::Int = 1)
         rng = t.rng
     )
 
-    gen_compiled = Reactant.@compile generate_new(
-        t.model,
+    gen_compiled = Reactant.@compile t.model(
         t.ps,
         t.st_kan,
         Lux.testmode(t.st_lux),
