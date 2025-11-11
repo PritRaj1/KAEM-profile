@@ -37,7 +37,7 @@ function residual_kernel(
     early_return = (1 .- ESS_bool) .* (1:N)'
     mask = (1:N)' .>= (N .- num_remaining .+ 1) # Whether allcoated residual or not
 
-    # Replicate by integer_counts in a stableho-compatible manner
+    # Replicate by integer_counts in a stableHLO-compatible manner
     c = cumsum(integer_counts; dims = 2)
     deterministic_part = 1 .+ dropdims(sum(c .< reshape(1:N, 1, 1, N); dims = 2); dims = 2)
 
@@ -70,7 +70,7 @@ function (r::ResidualResampler)(
     )
 
     # Number times to replicate each sample
-    integer_counts = Int.(floor.(weights .* N))
+    integer_counts = floor.(weights .* N)
     num_remaining = dropdims(N .- sum(integer_counts, dims = 2); dims = 2)
 
     # Residual weights to resample from

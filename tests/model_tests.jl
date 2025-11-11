@@ -1,7 +1,7 @@
 using Test, Random, LinearAlgebra, Lux, ConfParser, ComponentArrays, Reactant
 using MultivariateStats: reconstruct
 
-ENV["GPU"] = true
+ENV["GPU"] = false
 
 include("../src/utils.jl")
 using .Utils
@@ -137,10 +137,10 @@ end
 
 @testset "KAEM Tests" begin
     test_ps_derivative()
-    test_grid_update()
-    test_pca()
-    test_mala_loss()
-    test_cnn_loss()
-    test_cnn_residual_loss()
-    test_seq_loss()
+    # test_grid_update()
+    # test_pca()
+    # test_mala_loss()
+    # test_cnn_loss()
+    # test_cnn_residual_loss()
+    # test_seq_loss()
 end

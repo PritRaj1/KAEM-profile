@@ -25,8 +25,12 @@ function interpolate_kernel(cdf, grid, rand_vals)
 
     c1 = dropdims(first_bool .* 0.0f0 .+ sum((1.0f0 .- first_bool) .* mask1 .* cdf; dims = 3); dims = 3)
     c2 = dropdims(sum(mask2 .* cdf; dims = 3); dims = 3)
-
-    return @. z1 + (z2 - z1) * ((rand_vals - c1) / (c2 - c1))
+    length = c2 - c1
+    return ifelse.(
+        length .== 0,
+        z1,
+        z1 .+ (z2 .- z1) .* ((rand_vals .- c1) ./ (c2 .- c1))
+    )
 end
 
 function sample_univariate(

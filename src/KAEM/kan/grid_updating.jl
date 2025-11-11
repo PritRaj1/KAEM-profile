@@ -46,7 +46,7 @@ function update_fcn_grid(
 
     # Uniform grid
     h = (grid_adaptive[:, end:end] .- grid_adaptive[:, 1:1]) ./ num_interval # step size
-    range = collect(Float32, 0:num_interval)[:, :] |> permutedims |> pu
+    range = (0:num_interval)' |> pu
     grid_uniform = h .* range .+ grid_adaptive[:, 1:1]
 
     # Grid is a convex combination of the uniform and adaptive grid
