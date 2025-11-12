@@ -28,7 +28,7 @@ function test_model_derivative()
     model, ps, st_kan, st_lux = prep_model(model, x_test)
 
     loss, ∇, st_ebm, st_gen =
-        model.loss_fcn(ps, st_kan, st_lux, model, x_test; rng = Random.default_rng())
+        model.loss_fcn(ps, st_kan, st_lux, model, x_test, 1, Random.default_rng())
     @test norm(∇) != 0
     return @test !any(isnan, ∇)
 end

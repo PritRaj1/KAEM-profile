@@ -54,9 +54,9 @@ function setup_training(
                 st_kan,
                 st_lux,
                 model,
-                x;
-                train_idx = 1,
-                rng = rng
+                x,
+                1,
+                rng
             )
         else
             importance_loss
@@ -77,9 +77,9 @@ function setup_training(
                     st_kan,
                     st_lux,
                     model,
-                    x;
-                    train_idx = 1,
-                    rng = rng
+                    x,
+                    1,
+                    rng
                 )
             else
                 thermodynamic_loss
@@ -95,9 +95,9 @@ function setup_training(
                     st_kan,
                     st_lux,
                     model,
-                    x;
-                    train_idx = 1,
-                    rng = rng
+                    x,
+                    1,
+                    rng
                 )
             else
                 langevin_loss

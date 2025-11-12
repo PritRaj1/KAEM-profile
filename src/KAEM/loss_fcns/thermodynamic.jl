@@ -162,9 +162,9 @@ function thermodynamic_loss(
         st_kan,
         st_lux,
         model,
-        x;
-        train_idx = 1,
-        rng = Random.default_rng(),
+        x,
+        train_idx,
+        rng,
     )
     z_posterior, Δt, st_lux, noise, tempered_noise = sample_thermo(
         ps,

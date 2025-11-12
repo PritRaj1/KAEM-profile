@@ -189,9 +189,9 @@ function train!(t::KAEM_trainer; train_idx::Int = 1)
         t.x,
         t.ps,
         t.st_kan,
-        Lux.testmode(t.st_lux);
-        train_idx = train_idx,
-        rng = t.rng
+        Lux.testmode(t.st_lux),
+        train_idx,
+        t.rng
     )
 
     gen_compiled = Reactant.@compile t.model(
@@ -227,9 +227,9 @@ function train!(t::KAEM_trainer; train_idx::Int = 1)
                 t.x,
                 ps,
                 t.st_kan,
-                Lux.testmode(t.st_lux);
-                train_idx = train_idx,
-                rng = t.rng,
+                Lux.testmode(t.st_lux),
+                train_idx,
+                t.rng,
             )
 
             t.grid_update_frequency =
@@ -247,9 +247,9 @@ function train!(t::KAEM_trainer; train_idx::Int = 1)
             t.st_kan,
             t.st_lux,
             t.model,
-            t.x;
-            train_idx = train_idx,
-            rng = t.rng,
+            t.x,
+            train_idx,
+            t.rng,
         )
         copy!(G, (grads))
         @reset t.st_lux.ebm = st_ebm
@@ -277,8 +277,8 @@ function train!(t::KAEM_trainer; train_idx::Int = 1)
                     t.ps,
                     t.st_kan,
                     Lux.testmode(t.st_lux),
-                    size(x)[end];
-                    rng = t.rng,
+                    size(x)[end],
+                    t.rng,
                 )
                 @reset t.st_lux.ebm = st_ebm
                 @reset t.st_lux.gen = st_gen
@@ -328,8 +328,8 @@ function train!(t::KAEM_trainer; train_idx::Int = 1)
                     t.ps,
                     t.st_kan,
                     Lux.testmode(t.st_lux),
-                    t.batch_size_for_gen;
-                    rng = t.rng,
+                    t.batch_size_for_gen,
+                    t.rng,
                 )
                 @reset t.st_lux.ebm = st_ebm
                 @reset t.st_lux.gen = st_gen
@@ -342,8 +342,8 @@ function train!(t::KAEM_trainer; train_idx::Int = 1)
                         t.ps,
                         t.st_kan,
                         Lux.testmode(t.st_lux),
-                        t.batch_size_for_gen;
-                        rng = t.rng,
+                        t.batch_size_for_gen,
+                        t.rng,
                     )
                     @reset t.st_lux.ebm = st_ebm
                     @reset t.st_lux.gen = st_gen

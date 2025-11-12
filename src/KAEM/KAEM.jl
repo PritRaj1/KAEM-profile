@@ -214,8 +214,8 @@ function (model::KAEM{T})(
         ps,
         st_kan,
         st_lux,
-        num_samples;
-        rng = Random.default_rng(),
+        num_samples,
+        rng,
     ) where {T <: Float32}
     """
     Inference pass to generate a batch of data from the model.

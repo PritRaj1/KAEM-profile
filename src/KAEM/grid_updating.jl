@@ -18,8 +18,8 @@ function update_model_grid(
         ps,
         st_kan,
         st_lux;
-        train_idx = 1,
-        rng = Random.default_rng(),
+        train_idx,
+        rng,
     )
     """
     Update the grid of the likelihood model using samples from the prior.
