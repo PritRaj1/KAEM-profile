@@ -35,7 +35,7 @@ function update_fcn_grid(
     y =
         l.spline_string == "FFT" ?
         coef2curve_FFT(l.basis_function, x_sort, st.grid, coef, τ) :
-        coef2curve_Spline(l.basis_function, x_sort, st.grid, coef, τ) .|> Float32
+        coef2curve_Spline(l.basis_function, x_sort, st.grid, coef, τ)
 
     # Adaptive grid - concentrate grid points around regions of higher density
     num_interval = size(st.grid, 2) - 2 * l.spline_degree - 1

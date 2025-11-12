@@ -1,44 +1,47 @@
-# using Test, Random, LinearAlgebra, Lux, ComponentArrays
+using Test, Random, LinearAlgebra, Lux, ComponentArrays, Reactant
 
-# ENV["GPU"] = false
+ENV["GPU"] = false
 
-# include("../src/utils.jl")
-# using .Utils
+include("../src/utils.jl")
+using .Utils
 
-# include("../src/KAEM/kan/univariate_functions.jl")
-# using .UnivariateFunctions
+include("../src/KAEM/kan/univariate_functions.jl")
+using .UnivariateFunctions
 
-# include("../src/KAEM/kan/grid_updating.jl")
-# using .GridUpdating: update_fcn_grid
+include("../src/KAEM/kan/grid_updating.jl")
+using .GridUpdating: update_fcn_grid
 
-# function test_fwd()
-#     Random.seed!(42)
-#     x = rand(Float32, 5, 3)
-#     f = init_function(5, 2)
+function test_fwd()
+    Random.seed!(42)
+    x = rand(Float32, 5, 3)
+    f = init_function(5, 2)
 
-#     Random.seed!(42)
-#     ps, st = Lux.setup(Random.GLOBAL_RNG, f)
-#     ps = ps |> ComponentArray
-#     st = st |> ComponentArray
+    Random.seed!(42)
+    ps, st = Lux.setup(Random.GLOBAL_RNG, f)
+    ps = ps |> ComponentArray
+    st = st |> ComponentArray
 
-#     y = f(x, ps, st)
-#     return @test size(y) == (5, 2, 3)
-# end
+    compiled_f = Reactant.@compile f(x, ps, st)
+    y = compiled_f(x, ps, st)
+    return @test size(y) == (5, 2, 3)
+end
 
-# function test_grid_update()
-#     Random.seed!(42)
-#     x = rand(Float32, 5, 3)
-#     f = init_function(5, 2)
-#     ps, st = Lux.setup(Random.GLOBAL_RNG, f)
-#     ps = ps |> ComponentArray
-#     st = st |> ComponentArray
+function test_grid_update()
+    Random.seed!(42)
+    x = rand(Float32, 5, 3)
+    f = init_function(5, 2)
+    ps, st = Lux.setup(Random.GLOBAL_RNG, f)
+    ps = ps |> ComponentArray
+    st = st |> ComponentArray
 
-#     y = f(x, ps, st)
-#     grid, coef = update_fcn_grid(f, ps, st, x)
-#     return @test size(grid) == (5, 12)
-# end
+    compiled_f = Reactant.@compile f(x, ps, st)
+    y = compiled_f(x, ps, st)
+    compiled_update = Reactant.@compile update_fcn_grid(f, ps, st, x)
+    grid, coef = compiled_update(f, ps, st, x)
+    return @test size(grid) == (5, 12)
+end
 
-# @testset "Univariate Funtion Tests" begin
-#     test_fwd()
-#     test_grid_update()
-# end
+@testset "Univariate Funtion Tests" begin
+    test_fwd()
+    test_grid_update()
+end

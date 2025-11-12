@@ -146,16 +146,12 @@ function curve2coef(
     B = b(x, grid, σ)
     G = size(B, 2)
 
-    B = permutedims(B, [1, 3, 2]) # in_dim x b_size x n_grid
+    B = reshape(B, S, J * G)
+    y = reshape(y, S, J * O)
+    eye = Array{Float32}(I, J, J)
+    coef = reshape(B \ y, J, J, O, G)
 
-    coef = init ? Array{Float32}(undef, J, O, G) : Array{Float32}(undef, J, O, G) |> pu
-    for i in 1:J
-        for o in 1:O
-            coef[i, o, :] .= B[i, :, :] \ y[i, o, :]
-        end
-    end
-
-    return coef
+    return dropdims(sum(coef .* eye, dims = 1); dims = 1)
 end
 
 ## FFT basis functions ###

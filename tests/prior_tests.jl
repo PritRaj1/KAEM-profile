@@ -1,4 +1,4 @@
-using Test, Random, LinearAlgebra, Lux, ConfParser, ComponentArrays
+using Test, Random, LinearAlgebra, Lux, ConfParser, ComponentArrays, Reactant
 
 ENV["GPU"] = false
 
@@ -31,8 +31,9 @@ end
 
 function test_uniform_prior()
     commit!(conf, "EbmModel", "π_0", "uniform")
-    z_test =
-        first(model.sample_prior(model, b_size, ps, st_kan, st_lux, Random.default_rng()))
+
+    compiled_sample = Reactant.@compile model.sample_prior(model, b_size, ps, st_kan, st_lux, Random.default_rng())
+    z_test = first(compiled_sample(model, b_size, ps, st_kan, st_lux, Random.default_rng()))
 
     if model.prior.bool_config.mixture_model || model.prior.bool_config.ula
         @test all(size(z_test) .== (q_size, 1, b_size))
@@ -40,7 +41,8 @@ function test_uniform_prior()
         @test all(size(z_test) .== (q_size, p_size, b_size))
     end
 
-    log_p = first(model.log_prior(z_test, model.prior, ps.ebm, st_kan.ebm, st_lux.ebm))
+    compiled_log_prior = Reactant.@compile model.log_prior(z_test, model.prior, ps.ebm, st_kan.ebm, st_lux.ebm)
+    log_p = first(compiled_log_prior(z_test, model.prior, ps.ebm, st_kan.ebm, st_lux.ebm))
 
     @test !any(isnan, z_test)
     @test size(log_p) == (b_size,)
@@ -49,8 +51,8 @@ end
 
 function test_gaussian_prior()
     commit!(conf, "EbmModel", "π_0", "gaussian")
-    z_test =
-        first(model.sample_prior(model, b_size, ps, st_kan, st_lux, Random.default_rng()))
+    compiled_sample = Reactant.@compile model.sample_prior(model, b_size, ps, st_kan, st_lux, Random.default_rng())
+    z_test = first(compiled_sample(model, b_size, ps, st_kan, st_lux, Random.default_rng()))
 
     if model.prior.bool_config.mixture_model || model.prior.bool_config.ula
         @test all(size(z_test) .== (q_size, 1, b_size))
@@ -58,7 +60,8 @@ function test_gaussian_prior()
         @test all(size(z_test) .== (q_size, p_size, b_size))
     end
 
-    log_p = first(model.log_prior(z_test, model.prior, ps.ebm, st_kan.ebm, st_lux.ebm))
+    compiled_log_prior = Reactant.@compile model.log_prior(z_test, model.prior, ps.ebm, st_kan.ebm, st_lux.ebm)
+    log_p = first(compiled_log_prior(z_test, model.prior, ps.ebm, st_kan.ebm, st_lux.ebm))
 
     @test !any(isnan, z_test)
     @test size(log_p) == (b_size,)
@@ -67,8 +70,8 @@ end
 
 function test_lognormal_prior()
     commit!(conf, "EbmModel", "π_0", "lognormal")
-    z_test =
-        first(model.sample_prior(model, b_size, ps, st_kan, st_lux, Random.default_rng()))
+    compiled_sample = Reactant.@compile model.sample_prior(model, b_size, ps, st_kan, st_lux, Random.default_rng())
+    z_test = first(compiled_sample(model, b_size, ps, st_kan, st_lux, Random.default_rng()))
 
     if model.prior.bool_config.mixture_model || model.prior.bool_config.ula
         @test all(size(z_test) .== (q_size, 1, b_size))
@@ -76,7 +79,8 @@ function test_lognormal_prior()
         @test all(size(z_test) .== (q_size, p_size, b_size))
     end
 
-    log_p = first(model.log_prior(z_test, model.prior, ps.ebm, st_kan.ebm, st_lux.ebm))
+    compiled_log_prior = Reactant.@compile model.log_prior(z_test, model.prior, ps.ebm, st_kan.ebm, st_lux.ebm)
+    log_p = first(compiled_log_prior(z_test, model.prior, ps.ebm, st_kan.ebm, st_lux.ebm))
 
     @test !any(isnan, z_test)
     @test size(log_p) == (b_size,)
@@ -85,8 +89,8 @@ end
 
 function test_learnable_gaussian_prior()
     commit!(conf, "EbmModel", "π_0", "learnable_gaussian")
-    z_test =
-        first(model.sample_prior(model, b_size, ps, st_kan, st_lux, Random.default_rng()))
+    compiled_sample = Reactant.@compile model.sample_prior(model, b_size, ps, st_kan, st_lux, Random.default_rng())
+    z_test = first(compiled_sample(model, b_size, ps, st_kan, st_lux, Random.default_rng()))
 
     if model.prior.bool_config.mixture_model || model.prior.bool_config.ula
         @test all(size(z_test) .== (q_size, 1, b_size))
@@ -94,7 +98,8 @@ function test_learnable_gaussian_prior()
         @test all(size(z_test) .== (q_size, p_size, b_size))
     end
 
-    log_p = first(model.log_prior(z_test, model.prior, ps.ebm, st_kan.ebm, st_lux.ebm))
+    compiled_log_prior = Reactant.@compile model.log_prior(z_test, model.prior, ps.ebm, st_kan.ebm, st_lux.ebm)
+    log_p = first(compiled_log_prior(z_test, model.prior, ps.ebm, st_kan.ebm, st_lux.ebm))
 
     @test !any(isnan, z_test)
     @test size(log_p) == (b_size,)
@@ -103,8 +108,8 @@ end
 
 function test_ebm_prior()
     commit!(conf, "EbmModel", "π_0", "ebm")
-    z_test =
-        first(model.sample_prior(model, b_size, ps, st_kan, st_lux, Random.default_rng()))
+    compiled_sample = Reactant.@compile model.sample_prior(model, b_size, ps, st_kan, st_lux, Random.default_rng())
+    z_test = first(compiled_sample(model, b_size, ps, st_kan, st_lux, Random.default_rng()))
 
     if model.prior.bool_config.mixture_model || model.prior.bool_config.ula
         @test all(size(z_test) .== (q_size, 1, b_size))
@@ -112,7 +117,8 @@ function test_ebm_prior()
         @test all(size(z_test) .== (q_size, p_size, b_size))
     end
 
-    log_p = first(model.log_prior(z_test, model.prior, ps.ebm, st_kan.ebm, st_lux.ebm))
+    compiled_log_prior = Reactant.@compile model.log_prior(z_test, model.prior, ps.ebm, st_kan.ebm, st_lux.ebm)
+    log_p = first(compiled_log_prior(z_test, model.prior, ps.ebm, st_kan.ebm, st_lux.ebm))
 
     @test !any(isnan, z_test)
     @test size(log_p) == (b_size,)
