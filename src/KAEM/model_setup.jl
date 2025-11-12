@@ -25,7 +25,8 @@ function setup_training(
         st_lux::NamedTuple,
         model::KAEM{T},
         x::AbstractArray{T};
-        rng::AbstractRNG = Random.default_rng()
+        rng::AbstractRNG = Random.default_rng(),
+        MLIR::Bool = true,
     ) where {T <: Float32}
     conf = model.conf
 
@@ -46,15 +47,21 @@ function setup_training(
     x = zeros(T, model.lkhood.x_shape..., max_samples) |> pu
 
     # Defaults
-    @reset model.loss_fcn = Reactant.@compile importance_loss(
-        ps,
-        st_kan,
-        st_lux,
-        model,
-        x;
-        train_idx = 1,
-        rng = rng
-    )
+    @reset model.loss_fcn = begin
+        if MLIR
+            Reactant.@compile importance_loss(
+                ps,
+                st_kan,
+                st_lux,
+                model,
+                x;
+                train_idx = 1,
+                rng = rng
+            )
+        else
+            importance_loss
+        end
+    end
 
     @reset model.posterior_sampler = initialize_ULA_sampler(;
         η = η_init,
@@ -63,27 +70,39 @@ function setup_training(
     )
 
     if model.N_t > 1
-        @reset model.loss_fcn = Reactant.@compile thermodynamic_loss(
-            ps,
-            st_kan,
-            st_lux,
-            model,
-            x;
-            train_idx = 1,
-            rng = rng
-        )
-
+        @reset model.loss_fcn = begin
+            if MLIR
+                Reactant.@compile thermodynamic_loss(
+                    ps,
+                    st_kan,
+                    st_lux,
+                    model,
+                    x;
+                    train_idx = 1,
+                    rng = rng
+                )
+            else
+                thermodynamic_loss
+            end
+        end
         println("Posterior sampler: Thermo ULA")
+
     elseif model.MALA || model.prior.bool_config.ula
-        @reset model.loss_fcn = Reactant.@compile langevin_loss(
-            ps,
-            st_kan,
-            st_lux,
-            model,
-            x;
-            train_idx = 1,
-            rng = rng
-        )
+        @reset model.loss_fcn = begin
+            if MLIR
+                Reactant.@compile langevin_loss(
+                    ps,
+                    st_kan,
+                    st_lux,
+                    model,
+                    x;
+                    train_idx = 1,
+                    rng = rng
+                )
+            else
+                langevin_loss
+            end
+        end
         println("Posterior sampler: MLE ULA")
     else
 
@@ -129,12 +148,13 @@ function prep_model(
         model::KAEM{T},
         x::AbstractArray{T};
         rng::AbstractRNG = Random.default_rng(),
+        MLIR::Bool = true,
     ) where {T <: Float32}
     ps = Lux.initialparameters(rng, model)
     st_kan, st_lux = Lux.initialstates(rng, model)
     ps, st_kan, st_lux =
         ps |> ComponentArray |> Lux.f32 |> pu, st_kan |> ComponentArray |> Lux.f32 |> pu, st_lux |> Lux.f32 |> pu
-    model = setup_training(ps, st_kan, st_lux, model::KAEM{T}, x; rng = rng)
+    model = setup_training(ps, st_kan, st_lux, model::KAEM{T}, x; rng = rng, MLIR = MLIR)
     return model, ps, st_kan, st_lux
 end
 
