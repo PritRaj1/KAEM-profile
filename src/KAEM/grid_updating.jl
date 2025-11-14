@@ -17,7 +17,7 @@ function update_model_grid(
         x,
         ps,
         st_kan,
-        st_lux;
+        st_lux,
         train_idx,
         rng,
     )

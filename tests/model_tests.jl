@@ -30,6 +30,7 @@ function test_ps_derivative()
     loss, ∇, st_ebm, st_gen =
         model.loss_fcn(ps, st_kan, st_lux, model, x_test, 1, Random.default_rng())
 
+    ∇ = Array(∇)
     @test norm(∇) != 0
     return @test !any(isnan, ∇)
 end
@@ -48,11 +49,13 @@ function test_grid_update()
         x,
         ps,
         st_kan,
-        Lux.testmode(st_lux)
+        Lux.testmode(st_lux),
+        1,
+        Random.default_rng(),
     )
 
     model, ps, st_kan, st_lux =
-        update_model_grid(model, x, ps, st_kan, Lux.testmode(st_lux))
+        update_model_grid(model, x, ps, st_kan, Lux.testmode(st_lux), 1, Random.default_rng())
     @test all(size(st_kan.ebm[:a].grid) .== size_grid)
     return @test !any(isnan, ps)
 end
@@ -136,8 +139,8 @@ function test_seq_loss()
 end
 
 @testset "KAEM Tests" begin
-    test_ps_derivative()
-    # test_grid_update()
+    # test_ps_derivative()
+    test_grid_update()
     # test_pca()
     # test_mala_loss()
     # test_cnn_loss()
