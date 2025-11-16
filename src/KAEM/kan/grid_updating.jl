@@ -39,15 +39,15 @@ function update_fcn_grid(
 
     # Adaptive grid - concentrate grid points around regions of higher density
     num_interval = size(st.grid, 2) - 2 * l.spline_degree - 1
-    ids = [div(sample_size * i, num_interval) + 1 for i in 0:(num_interval - 1)]'
-    grid_adaptive = reduce(hcat, map(i -> view(x_sort, :, i:i), ids))
-    grid_adaptive = hcat(grid_adaptive, x_sort[:, end:end])
-    grid_adaptive = grid_adaptive
+    ids = reshape([div(sample_size * i, num_interval) + 1 for i in 0:(num_interval - 1)], 1, 1, :)
+    mask = ids .== (1:sample_size)'
+    grid_adaptive = dropdims(sum(mask .* x_sort; dims = 2); dims = 2)
+    grid_adaptive = hcat(grid_adaptive, view(x_sort, :, sample_size))
 
     # Uniform grid
-    h = (grid_adaptive[:, end:end] .- grid_adaptive[:, 1:1]) ./ num_interval # step size
+    h = (view(grid_adaptive, :, sample_size) .- view(grid_adaptive, :, 1)) ./ num_interval # step size
     range = (0:num_interval)' |> pu
-    grid_uniform = h .* range .+ grid_adaptive[:, 1:1]
+    grid_uniform = h .* range .+ view(grid_adaptive, :, 1)
 
     # Grid is a convex combination of the uniform and adaptive grid
     grid = l.grid_update_ratio .* grid_uniform + (1 - l.grid_update_ratio) .* grid_adaptive
