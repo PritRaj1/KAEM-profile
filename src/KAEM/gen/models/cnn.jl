@@ -51,8 +51,8 @@ function forward_with_latent_concat(
         current_z, st_layer_new = Lux.apply(
             gen.Φ_fcns[i],
             current_z,
-            ps.fcn[symbol_map[i]],
-            st_lux_new.fcn[symbol_map[i]],
+            @view(ps.fcn[symbol_map[i]]),
+            @view(st_lux_new.fcn[symbol_map[i]]),
         )
         @reset st_lux_new.fcn[symbol_map[i]] = st_layer_new
 
@@ -61,8 +61,8 @@ function forward_with_latent_concat(
             Lux.apply(
                 gen.batchnorms[i],
                 current_z,
-                ps.batchnorm[symbol_map[i]],
-                st_lux_new.batchnorm[symbol_map[i]],
+                @view(ps.batchnorm[symbol_map[i]]),
+                @view(st_lux_new.batchnorm[symbol_map[i]]),
             ) : (current_z, nothing)
         if gen.bool_config.batchnorm && i < gen.depth
             @reset st_lux_new.batchnorm[symbol_map[i]] = st_layer_new
@@ -83,7 +83,7 @@ function forward(
     st_lux_new = st_lux
     for i in 1:(gen.depth)
         z, st_layer_new =
-            Lux.apply(gen.Φ_fcns[i], z, ps.fcn[symbol_map[i]], st_lux_new.fcn[symbol_map[i]])
+            Lux.apply(gen.Φ_fcns[i], z, @view(ps.fcn[symbol_map[i]]), @view(st_lux_new.fcn[symbol_map[i]]))
         @reset st_lux_new.fcn[symbol_map[i]] = st_layer_new
 
         z, st_layer_new =
@@ -91,8 +91,8 @@ function forward(
             Lux.apply(
                 gen.batchnorms[i],
                 z,
-                ps.batchnorm[symbol_map[i]],
-                st_lux_new.batchnorm[symbol_map[i]],
+                @view(ps.batchnorm[symbol_map[i]]),
+                @view(st_lux_new.batchnorm[symbol_map[i]]),
             ) : (z, nothing)
         if gen.bool_config.batchnorm && i < gen.depth
             @reset st_lux_new.batchnorm[symbol_map[i]] = st_layer_new
