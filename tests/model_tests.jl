@@ -139,7 +139,7 @@ function test_seq_loss()
 end
 
 @testset "KAEM Tests" begin
-    # test_ps_derivative()
+    test_ps_derivative()
     test_grid_update()
     # test_pca()
     # test_mala_loss()

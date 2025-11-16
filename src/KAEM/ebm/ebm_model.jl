@@ -2,6 +2,7 @@ module EBM_Model
 
 export EbmModel, init_EbmModel, get_gausslegendre
 
+using Reactant: @trace
 using ConfParser,
     Random,
     Distributions,
@@ -10,6 +11,7 @@ using ConfParser,
     Statistics,
     LinearAlgebra,
     ComponentArrays
+
 
 using ..Utils
 using ..UnivariateFunctions
@@ -179,10 +181,10 @@ function (ebm::EbmModel)(
         st: The updated states of the ebm-prior.
     """
 
-    mid_size = !ebm.bool_config.mixture_model ? ebm.p_size : ebm.q_size
+    mid_size = !ebm.bool_config.mixture_model ? ebm.q_size : ebm.p_size
     st_lyrnorm_new = st_lyrnorm
 
-    for i in 1:ebm.depth
+    @trace for i in 1:ebm.depth
         z, st_layer_new =
             (ebm.bool_config.layernorm && i != 1) ?
             Lux.apply(
@@ -198,7 +200,7 @@ function (ebm::EbmModel)(
 
         z = Lux.apply(ebm.fcns_qp[i], z, @view(ps.fcn[symbol_map[i]]), @view(st_kan[symbol_map[i]]))
         z =
-            (i == 1 && !ebm.bool_config.ula) ? reshape(z, size(z, 2), mid_size * size(z, 3)) :
+            (i == 1 && !ebm.bool_config.ula) ? reshape(z, mid_size, :) :
             dropdims(sum(z, dims = 1); dims = 1)
     end
 

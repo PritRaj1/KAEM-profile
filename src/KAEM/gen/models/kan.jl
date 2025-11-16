@@ -3,6 +3,7 @@ module KAN_Model
 export KAN_Generator, init_KAN_Generator
 
 using Lux, ComponentArrays, Accessors, Random, ConfParser
+using Reactant: @trace
 
 using ..Utils
 using ..UnivariateFunctions
@@ -142,7 +143,7 @@ function (gen::KAN_Generator)(
 
     # KAN functions
     st_lyrnorm_new = st_lyrnorm
-    for i in 1:gen.depth
+    @trace for i in 1:gen.depth
         z, st_layer_new =
             gen.bool_config.layernorm ?
             Lux.apply(

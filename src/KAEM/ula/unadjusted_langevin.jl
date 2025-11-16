@@ -2,6 +2,7 @@ module ULA_sampling
 
 export initialize_ULA_sampler, ULA_sampler
 
+using Reactant: @trace
 using LinearAlgebra,
     Random,
     Lux,
@@ -119,8 +120,8 @@ function (sampler::ULA_sampler)(
     ll_noise = randn(rng, Float32, model.lkhood.x_shape..., S, 2, num_temps, sampler.N)
     swap_replica_idxs = num_temps > 1 ? rand(rng, 1:(num_temps - 1), sampler.N) : nothing
 
-    for i in 1:sampler.N
-        ξ = noise[:, :, :, i]
+    @trace for i in 1:sampler.N
+        ξ = @view(noise[:, :, :, i])
         ∇z_fq .=
             unadjusted_logpos_grad(
             z_fq,
@@ -138,15 +139,15 @@ function (sampler::ULA_sampler)(
 
         if i % sampler.RE_frequency == 0 && num_temps > 1 && !sampler.prior_sampling_bool
             t = swap_replica_idxs[i] # Randomly pick two adjacent temperatures to swap
-            z_t = copy(z_hq[:, :, :, t])
-            z_t1 = copy(z_hq[:, :, :, t + 1])
+            z_t = @view(z_hq[:, :, :, t])
+            z_t1 = @view(z_hq[:, :, :, t + 1])
 
             noise_1 =
-                model.lkhood.SEQ ? ll_noise[:, :, :, 1, t, i] :
-                ll_noise[:, :, :, :, 1, t, i]
+                model.lkhood.SEQ ? @view(ll_noise[:, :, :, 1, t, i]) :
+                @view(ll_noise[:, :, :, :, 1, t, i])
             noise_2 =
-                model.lkhood.SEQ ? ll_noise[:, :, :, 2, t, i] :
-                ll_noise[:, :, :, :, 2, t, i]
+                model.lkhood.SEQ ? @view(ll_noise[:, :, :, 2, t, i]) :
+                @view(ll_noise[:, :, :, :, 2, t, i])
 
             ll_t, st_gen = log_likelihood_MALA(
                 z_t,
