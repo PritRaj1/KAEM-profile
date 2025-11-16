@@ -4,9 +4,15 @@ KAEM is a generative model presented [here](https://www.arxiv.org/abs/2506.14167
 
 ## Brief:
 
-The Kolmogorov-Arnold Energy Model (KAEM) is a latent variable model that pairs univariate, energy-based priors with a flexible generator for different data modalities. It's defined entirely with respect to the Kolmogorov-Arnold representation theorem, thus bridging deterministic representation and probabilistic modeling.
+The Kolmogorov-Arnold Energy Model (KAEM) is a latent variable model that 
 
-It's been designed to prioritise training stability, inference speed, and interpretability. It can work without an encoder, score-based approximations, and even MCMC (depending on the dataset).
+- Pairs univariate, energy-based priors with a flexible generator for different data modalities
+- Is defined entirely with respect to the Kolmogorov-Arnold representation theorem, thus bridging deterministic representation and probabilistic modeling.
+- Has been designed to prioritise training stability, inference speed, and interpretability 
+- Can work without an encoder, score-based approximations, and even MCMC (depending on the dataset)
+- Written with various sampling procedures to improve statistical properties depending on problem characteristics
+
+## Robust prior and posterior sampling
 
 Fast (single forward pass) and unbiased sampling can be feasible with:
 - **Inverse transform sampling** from the prior (inference)
@@ -31,6 +37,13 @@ And when ULA and maximum likelihood fail, it can also be trained with a variance
 *This images are after training on a budget with 8,000 parameter updates.
 
 Unlike diffusion and score-based models, annealing is more interpretable, fully parallelizable, and only applied to posterior expectations, (thus preserving inference speed). The main trade-off is expressivity, though this may improve with scaling. And unlike denoising, which scales sequentially, annealing can scale by adding more temperatures in parallel.
+
+| METHOD                     | DISTRIBUTION SAMPLED                               | PROPERTIES                                                                 | PRIMARY DRAWBACK                                                                 |
+|----------------------------|-----------------------------------------------------|-----------------------------------------------------------------------------|----------------------------------------------------------------------------------|
+| Inverse Transform Sampling | Kolmogorov–Arnold Network Prior (inference)        | - Fast<br>- Exact<br>- Unbiased                                            | Requires closed-form inverse CDF (usually easy for KANs)!                        |
+| Importance Sampling        | Posterior (MLE training criterion)                 | - Simple<br>- Fast<br>- Unbiased with enough samples                        | High variance if proposal ≠ target; degenerates badly in high dimensions (avoided since latent space) |
+| ULA (Unadjusted Langevin) | Posterior (MLE training criterion)                 | - Gradient-informed<br>- Easy to implement<br>- Scales better than random walk MCMC | Biased; struggles to mix with multimodal posteriors                              |
+| Population ULA            | Posterior (Steppingstone estimator)                | - Handles multimodal posteriors<br>- Parallelizable                         | Computationally heavy (Zetta hardware required)                                   |
 
 ## Setup:
 
