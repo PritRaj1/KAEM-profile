@@ -42,7 +42,7 @@ Unlike diffusion and score-based models, annealing is more interpretable, fully 
 |----------------------------|-----------------------------------------------------|-----------------------------------------------------------------------------|----------------------------------------------------------------------------------|
 | Inverse Transform Sampling | Kolmogorov–Arnold Network Prior (inference)        | - Fast<br>- Exact<br>- Unbiased                                            | Requires closed-form inverse CDF (usually easy for KANs)!                        |
 | Importance Sampling        | Posterior (MLE training criterion)                 | - Simple<br>- Fast<br>- Unbiased with enough samples                        | High variance if proposal ≠ target; degenerates badly in high dimensions (avoided since latent space) |
-| ULA (Unadjusted Langevin) | Posterior (MLE training criterion)                 | - Gradient-informed<br>- Easy to implement<br>- Scales better than random walk MCMC | Biased; struggles to mix with multimodal posteriors                              |
+| ULA (Unadjusted Langevin) | Posterior (MLE training criterion)                 | - Sculpts prior to resemble target<br>- Metroplis-Hastings not used, (which can be undefined depending on measure) <br>- Still fast | Biased; struggles to mix with multimodal posteriors                              |
 | Population ULA            | Posterior (Steppingstone estimator)                | - Handles multimodal posteriors<br>- Parallelizable                         | Computationally heavy (Zetta hardware required)                                   |
 
 ## Setup:
