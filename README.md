@@ -11,6 +11,7 @@ The Kolmogorov-Arnold Energy Model (KAEM) is a latent variable model that
 - Has been designed to prioritise training stability, inference speed, and interpretability 
 - Can work without an encoder, score-based approximations, and even MCMC (depending on the dataset)
 - Written with various sampling procedures to improve statistical properties depending on problem characteristics
+- Is XLA/EnzymeMLIR-compiled
 
 ## Robust prior and posterior sampling
 

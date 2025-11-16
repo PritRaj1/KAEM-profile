@@ -1,7 +1,6 @@
 using Test, Random, LinearAlgebra, Lux, ConfParser, ComponentArrays, Reactant
 
-
-ENV["GPU"] = false
+ENV["GPU"] = true
 
 include("../src/utils.jl")
 using .Utils
