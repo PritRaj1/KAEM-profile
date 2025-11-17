@@ -54,7 +54,6 @@ function get_gausslegendre(
 end
 
 function mix_return(nodes, π_nodes, weights, component_mask)
-    B = size(component_mask, 3)
     exp_fg = qfirst_exp_kernel(nodes, π_nodes)
     trapz = apply_mask(exp_fg, component_mask)
     trapz = gauss_kernel(trapz, weights)
@@ -79,17 +78,15 @@ function (gq::GaussLegendreQuadrature)(
     """Gauss-Legendre quadrature for numerical integration"""
 
     nodes, weights = @view(st_quad.nodes[:, :]), @view(st_quad.weights[:, :])
-    grid = nodes
+    I, O, G = first(ebm.fcns_qp).in_dim, first(ebm.fcns_qp).out_dim, first(ebm.fcns_qp).basis_function.G
 
-    I, O = size(nodes)
-    π_nodes = ebm.π_pdf(reshape(nodes, size(nodes)..., 1), ps.dist.π_μ, ps.dist.π_σ)
+    π_nodes = ebm.π_pdf(reshape(nodes, I, :, 1), ps.dist.π_μ, ps.dist.π_σ)
     π_nodes =
         ebm.prior_type == "learnable_gaussian" ? dropdims(π_nodes, dims = 3)' :
         dropdims(π_nodes, dims = 3)
 
     # Energy function of each component
     nodes, st_lyrnorm_new = ebm(ps, st_kan, st_lyrnorm, nodes)
-    Q, P, G = size(nodes)
 
     # Choose component if mixture model else use all
     result = (
@@ -98,7 +95,7 @@ function (gq::GaussLegendreQuadrature)(
             univar_return(nodes, π_nodes, weights)
     )
 
-    return result, grid, st_lyrnorm_new
+    return result, st_quad.nodes, st_lyrnorm_new
 end
 
 end

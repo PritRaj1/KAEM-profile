@@ -10,7 +10,7 @@ export extend_grid,
     FFT_basis,
     Cheby_basis
 
-using ComponentArrays, LinearAlgebra, NNlib
+using ComponentArrays, LinearAlgebra
 
 using ..Utils
 
@@ -106,8 +106,7 @@ function (b::RBF_basis)(
     )
     I, G = b.I, b.G
     x_3d = reshape(x, I, 1, :)
-    grid_3d = reshape(grid, I, G, 1)
-    return @. exp(-((x_3d - grid_3d) * (b.scale * σ))^2 / 2)
+    return @. exp(-((x_3d - grid) * (b.scale * σ))^2 / 2)
 end
 
 function (b::RSWAF_basis)(
@@ -116,7 +115,8 @@ function (b::RSWAF_basis)(
         σ,
     )
     I, G = b.I, b.G
-    diff = NNlib.tanh_fast((reshape(x, I, 1, :) .- grid) ./ σ)
+    x_3d = reshape(x, I, 1, :)
+    diff = @. tanh((x_3d - grid) / view(σ, :))
     return @. 1.0f0 - diff^2
 end
 
@@ -126,8 +126,9 @@ function (b::Cheby_basis)(
         σ,
     )
     I = b.I
-    z = acos.(NNlib.tanh_fast(x) ./ σ)
-    return cos.(reshape(z, I, 1, :) .* b.lin)
+    x = reshape(x, I, 1, :)
+    x = @. acos(tanh(x) / view(σ, :))
+    return @. cos(x * b.lin)
 end
 
 function coef2curve_Spline(
@@ -139,10 +140,12 @@ function coef2curve_Spline(
     )
     I, O, G = b.I, b.O, b.G
     spl = b(x_eval, grid, σ)
+    spl_4d = reshape(spl, I, 1, :, G)
+    coef_4d = reshape(coef, I, O, 1, G)
 
     return dropdims(
         sum(
-            reshape(spl, I, 1, :, G) .* reshape(coef, I, O, 1, G); dims = 4
+            spl_4d .* coef_4d; dims = 4
         ); dims = 4
     )
 end
@@ -224,11 +227,13 @@ function coef2curve_FFT(
     I, O, G = b.I, b.O, b.G
 
     even, odd = b(x_eval, grid, σ)
-    even_coef = @view(coef[1, :, :, :])
-    odd_coef = @view(coef[2, :, :, :])
+    even = reshape(even, I, 1, :, G)
+    odd = reshape(odd, I, 1, :, G)
+    even_coef = reshape(coef[1, :, :, :], I, O, 1, G)
+    odd_coef = reshape(coef[2, :, :, :], I, O, 1, G)
 
-    y_even = sum(reshape(even, I, 1, :, G) .* reshape(even_coef, I, O, 1, G); dims = 4)
-    y_odd = sum(reshape(odd, I, 1, :, G) .* reshape(odd_coef, I, O, 1, G); dims = 4)
+    y_even = sum(even .* even_coef; dims = 4)
+    y_odd = sum(odd .* odd_coef; dims = 4)
     return dropdims(y_even + y_odd; dims = 4)
 end
 

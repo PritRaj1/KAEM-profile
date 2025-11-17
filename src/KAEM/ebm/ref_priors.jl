@@ -66,8 +66,8 @@ function (prior::LearnableGaussianPrior)(
         π_σ;
         log_bool = false,
     )
-    π_eps = π_σ .* Float32(sqrt(2π)) .+ prior.ε
-    denom_eps = 2 .* π_σ .^ 2 .+ prior.ε
+    π_eps = @. π_σ * Float32(sqrt(2π)) + prior.ε
+    denom_eps = @. 2 * π_σ^2 + prior.ε
     z = @. (1 / abs(π_eps)) * exp(-((z - π_μ)^2) / denom_eps)
     log_bool && return stable_log(z, prior.ε)
     return z
@@ -79,9 +79,9 @@ function (prior::EbmPrior)(
         π_σ;
         log_bool = false,
     )
-    log_pdf = 0.0f0 .* z
+    log_pdf = zero(z)
     log_bool && return log_pdf
-    return log_pdf .+ 1.0f0
+    return @. log_pdf + 1.0f0
 end
 
 const prior_map = Dict(
