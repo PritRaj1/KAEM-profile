@@ -140,7 +140,7 @@ function update_model_grid(
                     st_kan.ebm[symbol_map[i]],
                 )
                 z =
-                    i == 1 ? reshape(z, size(z, 2), :) :
+                    (i == 1 && !model.prior.bool_config.ula) ? reshape(z, model.prior.fcns_qp[2].in_dim, :) :
                     dropdims(sum(z, dims = 1); dims = 1)
             end
         end

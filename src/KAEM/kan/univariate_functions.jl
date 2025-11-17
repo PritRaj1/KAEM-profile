@@ -11,11 +11,11 @@ include("spline_bases.jl")
 using .spline_functions
 
 const SplineBasis_mapping = Dict(
-    "B-spline" => degree -> B_spline_basis(degree),
-    "RBF" => scale -> RBF_basis(scale),
-    "RSWAF" => degree -> RSWAF_basis(),
-    "FFT" => degree -> FFT_basis(),
-    "Cheby" => degree -> Cheby_basis(degree),
+    "B-spline" => (degree, in_dim, out_dim, grid_size) -> B_spline_basis(degree, in_dim, out_dim, grid_size + 1),
+    "RBF" => (scale, in_dim, out_dim, grid_size) -> RBF_basis(scale, in_dim, out_dim, grid_size),
+    "RSWAF" => (in_dim, out_dim, grid_size) -> RSWAF_basis(in_dim, out_dim, grid_size),
+    "FFT" => (in_dim, out_dim, grid_size) -> FFT_basis(in_dim, out_dim, grid_size),
+    "Cheby" => (degree, in_dim, out_dim, grid_size) -> Cheby_basis(degree, in_dim, out_dim),
 )
 
 struct univariate_function{T <: Float32, A <: AbstractActivation} <: Lux.AbstractLuxLayer
@@ -34,6 +34,7 @@ struct univariate_function{T <: Float32, A <: AbstractActivation} <: Lux.Abstrac
     σ_spline::T
     init_τ::AbstractArray{T}
     τ_trainable::Bool
+    ε_ridge::T
 end
 
 function init_function(
@@ -50,6 +51,7 @@ function init_function(
         σ_spline::T = 1.0f0,
         init_τ::T = 1.0f0,
         τ_trainable::Bool = true,
+        ε_ridge::T = 1.0f-6,
     ) where {T <: Float32}
     spline_degree =
         (spline_function == "B-spline" || spline_function == "Cheby") ? spline_degree : 0
@@ -70,11 +72,11 @@ function init_function(
     A = typeof(base_activation_obj)
 
     initializer =
-        get(SplineBasis_mapping, spline_function, degree -> B_spline_basis(degree))
+        get(SplineBasis_mapping, spline_function, (degree, I, O, G) -> B_spline_basis(degree, I, O, G))
 
     scale = (maximum(grid) - minimum(grid)) / (size(grid, 2) - 1)
     basis_function =
-        spline_function == "RBF" ? RBF_basis(scale) : initializer(spline_degree)
+        spline_function == "RBF" ? RBF_basis(scale, in_dim, out_dim, size(grid, 2)) : initializer(spline_degree, in_dim, out_dim, size(grid, 2))
 
     return univariate_function{T, A}(
         in_dim,
@@ -84,7 +86,7 @@ function init_function(
         spline_function,
         spline_degree,
         grid,
-        grid_size,
+        size(grid, 2),
         grid_update_ratio,
         grid_range,
         ε_scale,
@@ -92,6 +94,7 @@ function init_function(
         σ_spline,
         [init_τ],
         τ_trainable,
+        ε_ridge,
     )
 end
 
@@ -112,7 +115,7 @@ function Lux.initialparameters(
     elseif !(l.spline_string == "Cheby")
         ε =
             (
-            (rand(rng, Float32, l.in_dim, l.out_dim, l.grid_size + 1) .- 0.5f0) .*
+            (rand(rng, Float32, l.in_dim, l.out_dim, l.grid_size) .- 0.5f0) .*
                 l.ε_scale ./ l.grid_size
         )
         coef = curve2coef(
@@ -120,8 +123,9 @@ function Lux.initialparameters(
             l.init_grid[:, (l.spline_degree + 1):(end - l.spline_degree)],
             ε,
             l.init_grid,
-            l.init_τ;
-            init = true
+            l.init_τ,
+            init = true,
+            ε = l.ε_ridge
         )
     end
 
@@ -154,9 +158,8 @@ function SplineMUL(
     )
     x_act = l.base_activation(x)
     w_base, w_sp = ps.w_base, ps.w_sp
-    I, S, O = size(x_act)..., size(w_base, 2)
-    return reshape(w_base, I, O, 1) .* reshape(x_act, I, 1, S) .+
-        reshape(w_sp, I, O, 1) .* y
+    I = l.basis_function.I
+    return w_base .* reshape(x_act, I, 1, :) .+ w_sp .* y
 end
 
 function (l::univariate_function)(

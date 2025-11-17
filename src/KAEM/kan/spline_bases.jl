@@ -30,22 +30,35 @@ end
 
 struct B_spline_basis <: AbstractBasis
     degree::Int
+    I::Int
+    O::Int
+    G::Int
 end
 
 struct RBF_basis <: AbstractBasis
     scale::Float32
+    I::Int
+    O::Int
+    G::Int
 end
 
-struct RSWAF_basis <: AbstractBasis end
+struct RSWAF_basis <: AbstractBasis
+    I::Int
+    O::Int
+    G::Int
+end
 
 struct Cheby_basis <: AbstractBasis
     degree::Int
     lin::AbstractArray{Float32}
+    I::Int
+    O::Int
+    G::Int
 end
 
-function Cheby_basis(degree::Int)
+function Cheby_basis(degree::Int, I::Int, O::Int)
     lin = collect(Float32, 0:degree)'
-    return Cheby_basis(degree, lin)
+    return Cheby_basis(degree, lin, I, O, degree + 1)
 end
 
 function (b::B_spline_basis)(
@@ -53,8 +66,8 @@ function (b::B_spline_basis)(
         grid,
         σ
     )
-    I, S, G = size(x)..., size(grid, 2)
-    x = reshape(x, I, 1, S)
+    I, G = b.I, b.G - 1
+    x = reshape(x, I, 1, :)
 
     # B0
     grid_1 = @view grid[:, 1:(end - 1)]
@@ -91,8 +104,8 @@ function (b::RBF_basis)(
         grid,
         σ,
     )
-    I, S, G = size(x)..., size(grid, 2)
-    x_3d = reshape(x, I, 1, S)
+    I, G = b.I, b.G
+    x_3d = reshape(x, I, 1, :)
     grid_3d = reshape(grid, I, G, 1)
     return @. exp(-((x_3d - grid_3d) * (b.scale * σ))^2 / 2)
 end
@@ -102,8 +115,8 @@ function (b::RSWAF_basis)(
         grid,
         σ,
     )
-    I, S, G = size(x)..., size(grid, 2)
-    diff = NNlib.tanh_fast((reshape(x, I, 1, S) .- grid) ./ σ)
+    I, G = b.I, b.G
+    diff = NNlib.tanh_fast((reshape(x, I, 1, :) .- grid) ./ σ)
     return @. 1.0f0 - diff^2
 end
 
@@ -112,9 +125,9 @@ function (b::Cheby_basis)(
         grid,
         σ,
     )
-    I, S = size(x)
+    I = b.I
     z = acos.(NNlib.tanh_fast(x) ./ σ)
-    return cos.(reshape(z, I, 1, S) .* b.lin)
+    return cos.(reshape(z, I, 1, :) .* b.lin)
 end
 
 function coef2curve_Spline(
@@ -124,13 +137,25 @@ function coef2curve_Spline(
         coef,
         σ,
     )
+    I, O, G = b.I, b.O, b.G
     spl = b(x_eval, grid, σ)
-    I, G, S, O = size(spl)..., size(coef, 2)
+
     return dropdims(
         sum(
-            reshape(spl, I, 1, S, G) .* reshape(coef, I, O, 1, G); dims = 4
+            reshape(spl, I, 1, :, G) .* reshape(coef, I, O, 1, G); dims = 4
         ); dims = 4
     )
+end
+
+function ridge_regression(B, y, i, o, G; ε = 1.0f-4)
+    """Here, '\' needs rows = measurements/samples."""
+    B_i = view(B, :, :, i)
+    y_i = view(y, :, o, i)
+
+    λ = ε .* Array{Float32}(I, G, G)
+    BtB = B_i' * B_i .+ λ
+    Bty = B_i' * y_i
+    return reshape(BtB \ Bty, 1, 1, G)
 end
 
 function curve2coef(
@@ -139,32 +164,51 @@ function curve2coef(
         y,
         grid,
         σ;
-        init = false
+        init = false,
+        ε = 1.0f-4
     )
-    J, S, O = size(x)..., size(y, 2)
-
+    J, O, G = b.I, b.O, b.G
     B = b(x, grid, σ)
-    G = size(B, 2)
 
-    B = reshape(B, S, J * G)
-    y = reshape(y, S, J * O)
-    eye = Array{Float32}(I, J, J)
-    coef = reshape(B \ y, J, J, O, G)
+    B_perm = permutedims(B, (3, 2, 1)) # S, G, I
+    y_perm = permutedims(y, (3, 2, 1)) # S, O, I
 
-    return dropdims(sum(coef .* eye, dims = 1); dims = 1)
+    # Least squares for each input and output.
+    coef = reduce(
+        vcat,
+        map(
+            i -> reduce(
+                hcat,
+                map(
+                    o -> ridge_regression(
+                        B_perm,
+                        y_perm,
+                        i, o, G;
+                        ε = ε
+                    ), 1:O
+                )
+            ), 1:J
+        )
+    )
+
+    return coef
 end
 
 ## FFT basis functions ###
-struct FFT_basis <: AbstractBasis end
+struct FFT_basis <: AbstractBasis
+    I::Int
+    O::Int
+    G::Int
+end
 
 function (b::FFT_basis)(
         x,
         grid,
         σ,
     )
-    I, S, G = size(x)..., size(grid, 2)
+    I, G = b.I, b.G
 
-    x_3d = reshape(x, I, 1, S)
+    x_3d = reshape(x, I, 1, :)
     grid_3d = reshape(grid, I, G, 1)
     freq = @. x_3d * grid_3d * Float32(2π) * σ
     return cos.(freq), sin.(freq)
@@ -177,13 +221,14 @@ function coef2curve_FFT(
         coef,
         σ,
     )
-    even, odd = b(x_eval, grid, σ)
-    even_coef = @view coef[1, :, :, :]
-    odd_coef = @view coef[2, :, :, :]
-    I, G, S, O = size(even)..., size(odd_coef, 2)
+    I, O, G = b.I, b.O, b.G
 
-    y_even = sum(reshape(even, I, 1, S, G) .* reshape(even_coef, I, O, 1, G); dims = 4)
-    y_odd = sum(reshape(odd, I, 1, S, G) .* reshape(odd_coef, I, O, 1, G); dims = 4)
+    even, odd = b(x_eval, grid, σ)
+    even_coef = @view(coef[1, :, :, :])
+    odd_coef = @view(coef[2, :, :, :])
+
+    y_even = sum(reshape(even, I, 1, :, G) .* reshape(even_coef, I, O, 1, G); dims = 4)
+    y_odd = sum(reshape(odd, I, 1, :, G) .* reshape(odd_coef, I, O, 1, G); dims = 4)
     return dropdims(y_even + y_odd; dims = 4)
 end
 

@@ -115,6 +115,7 @@ function init_EbmModel(conf::ConfParse; rng::AbstractRNG = Random.default_rng())
             σ_spline = σ_spline,
             init_τ = init_τ,
             τ_trainable = τ_trainable,
+            ε_ridge = eps,
         )
 
         push!(functions, func)
@@ -181,7 +182,6 @@ function (ebm::EbmModel)(
         st: The updated states of the ebm-prior.
     """
 
-    mid_size = !ebm.bool_config.mixture_model ? ebm.q_size : ebm.p_size
     st_lyrnorm_new = st_lyrnorm
 
     @trace for i in 1:ebm.depth
@@ -200,7 +200,7 @@ function (ebm::EbmModel)(
 
         z = Lux.apply(ebm.fcns_qp[i], z, @view(ps.fcn[symbol_map[i]]), @view(st_kan[symbol_map[i]]))
         z =
-            (i == 1 && !ebm.bool_config.ula) ? reshape(z, mid_size, :) :
+            (i == 1 && !ebm.bool_config.ula) ? reshape(z, ebm.fcns_qp[2].in_dim, :) :
             dropdims(sum(z, dims = 1); dims = 1)
     end
 
