@@ -4,7 +4,6 @@ export SEQ_Generator, init_SEQ_Generator
 
 using Lux, ComponentArrays, Accessors, Random, ConfParser
 using NNlib: softmax, gelu, batched_mul
-using Reactant: @trace
 
 using ..Utils
 
@@ -139,7 +138,7 @@ function (gen::SEQ_Generator)(
     @reset st_lux_new.layernorm[:a] = st_layer_new
 
     z_prev = z
-    @trace for t in 2:gen.seq_length
+    for t in 2:gen.seq_length
 
         # Self-attention
         Q, st_layer_new = Lux.apply(gen.attention[1], z, ps.attention[:Q], st_lux_new.attention[:Q])

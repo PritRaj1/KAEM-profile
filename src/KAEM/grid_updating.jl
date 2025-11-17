@@ -3,7 +3,6 @@ module ModelGridUpdating
 export update_model_grid
 
 using Accessors, ComponentArrays, Lux, NNlib, LinearAlgebra, Random
-using Reactant: @trace
 
 using ..Utils
 using ..KAEM_model
@@ -107,7 +106,9 @@ function update_model_grid(
             B = size(z, 3)
             z = reshape(z, P, Q * B)
 
-            @trace for i in 1:model.prior.depth
+            mid_size = !ebm.bool_config.mixture_model ? ebm.q_size : ebm.p_size
+
+            for i in 1:model.prior.depth
                 if model.prior.bool_config.layernorm && i != 1
                     z, st_ebm = Lux.apply(
                         model.prior.layernorms[i - 1],
@@ -140,7 +141,7 @@ function update_model_grid(
                     st_kan.ebm[symbol_map[i]],
                 )
                 z =
-                    (i == 1 && !model.prior.bool_config.ula) ? reshape(z, model.prior.fcns_qp[2].in_dim, :) :
+                    (i == 1 && !model.prior.bool_config.ula) ? reshape(z, mid_size, :) :
                     dropdims(sum(z, dims = 1); dims = 1)
             end
         end
@@ -185,7 +186,7 @@ function update_model_grid(
 
     z = dropdims(sum(z; dims = 2); dims = 2)
 
-    @trace for i in 1:model.lkhood.generator.depth
+    for i in 1:model.lkhood.generator.depth
         if model.lkhood.generator.bool_config.layernorm
             z, st_gen = Lux.apply(
                 model.lkhood.generator.layernorms[i],

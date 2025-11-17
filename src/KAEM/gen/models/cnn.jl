@@ -3,7 +3,6 @@ module CNN_Model
 export CNN_Generator, init_CNN_Generator
 
 using Lux, ComponentArrays, Accessors, Random, ConfParser
-using Reactant: @trace
 
 using ..Utils
 
@@ -43,7 +42,7 @@ function forward_with_latent_concat(
     current_z = z .* 1.0f0
     st_lux_new = st_lux
 
-    @trace for i in 1:(gen.depth)
+    for i in 1:(gen.depth)
         if i > 1
             upsampled_z = upsample_to_match(original_z .* 1.0f0, current_z .* 1.0f0)
             current_z = cat(current_z, upsampled_z, dims = 3)
@@ -82,7 +81,7 @@ function forward(
         skip_input = nothing,
     )
     st_lux_new = st_lux
-    @trace for i in 1:(gen.depth)
+    for i in 1:(gen.depth)
         z, st_layer_new =
             Lux.apply(gen.Φ_fcns[i], z, @view(ps.fcn[symbol_map[i]]), @view(st_lux_new.fcn[symbol_map[i]]))
         @reset st_lux_new.fcn[symbol_map[i]] = st_layer_new

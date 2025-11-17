@@ -2,7 +2,6 @@ module ULA_sampling
 
 export initialize_ULA_sampler, ULA_sampler
 
-using Reactant: @trace
 using LinearAlgebra,
     Random,
     Lux,
@@ -120,7 +119,7 @@ function (sampler::ULA_sampler)(
     ll_noise = randn(rng, Float32, model.lkhood.x_shape..., S, 2, num_temps, sampler.N)
     swap_replica_idxs = num_temps > 1 ? rand(rng, 1:(num_temps - 1), sampler.N) : nothing
 
-    @trace for i in 1:sampler.N
+    for i in 1:sampler.N
         ξ = @view(noise[:, :, :, i])
         ∇z_fq .=
             unadjusted_logpos_grad(

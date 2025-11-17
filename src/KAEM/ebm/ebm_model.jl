@@ -2,7 +2,6 @@ module EBM_Model
 
 export EbmModel, init_EbmModel, get_gausslegendre
 
-using Reactant: @trace
 using ConfParser,
     Random,
     Distributions,
@@ -183,8 +182,9 @@ function (ebm::EbmModel)(
     """
 
     st_lyrnorm_new = st_lyrnorm
+    mid_size = !ebm.bool_config.mixture_model ? ebm.q_size : ebm.p_size
 
-    @trace for i in 1:ebm.depth
+    for i in 1:ebm.depth
         z, st_layer_new =
             (ebm.bool_config.layernorm && i != 1) ?
             Lux.apply(
@@ -200,7 +200,7 @@ function (ebm::EbmModel)(
 
         z = Lux.apply(ebm.fcns_qp[i], z, @view(ps.fcn[symbol_map[i]]), @view(st_kan[symbol_map[i]]))
         z =
-            (i == 1 && !ebm.bool_config.ula) ? reshape(z, ebm.fcns_qp[2].in_dim, :) :
+            (i == 1 && !ebm.bool_config.ula) ? reshape(z, mid_size, :) :
             dropdims(sum(z, dims = 1); dims = 1)
     end
 
