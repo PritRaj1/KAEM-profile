@@ -36,17 +36,17 @@ function test_uniform_prior()
     z_test = first(compiled_sample(model, b_size, ps, st_kan, st_lux, Random.default_rng()))
 
     if model.prior.bool_config.mixture_model || model.prior.bool_config.ula
-        @test all(size(z_test) .== (q_size, 1, b_size))
+        @test all(size(Array(z_test)) .== (q_size, 1, b_size))
     else
-        @test all(size(z_test) .== (q_size, p_size, b_size))
+        @test all(size(Array(z_test)) .== (q_size, p_size, b_size))
     end
 
     compiled_log_prior = Reactant.@compile model.log_prior(z_test, model.prior, ps.ebm, st_kan.ebm, st_lux.ebm)
     log_p = first(compiled_log_prior(z_test, model.prior, ps.ebm, st_kan.ebm, st_lux.ebm))
 
-    @test !any(isnan, z_test)
-    @test size(log_p) == (b_size,)
-    return @test !any(isnan, log_p)
+    @test !any(isnan, Array(z_test))
+    @test size(Array(log_p)) == (b_size,)
+    return @test !any(isnan, Array(log_p))
 end
 
 function test_gaussian_prior()
@@ -63,9 +63,9 @@ function test_gaussian_prior()
     compiled_log_prior = Reactant.@compile model.log_prior(z_test, model.prior, ps.ebm, st_kan.ebm, st_lux.ebm)
     log_p = first(compiled_log_prior(z_test, model.prior, ps.ebm, st_kan.ebm, st_lux.ebm))
 
-    @test !any(isnan, z_test)
-    @test size(log_p) == (b_size,)
-    return @test !any(isnan, log_p)
+    @test !any(isnan, Array(z_test))
+    @test size(Array(log_p)) == (b_size,)
+    return @test !any(isnan, Array(log_p))
 end
 
 function test_lognormal_prior()
@@ -82,9 +82,9 @@ function test_lognormal_prior()
     compiled_log_prior = Reactant.@compile model.log_prior(z_test, model.prior, ps.ebm, st_kan.ebm, st_lux.ebm)
     log_p = first(compiled_log_prior(z_test, model.prior, ps.ebm, st_kan.ebm, st_lux.ebm))
 
-    @test !any(isnan, z_test)
-    @test size(log_p) == (b_size,)
-    return @test !any(isnan, log_p)
+    @test !any(isnan, Array(z_test))
+    @test size(Array(log_p)) == (b_size,)
+    return @test !any(isnan, Array(log_p))
 end
 
 function test_learnable_gaussian_prior()
@@ -101,9 +101,9 @@ function test_learnable_gaussian_prior()
     compiled_log_prior = Reactant.@compile model.log_prior(z_test, model.prior, ps.ebm, st_kan.ebm, st_lux.ebm)
     log_p = first(compiled_log_prior(z_test, model.prior, ps.ebm, st_kan.ebm, st_lux.ebm))
 
-    @test !any(isnan, z_test)
-    @test size(log_p) == (b_size,)
-    return @test !any(isnan, log_p)
+    @test !any(isnan, Array(z_test))
+    @test size(Array(log_p)) == (b_size,)
+    return @test !any(isnan, Array(log_p))
 end
 
 function test_ebm_prior()
@@ -120,9 +120,9 @@ function test_ebm_prior()
     compiled_log_prior = Reactant.@compile model.log_prior(z_test, model.prior, ps.ebm, st_kan.ebm, st_lux.ebm)
     log_p = first(compiled_log_prior(z_test, model.prior, ps.ebm, st_kan.ebm, st_lux.ebm))
 
-    @test !any(isnan, z_test)
-    @test size(log_p) == (b_size,)
-    return @test !any(isnan, log_p)
+    @test !any(isnan, Array(z_test))
+    @test size(Array(log_p)) == (b_size,)
+    return @test !any(isnan, Array(log_p))
 end
 
 @testset "Mixture Prior Tests" begin

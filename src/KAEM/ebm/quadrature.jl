@@ -10,27 +10,28 @@ negative_one = - ones(Float32, 1, 1, 1)
 
 struct GaussLegendreQuadrature <: AbstractQuadrature end
 
-function qfirst_exp_kernel(f, π0)
-    return exp.(f) .* reshape(π0, size(π0, 1), 1, size(π0, 2))
+function qfirst_exp_kernel(f, π0, Q)
+    return exp.(f) .* reshape(π0, Q, 1, :)
 end
 
-function pfirst_exp_kernel(f, π0)
-    return exp.(f) .* reshape(π0, 1, size(π0)...)
+function pfirst_exp_kernel(f, π0, P)
+    return exp.(f) .* reshape(π0, 1, P, :)
 end
 
-function apply_mask(exp_fg, component_mask)
-    return dropdims(sum(permutedims(exp_fg[:, :, :, :], (1, 2, 4, 3)) .* component_mask; dims = 2); dims = 2)
+function apply_mask(exp_fg, component_mask, Q, P)
+    return dropdims(sum(reshape(exp_fg, Q, P, 1, :) .* component_mask; dims = 2); dims = 2)
 end
 
-function weight_kernel(trapz, weights)
-    return reshape(weights, 1, size(weights)...) .* trapz
+function weight_kernel(trapz, weights, P)
+    return reshape(weights, 1, P, :) .* trapz
 end
 
 function gauss_kernel(
         trapz,
         weights,
+        Q
     )
-    return reshape(weights, size(weights, 1), 1, size(weights, 2)) .* trapz
+    return reshape(weights, Q, 1, :) .* trapz
 end
 
 function get_gausslegendre(
@@ -53,16 +54,16 @@ function get_gausslegendre(
     return nodes, weights
 end
 
-function mix_return(nodes, π_nodes, weights, component_mask)
-    exp_fg = qfirst_exp_kernel(nodes, π_nodes)
-    trapz = apply_mask(exp_fg, component_mask)
-    trapz = gauss_kernel(trapz, weights)
+function mix_return(nodes, π_nodes, weights, component_mask, Q, P)
+    exp_fg = qfirst_exp_kernel(nodes, π_nodes, Q)
+    trapz = apply_mask(exp_fg, component_mask, Q, P)
+    trapz = gauss_kernel(trapz, weights, Q)
     return trapz
 end
 
-function univar_return(nodes, π_nodes, weights)
-    exp_fg = pfirst_exp_kernel(nodes, π_nodes)
-    exp_fg = weight_kernel(exp_fg, weights)
+function univar_return(nodes, π_nodes, weights, Q, P)
+    exp_fg = pfirst_exp_kernel(nodes, π_nodes, P)
+    exp_fg = weight_kernel(exp_fg, weights, P)
     return exp_fg
 end
 
@@ -78,7 +79,8 @@ function (gq::GaussLegendreQuadrature)(
     """Gauss-Legendre quadrature for numerical integration"""
 
     nodes, weights = @view(st_quad.nodes[:, :]), @view(st_quad.weights[:, :])
-    I, O, G = first(ebm.fcns_qp).in_dim, first(ebm.fcns_qp).out_dim, first(ebm.fcns_qp).basis_function.G
+    I, O = first(ebm.fcns_qp).in_dim, first(ebm.fcns_qp).out_dim
+    Q, P = ebm.q_size, ebm.p_size
 
     π_nodes = ebm.π_pdf(reshape(nodes, I, :, 1), ps.dist.π_μ, ps.dist.π_σ)
     π_nodes =
@@ -91,8 +93,8 @@ function (gq::GaussLegendreQuadrature)(
     # Choose component if mixture model else use all
     result = (
         mix_bool ?
-            mix_return(nodes, π_nodes, weights, component_mask) :
-            univar_return(nodes, π_nodes, weights)
+            mix_return(nodes, π_nodes, weights, component_mask, Q, P) :
+            univar_return(nodes, π_nodes, weights, Q, P)
     )
 
     return result, st_quad.nodes, st_lyrnorm_new

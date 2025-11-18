@@ -92,10 +92,10 @@ function (lp::LogPriorUnivariate)(
         log_π0 .- log_norm(first(ebm.quad(ebm, ps, st_kan, st_lyrnorm)), lp.ε) : log_π0
 
     f, st_lyrnorm_new = ebm(ps, st_kan, st_lyrnorm, reshape(z, P, :))
-    f = reshape(f, Q, Q, P, :)
+    f_4d = reshape(f, Q, Q, P, :)
     I_q = Array{Float32}(I, Q, Q) |> pu
 
-    f_diag = dropdims(sum(f .* I_q; dims = 2); dims = 2)
+    f_diag = dropdims(sum(f_4d .* I_q; dims = 2); dims = 2)
     log_p = dropdims(sum(f_diag .+ log_π0; dims = (1, 2)); dims = (1, 2))
     return log_p, st_lyrnorm_new
 end
