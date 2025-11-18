@@ -52,35 +52,34 @@ println("Sampling from prior...")
 @time z_test = first(sample_prior_compiled(model, b_size, ps, st_kan, st_lux, Random.default_rng()))
 println("Input shape: ", size(z_test))
 
-println("\n=== Generating HLO Code (Tracing Only) ===")
-println("This shows the size of generated code WITHOUT compilation:")
+println("\n=== Generating HLO Code ===")
+println("Analyzing generated code size...")
 @time begin
-    hlo_str = sprint() do io
+    mktemp() do path, io
         redirect_stdout(io) do
             Reactant.@code_hlo model.log_prior(z_test, model.prior, ps.ebm, st_kan.ebm, st_lux.ebm)
         end
-    end
-    hlo_lines = count(==('\n'), hlo_str)
-    hlo_bytes = sizeof(hlo_str)
-    println("\nGenerated HLO Statistics:")
-    println("  Lines: $hlo_lines")
-    println("  Size: $(round(hlo_bytes / 1024^2, digits = 2)) MB")
+        close(io)
+        hlo_str = read(path, String)
+        hlo_lines = count(==('\n'), hlo_str)
+        hlo_bytes = sizeof(hlo_str)
 
-    if hlo_lines > 50000
-        println("\n⚠️  CRITICAL: Extremely large HLO ($hlo_lines lines)!")
-        println("    Compilation will likely fail or take hours.")
-        println("    Recommendations:")
-        println("    - Reduce layer_widths significantly")
-        println("    - Reduce grid_size")
-        println("    - Reduce depth")
-    elseif hlo_lines > 10000
-        println("\n⚠️  WARNING: Very large HLO ($hlo_lines lines)")
-        println("    Compilation will be very slow (10+ minutes)")
-    elseif hlo_lines > 1000
-        println("\n⚠️  Large HLO ($hlo_lines lines)")
-        println("    Compilation may take a few minutes")
-    else
-        println("\n✓  Reasonable HLO size - compilation should be fast")
+        println("\n=== HLO Statistics ===")
+        println("  Lines: $hlo_lines")
+        println("  Size: $(round(hlo_bytes / 1024^2, digits = 2)) MB")
+
+        if hlo_lines > 50000
+            println("\n⚠️  CRITICAL: Extremely large HLO ($hlo_lines lines)!")
+            println("    This will take forever to compile.")
+        elseif hlo_lines > 10000
+            println("\n⚠️  WARNING: Very large HLO ($hlo_lines lines)")
+            println("    Compilation will be slow (10+ minutes)")
+        elseif hlo_lines > 1000
+            println("\n⚠️  Large HLO ($hlo_lines lines)")
+            println("    Compilation may take a few minutes")
+        else
+            println("\n✓  Reasonable HLO size")
+        end
     end
 end
 

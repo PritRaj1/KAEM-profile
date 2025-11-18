@@ -9,7 +9,9 @@ using ..Utils
 using ..EBM_Model
 
 function log_norm(norm, ε)
-    return dropdims(log.(sum(norm, dims = 3) .+ ε), dims = 3)
+    norm = sum(norm; dims = 3)
+    log_norm = @. log(norm + ε)
+    return dropdims(log_norm, dims = 3)
 end
 
 function log_mix_pdf(
@@ -22,7 +24,8 @@ function log_mix_pdf(
         P,
         S,
     )
-    lp = dropdims(sum(exp.(f) .* π_0 .* α ./ Z; dims = 2); dims = 2)
+    exp_f = @. exp(f) * π_0 * α / Z
+    lp = dropdims(sum(exp_f; dims = 2); dims = 2)
     return log.(dropdims(prod(lp; dims = 1) .+ ε; dims = 1))
 end
 
