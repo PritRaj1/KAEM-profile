@@ -83,7 +83,7 @@ function forward(
     st_lux_new = st_lux
     for i in 1:(gen.depth)
         z, st_layer_new =
-            Lux.apply(gen.Φ_fcns[i], z, @view(ps.fcn[symbol_map[i]]), @view(st_lux_new.fcn[symbol_map[i]]))
+            Lux.apply(gen.Φ_fcns[i], z, @view(ps.fcn[symbol_map[i]]), st_lux_new.fcn[symbol_map[i]])
         @reset st_lux_new.fcn[symbol_map[i]] = st_layer_new
 
         z, st_layer_new =
@@ -92,7 +92,7 @@ function forward(
                 gen.batchnorms[i],
                 z,
                 @view(ps.batchnorm[symbol_map[i]]),
-                @view(st_lux_new.batchnorm[symbol_map[i]]),
+                st_lux_new.batchnorm[symbol_map[i]],
             ) : (z, nothing)
         if gen.bool_config.batchnorm && i < gen.depth
             @reset st_lux_new.batchnorm[symbol_map[i]] = st_layer_new
