@@ -216,7 +216,7 @@ function (gen::CNN_Generator)(
     Returns:
         The generated data.
     """
-    z = reshape(sum(z, dims = 2), 1, 1, first(size(z)), last(size(z)))
+    z = reshape(sum(z, dims = 2), 1, 1, first(gen.widths), :)
     gen.bool_config.skip_bool && return forward_with_latent_concat(gen, z, ps, st_lux)
     return forward(gen, z, ps, st_lux)
 end

@@ -139,7 +139,6 @@ function (gen::KAN_Generator)(
     Returns:
         The generated data.
     """
-    num_samples = size(z)[end]
     z = dropdims(sum(z, dims = 2), dims = 2)
 
     # KAN functions
@@ -161,7 +160,7 @@ function (gen::KAN_Generator)(
         z = dropdims(sum(z, dims = 1); dims = 1)
     end
 
-    return reshape(z, gen.x_shape..., num_samples), st_lyrnorm_new
+    return reshape(z, gen.x_shape..., :), st_lyrnorm_new
 end
 
 end

@@ -81,15 +81,15 @@ function (lp::LogPriorUnivariate)(
         The unnormalized log-probability of the ebm-prior.
         The updated states of the ebm-prior.
     """
-    Q, P, S = size(z)
+    Q, P = ebm.q_size, ebm.p_size
     log_π0 = ebm.π_pdf(z, ps.dist.π_μ, ps.dist.π_σ; log_bool = true)
 
     log_π0 =
         lp.normalize && !ula ?
         log_π0 .- log_norm(first(ebm.quad(ebm, ps, st_kan, st_lyrnorm)), lp.ε) : log_π0
 
-    f, st_lyrnorm_new = ebm(ps, st_kan, st_lyrnorm, reshape(z, P, Q * S))
-    f = reshape(f, Q, Q, P, S)
+    f, st_lyrnorm_new = ebm(ps, st_kan, st_lyrnorm, reshape(z, P, :))
+    f = reshape(f, Q, Q, P, :)
     I_q = Array{Float32}(I, Q, Q) |> pu
 
     f_diag = dropdims(sum(f .* I_q; dims = 2); dims = 2)
@@ -132,14 +132,13 @@ function (lp::LogPriorMix)(
         The unnormalized log-probability of the mixture ebm-prior.
         The updated states of the mixture ebm-prior.
     """
-
+    Q, P = ebm.q_size, ebm.p_size
     alpha =
         ebm.bool_config.use_attention_kernel ?
         dotprod_attn(ps.attention.Q, ps.attention.K, z) :
-        (ebm.bool_config.train_props ? ps.dist.α : pu(ones(Float32, ebm.q_size, ebm.p_size)))
+        (ebm.bool_config.train_props ? ps.dist.α : pu(ones(Float32, Q, P)))
 
     alpha = softmax(alpha; dims = 2)
-    Q, P, S = size(alpha)..., size(z)[end]
     π_0 = ebm.π_pdf(z, ps.dist.π_μ, ps.dist.π_σ; log_bool = false)
 
     # Energy functions of each component, q -> p
@@ -150,7 +149,7 @@ function (lp::LogPriorMix)(
         ones(Float32, Q, P) |> pu
 
     reg = ebm.λ > 0 ? ebm.λ * sum(abs.(alpha)) : 0.0f0
-    log_p = log_mix_pdf(f, alpha, π_0, Z, lp.ε, Q, P, S)
+    log_p = log_mix_pdf(f, alpha, π_0, Z, lp.ε, Q, P, :)
     return log_p .+ reg, st_lyrnorm
 end
 
