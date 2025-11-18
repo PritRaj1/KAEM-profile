@@ -10,25 +10,27 @@ include("mixture_selection.jl")
 using .MixtureChoice: choose_component
 
 
-function interpolate_kernel(cdf, grid, rand_vals, Q, P, G)
+function interpolate_kernel(cdf, grid, rand_vals, Q, P, G; mix = false)
     grid_idxs = reshape(1:G, 1, 1, G, 1) |> pu
 
     # First index, i, such that cdf[i] >= rand_vals
     indices = sum(1 .+ (cdf .< reshape(rand_vals, Q, P, 1, :)); dims = 3)
+    first_bool = indices .== 1 |> Lux.f32
     mask2 = indices .== grid_idxs |> Lux.f32
     mask1 = mask2 .- 1.0f0
-    first_bool = indices .== 1 |> Lux.f32
 
-    z1 = dropdims((first_bool .* grid[:, :, 1]) .+ sum((1.0f0 .- first_bool) .* mask1 .* grid; dims = 3); dims = 3)
+    z1 = dropdims((first_bool .* grid[:, :, 1]) .+ (1.0f0 .- first_bool) .* sum(mask1 .* grid; dims = 3); dims = 3)
     z2 = dropdims(sum(mask2 .* grid; dims = 3); dims = 3)
 
-    c1 = dropdims(first_bool .* 0.0f0 .+ sum((1.0f0 .- first_bool) .* mask1 .* cdf; dims = 3); dims = 3)
+    c1 = dropdims((first_bool .* 0.0f0) .+ (1.0f0 .- first_bool) .* sum(mask1 .* cdf; dims = 3); dims = 3)
     c2 = dropdims(sum(mask2 .* cdf; dims = 3); dims = 3)
+    rv = mix ? dropdims(rand_vals; dims = 3) : rand_vals
     length = c2 - c1
+
     return ifelse.(
         length .== 0,
         z1,
-        z1 .+ (z2 .- z1) .* ((rand_vals .- c1) ./ (c2 .- c1))
+        z1 .+ (z2 .- z1) .* ((rv .- c1) ./ length)
     )
 end
 
@@ -43,9 +45,9 @@ function sample_univariate(
     )
 
     cdf, grid, st_lyrnorm_new = ebm.quad(ebm, ps, st_kan, st_lyrnorm, st_quad)
-    cdf = cumsum(cdf; dims = 3), # Cumulative trapezium = CDF
+    cdf = cumsum(cdf; dims = 3) # Cumulative trapezium = CDF
 
-        rand_vals = rand(rng, Float32, 1, ebm.p_size, num_samples) .* cdf[:, :, end]
+    rand_vals = rand(rng, Float32, 1, ebm.p_size, num_samples) .* cdf[:, :, end]
     z = interpolate_kernel(
         cdf,
         reshape(grid, 1, :, ebm.N_quad),
@@ -109,8 +111,9 @@ function sample_mixture(
     cdf, grid, st_lyrnorm_new =
         ebm.quad(ebm, ps, st_kan, st_lyrnorm, st_quad; component_mask = mask, mix_bool = true)
     cdf = cumsum(cdf; dims = 3) # Cumulative trapezium = CDF
+    cdf = reshape(cdf, ebm.q_size, 1, :, num_samples)
 
-    rand_vals = rand(rng, Float32, ebm.q_size, num_samples) .* cdf[:, :, end]
+    rand_vals = rand(rng, Float32, ebm.q_size, 1, 1, num_samples) .* cdf[:, :, end:end, :]
     z = interpolate_kernel(
         cdf,
         reshape(grid, :, 1, ebm.N_quad),

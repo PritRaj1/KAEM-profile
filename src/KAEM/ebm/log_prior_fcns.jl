@@ -139,7 +139,7 @@ function (lp::LogPriorMix)(
     alpha =
         ebm.bool_config.use_attention_kernel ?
         dotprod_attn(ps.attention.Q, ps.attention.K, z) :
-        (ebm.bool_config.train_props ? ps.dist.α : pu(ones(Float32, Q, P)))
+        (ebm.bool_config.train_props ? ps.dist.α : zero(ps.dist.α) .+ 1.0f0)
 
     alpha = softmax(alpha; dims = 2)
     π_0 = ebm.π_pdf(z, ps.dist.π_μ, ps.dist.π_σ; log_bool = false)
