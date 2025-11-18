@@ -29,6 +29,8 @@ function test_model_derivative()
 
     loss, ∇, st_ebm, st_gen =
         model.loss_fcn(ps, st_kan, st_lux, model, x_test, 1, Random.default_rng())
+
+    ∇ = Array(∇)
     @test norm(∇) != 0
     return @test !any(isnan, ∇)
 end

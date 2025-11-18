@@ -94,11 +94,12 @@ function (lp::LogPriorUnivariate)(
     f, st_lyrnorm_new = ebm(ps, st_kan, st_lyrnorm, reshape(z, P, :))
     f_4d = reshape(f, Q, Q, P, :)
 
+    f_diag = similar(z)
     for i in 1:Q
-        z[i, :, :] = selectdim(selectdim(f_4d, 1, i), 1, i)
+        f_diag[i, :, :] = selectdim(selectdim(f_4d, 1, i), 1, i)
     end
 
-    log_p = dropdims(sum(z .+ log_π0; dims = (1, 2)); dims = (1, 2))
+    log_p = dropdims(sum(f_diag .+ log_π0; dims = (1, 2)); dims = (1, 2))
     return log_p, st_lyrnorm_new
 end
 

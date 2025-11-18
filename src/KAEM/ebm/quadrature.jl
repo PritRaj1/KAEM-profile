@@ -39,7 +39,7 @@ function get_gausslegendre(
         st_kan,
     )
     """Get Gauss-Legendre nodes and weights for prior's domain"""
-    a, b = @view(st_kan[:a].grid[:, 1]), @view(st_kan[:a].grid[:, end])
+    a, b = st_kan[:a].grid[:, 1], st_kan[:a].grid[:, end]
     no_grid =
         (ebm.fcns_qp[1].spline_string == "FFT" || ebm.fcns_qp[1].spline_string == "Cheby")
 
@@ -78,7 +78,7 @@ function (gq::GaussLegendreQuadrature)(
     )
     """Gauss-Legendre quadrature for numerical integration"""
 
-    nodes, weights = @view(st_quad.nodes[:, :]), @view(st_quad.weights[:, :])
+    nodes, weights = st_quad.nodes, st_quad.weights
     I, O = first(ebm.fcns_qp).in_dim, first(ebm.fcns_qp).out_dim
     Q, P = ebm.q_size, ebm.p_size
 

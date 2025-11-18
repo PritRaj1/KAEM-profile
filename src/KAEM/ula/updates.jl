@@ -1,5 +1,7 @@
 module LangevinUpdates
 
+export unadjusted_logpos_grad, update_z!
+
 using ComponentArrays, Statistics, Lux, LinearAlgebra, Random, Enzyme
 
 using ..Utils

@@ -148,8 +148,8 @@ function update_model_grid(
     end
 
     new_nodes, new_weights = get_gausslegendre(model.prior, st_kan.ebm)
-    @reset st_kan.quad.nodes = new_nodes |> pu
-    @reset st_kan.quad.weights = new_weights |> pu
+    @reset st_kan.quad.nodes = new_nodes
+    @reset st_kan.quad.weights = new_weights
 
     # Only update if KAN-type generator requires
     (!model.update_llhood_grid || model.lkhood.CNN || model.lkhood.SEQ) &&

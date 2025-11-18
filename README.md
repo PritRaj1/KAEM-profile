@@ -39,13 +39,6 @@ And when ULA and maximum likelihood fail, it can also be trained with a variance
 
 Unlike diffusion and score-based models, annealing is more interpretable, fully parallelizable, and only applied to posterior expectations, (thus preserving inference speed). The main trade-off is expressivity, though this may improve with scaling. And unlike denoising, which scales sequentially, annealing can scale by adding more temperatures in parallel.
 
-| METHOD                     | DISTRIBUTION SAMPLED                               | PROPERTIES                                                                 | PRIMARY DRAWBACK                                                                 |
-|----------------------------|-----------------------------------------------------|-----------------------------------------------------------------------------|----------------------------------------------------------------------------------|
-| Inverse Transform Sampling | Kolmogorov–Arnold Network Prior (inference)        | - Fast<br>- Exact<br>- Unbiased                                            | Requires closed-form inverse CDF (usually easy for KANs)!                        |
-| Importance Sampling        | Posterior (MLE training criterion)                 | - Simple<br>- Fast<br>- Unbiased with enough samples                        | High variance if proposal ≠ target; degenerates badly in high dimensions (avoided since latent space) |
-| ULA (Unadjusted Langevin) | Posterior (MLE training criterion)                 | - Sculpts prior to resemble target<br>- Metroplis-Hastings not used, (which can be undefined depending on measure) <br>- Still fast | Biased; struggles to mix with multimodal posteriors                              |
-| Population ULA            | Posterior (Steppingstone estimator)                | - Handles multimodal posteriors<br>- Parallelizable                         | Computationally heavy (Zetta hardware required)                                   |
-
 ## Setup:
 
 Need [Conda](https://docs.conda.io/projects/conda/en/latest/user-guide/install/index.html) and [Julia](https://github.com/JuliaLang/juliaup). Choose your favourite installer and run: 
@@ -71,7 +64,7 @@ make test
 
 This repo uses shell scripts solely for convenience, you can run everything without them too. If you want to use the shell scripts, [WSL](https://learn.microsoft.com/en-us/windows/wsl/install) is recommended.
 
-## Make commands:
+## Quick start:
 
 List commands:
 ```

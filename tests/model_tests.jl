@@ -1,5 +1,6 @@
 using Test, Random, LinearAlgebra, Lux, ConfParser, ComponentArrays, Reactant
 using MultivariateStats: reconstruct
+using MLDataDevices: cpu_device
 
 ENV["GPU"] = true
 
@@ -42,7 +43,8 @@ function test_grid_update()
     x_test = first(model.train_loader) |> pu
     model, ps, st_kan, st_lux = prep_model(model, x_test)
 
-    size_grid = size(st_kan.ebm[:a].grid)
+    grid_data = st_kan.ebm.a.grid
+    size_grid = size(Array(grid_data))
     x = first(model.train_loader) |> pu
     compiled_update = Reactant.@compile update_model_grid(
         model,
@@ -56,8 +58,9 @@ function test_grid_update()
 
     model, ps, st_kan, st_lux =
         update_model_grid(model, x, ps, st_kan, Lux.testmode(st_lux), 1, Random.default_rng())
-    @test all(size(st_kan.ebm[:a].grid) .== size_grid)
-    return @test !any(isnan, ps)
+    grid_data = st_kan.ebm.a.grid
+    @test all(size(Array(grid_data)) .== size_grid)
+    return @test !any(isnan, Array(ps))
 end
 
 function test_pca()
