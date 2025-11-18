@@ -71,21 +71,27 @@ function (sampler::ULA_sampler)(
     Returns:
         The posterior samples.
     """
+    η = sampler.η
+    sqrt_2η = sqrt(2 * η)
+    seq = model.lkhood.SEQ
+    num_temps, Q, S = model.N_t - 1, model.prior.q_size, model.max_samples
+    P = model.prior.bool_config.mixture_model ? 1 : model.prior.p_size
+
     # Initialize from prior
     z_hq = begin
         if model.prior.bool_config.ula && sampler.prior_sampling_bool
-            z = π_dist[model.prior.prior_type](model.prior.p_size, size(x)[end], rng)
+            z = π_dist[model.prior.prior_type](P, S, rng)
             pu(z)
         else
             z_initial, st_ebm =
-                model.sample_prior(model, size(x)[end], ps, st_kan, st_lux, rng)
+                model.sample_prior(model, S, ps, st_kan, st_lux, rng)
             z_samples = Vector{typeof(z_initial)}()
             sizehint!(z_samples, length(temps))
             push!(z_samples, z_initial)
 
             for i in 1:(length(temps) - 1)
                 z_i, st_ebm =
-                    model.sample_prior(model, size(x)[end], ps, st_kan, st_lux, rng)
+                    model.sample_prior(model, S, ps, st_kan, st_lux, rng)
                 push!(z_samples, z_i)
             end
             @reset st_lux.ebm = st_ebm
@@ -93,18 +99,12 @@ function (sampler::ULA_sampler)(
         end
     end
 
-    η = sampler.η
-    sqrt_2η = sqrt(2 * η)
-    seq = model.lkhood.SEQ
-
-    num_temps, Q, P, S = length(temps), size(z_hq)[1:2]..., size(x)[end]
-    S = sampler.prior_sampling_bool ? size(z_hq)[end] : S
     z_hq = reshape(z_hq, Q, P, S, num_temps)
     temps_gpu = repeat(temps, S)
 
     # Pre-allocate for both precisions
     z_fq = reshape(z_hq, Q, P, S * num_temps)
-    ∇z_fq = 0.0f0 .* z_fq
+    ∇z_fq = zero(z_fq)
     z_copy = similar(z_hq[:, :, :, 1])
     z_t, z_t1 = z_copy, z_copy
 
@@ -120,7 +120,7 @@ function (sampler::ULA_sampler)(
     swap_replica_idxs = num_temps > 1 ? rand(rng, 1:(num_temps - 1), sampler.N) : nothing
 
     for i in 1:sampler.N
-        ξ = @view(noise[:, :, :, i])
+        ξ = view(noise, :, :, :, i)
         ∇z_fq .=
             unadjusted_logpos_grad(
             z_fq,
@@ -138,15 +138,15 @@ function (sampler::ULA_sampler)(
 
         if i % sampler.RE_frequency == 0 && num_temps > 1 && !sampler.prior_sampling_bool
             t = swap_replica_idxs[i] # Randomly pick two adjacent temperatures to swap
-            z_t = @view(z_hq[:, :, :, t])
-            z_t1 = @view(z_hq[:, :, :, t + 1])
+            z_t = view(z_hq, :, :, :, t)
+            z_t1 = view(z_hq, :, :, :, t + 1)
 
             noise_1 =
-                model.lkhood.SEQ ? @view(ll_noise[:, :, :, 1, t, i]) :
-                @view(ll_noise[:, :, :, :, 1, t, i])
+                model.lkhood.SEQ ? view(ll_noise, :, :, :, 1, t, i) :
+                view(ll_noise, :, :, :, :, 1, t, i)
             noise_2 =
-                model.lkhood.SEQ ? @view(ll_noise[:, :, :, 2, t, i]) :
-                @view(ll_noise[:, :, :, :, 2, t, i])
+                model.lkhood.SEQ ? view(ll_noise, :, :, :, 2, t, i) :
+                view(ll_noise, :, :, :, :, 2, t, i)
 
             ll_t, st_gen = log_likelihood_MALA(
                 z_t,

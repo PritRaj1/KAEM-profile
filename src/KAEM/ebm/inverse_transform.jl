@@ -10,7 +10,7 @@ include("mixture_selection.jl")
 using .MixtureChoice: choose_component
 
 
-function interpolate_kernel(cdf, grid, rand_vals, Q, P, G; mix = false)
+function interpolate_kernel(cdf, grid, rand_vals, Q, P, G; mix_bool = false)
     grid_idxs = reshape(1:G, 1, 1, G, 1) |> pu
 
     # First index, i, such that cdf[i] >= rand_vals
@@ -24,7 +24,7 @@ function interpolate_kernel(cdf, grid, rand_vals, Q, P, G; mix = false)
 
     c1 = dropdims((first_bool .* 0.0f0) .+ (1.0f0 .- first_bool) .* sum(mask1 .* cdf; dims = 3); dims = 3)
     c2 = dropdims(sum(mask2 .* cdf; dims = 3); dims = 3)
-    rv = mix ? dropdims(rand_vals; dims = 3) : rand_vals
+    rv = mix_bool ? dropdims(rand_vals; dims = 3) : rand_vals
     length = c2 - c1
 
     return ifelse.(
@@ -120,7 +120,8 @@ function sample_mixture(
         rand_vals,
         ebm.q_size,
         1, # Single component chosen already
-        ebm.N_quad
+        ebm.N_quad;
+        mix_bool = true
     )
     return z, st_lyrnorm_new
 end
