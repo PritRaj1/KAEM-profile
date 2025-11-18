@@ -31,7 +31,8 @@ function test_generate()
     x_test = first(model.train_loader) |> pu
     model, ps, st_kan, st_lux = prep_model(model, x_test; MLIR = false)
 
-    z = first(model.sample_prior(model, b_size, ps, st_kan, st_lux, Random.default_rng()))
+    compiled_sample_prior = Reactant.@compile model.sample_prior(model, b_size, ps, st_kan, st_lux, Random.default_rng())
+    z = first(compiled_sample_prior(model, b_size, ps, st_kan, st_lux, Random.default_rng()))
     compiled_generator = Reactant.@compile model.lkhood.generator(ps.gen, st_kan.gen, st_lux.gen, z)
     x, _ = compiled_generator(ps.gen, st_kan.gen, st_lux.gen, z)
     @test size(x) == (32, 32, 1, b_size)
@@ -46,7 +47,8 @@ function test_logllhood()
     model, ps, st_kan, st_lux = prep_model(model, x_test; MLIR = false)
 
     x = randn(Float32, 32, 32, 1, b_size) |> pu
-    z = first(model.sample_prior(model, b_size, ps, st_kan, st_lux, Random.default_rng()))
+    compiled_sample_prior = Reactant.@compile model.sample_prior(model, b_size, ps, st_kan, st_lux, Random.default_rng())
+    z = first(compiled_sample_prior(model, b_size, ps, st_kan, st_lux, Random.default_rng()))
     noise = randn(Float32, 32, 32, 1, b_size, b_size) |> pu
     compiled_log_likelihood = Reactant.@compile log_likelihood_IS(z, x, model.lkhood, ps.gen, st_kan.gen, st_lux.gen, noise)
     logllhood, _ = compiled_log_likelihood(z, x, model.lkhood, ps.gen, st_kan.gen, st_lux.gen, noise)
@@ -62,7 +64,8 @@ function test_cnn_generate()
     x_test = first(model.train_loader) |> pu
     model, ps, st_kan, st_lux = prep_model(model, x_test)
 
-    z = first(model.sample_prior(model, b_size, ps, st_kan, st_lux, Random.default_rng()))
+    compiled_sample_prior = Reactant.@compile model.sample_prior(model, b_size, ps, st_kan, st_lux, Random.default_rng())
+    z = first(compiled_sample_prior(model, b_size, ps, st_kan, st_lux, Random.default_rng()))
     compiled_generator = Reactant.@compile model.lkhood.generator(ps.gen, st_kan.gen, st_lux.gen, z)
     x, _ = compiled_generator(ps.gen, st_kan.gen, st_lux.gen, z)
     @test size(x) == (32, 32, out_dim, b_size)
@@ -79,7 +82,8 @@ function test_seq_generate()
     x_test = first(model.train_loader) |> pu
     model, ps, st_kan, st_lux = prep_model(model, x_test)
 
-    z = first(model.sample_prior(model, b_size, ps, st_kan, st_lux, Random.default_rng()))
+    compiled_sample_prior = Reactant.@compile model.sample_prior(model, b_size, ps, st_kan, st_lux, Random.default_rng())
+    z = first(compiled_sample_prior(model, b_size, ps, st_kan, st_lux, Random.default_rng()))
     compiled_generator = Reactant.@compile model.lkhood.generator(ps.gen, st_kan.gen, st_lux.gen, z)
     x, _ = compiled_generator(ps.gen, st_kan.gen, st_lux.gen, z)
     @test size(x) == (out_dim, 8, b_size)

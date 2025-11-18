@@ -52,14 +52,6 @@ println("Sampling from prior...")
 @time z_test = first(sample_prior_compiled(model, b_size, ps, st_kan, st_lux, Random.default_rng()))
 println("Input shape: ", size(z_test))
 
-println("\n=== Testing Forward Pass (Compiled) ===")
-println("Compiling forward pass...")
-@time log_prior_compiled = Reactant.@compile model.log_prior(z_test, model.prior, ps.ebm, st_kan.ebm, st_lux.ebm)
-println("Running compiled forward pass...")
-@time result_uncompiled = log_prior_compiled(z_test, model.prior, ps.ebm, st_kan.ebm, st_lux.ebm)
-println("Result shape: ", size(result_uncompiled[1]))
-println("Result type: ", typeof(result_uncompiled[1]))
-
 println("\n=== Generating HLO Code (Tracing Only) ===")
 println("This shows the size of generated code WITHOUT compilation:")
 @time begin
@@ -69,23 +61,45 @@ println("This shows the size of generated code WITHOUT compilation:")
         end
     end
     hlo_lines = count(==('\n'), hlo_str)
-    println("Generated HLO has $hlo_lines lines")
-    if hlo_lines > 10000
-        println("⚠️  WARNING: Very large HLO code ($hlo_lines lines) - compilation will be slow!")
+    hlo_bytes = sizeof(hlo_str)
+    println("\nGenerated HLO Statistics:")
+    println("  Lines: $hlo_lines")
+    println("  Size: $(round(hlo_bytes / 1024^2, digits = 2)) MB")
+
+    if hlo_lines > 50000
+        println("\n⚠️  CRITICAL: Extremely large HLO ($hlo_lines lines)!")
+        println("    Compilation will likely fail or take hours.")
+        println("    Recommendations:")
+        println("    - Reduce layer_widths significantly")
+        println("    - Reduce grid_size")
+        println("    - Reduce depth")
+    elseif hlo_lines > 10000
+        println("\n⚠️  WARNING: Very large HLO ($hlo_lines lines)")
+        println("    Compilation will be very slow (10+ minutes)")
     elseif hlo_lines > 1000
-        println("⚠️  Large HLO code ($hlo_lines lines) - compilation may take a while")
+        println("\n⚠️  Large HLO ($hlo_lines lines)")
+        println("    Compilation may take a few minutes")
     else
-        println("✓  Reasonable HLO size")
+        println("\n✓  Reasonable HLO size - compilation should be fast")
     end
 end
 
-println("\n=== Compiling (This is the slow part) ===")
-println("If this hangs, the HLO code is too large.")
-println("Try reducing layer_widths or grid_size in your config.")
-@time compiled_fn = Reactant.@compile model.log_prior(z_test, model.prior, ps.ebm, st_kan.ebm, st_lux.ebm)
+println("\n=== Attempting Compilation ===")
+println("This may take a while depending on HLO size...")
+println("Press Ctrl+C to abort if it hangs.")
+@time begin
+    try
+        compiled_fn = Reactant.@compile model.log_prior(z_test, model.prior, ps.ebm, st_kan.ebm, st_lux.ebm)
+        println("✓ Compilation successful!")
 
-println("\n=== Running Compiled Function ===")
-@time result_compiled = compiled_fn(z_test, model.prior, ps.ebm, st_kan.ebm, st_lux.ebm)
+        println("\n=== Running Compiled Function ===")
+        @time result_compiled = compiled_fn(z_test, model.prior, ps.ebm, st_kan.ebm, st_lux.ebm)
+        println("Result shape: ", size(result_compiled[1]))
+        println("Result type: ", typeof(result_compiled[1]))
+    catch e
+        println("\n✗ Compilation failed: ", e)
+    end
+end
 
 println("\n✓ Success! Compilation complete.")
 println("Note: Subsequent calls will be much faster (cached).")
