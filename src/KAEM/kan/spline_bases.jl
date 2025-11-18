@@ -116,7 +116,7 @@ function (b::RSWAF_basis)(
     )
     I, G = b.I, b.G
     x_3d = reshape(x, I, 1, :)
-    diff = @. tanh((x_3d - grid) / view(σ, :))
+    diff = @. tanh((x_3d - grid) / σ)
     return @. 1.0f0 - diff^2
 end
 
@@ -127,7 +127,7 @@ function (b::Cheby_basis)(
     )
     I = b.I
     x = reshape(x, I, 1, :)
-    x = @. acos(tanh(x) / view(σ, :))
+    x = @. acos(tanh(x) / σ)
     return @. cos(x * b.lin)
 end
 

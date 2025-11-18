@@ -5,21 +5,25 @@ ENV["GPU"] = true
 println("Loading packages...")
 using Reactant, ConfParser, Lux, ComponentArrays, Random
 
+# Get the directory where this script is located
+const SCRIPT_DIR = @__DIR__
+const PROJECT_ROOT = dirname(SCRIPT_DIR)
+
 println("Loading Utils...")
-include("src/utils.jl")
+include(joinpath(PROJECT_ROOT, "src/utils.jl"))
 using .Utils
 
 println("Loading KAEM...")
-include("src/KAEM/KAEM.jl")
+include(joinpath(PROJECT_ROOT, "src/KAEM/KAEM.jl"))
 using .KAEM_model
 
 println("Loading ModelSetup...")
-include("src/KAEM/model_setup.jl")
+include(joinpath(PROJECT_ROOT, "src/KAEM/model_setup.jl"))
 using .ModelSetup
 
 # Load config
 println("\nLoading config...")
-conf = ConfParse("tests/test_conf.ini")
+conf = ConfParse(joinpath(SCRIPT_DIR, "test_conf.ini"))
 parse_conf!(conf)
 
 Random.seed!(42)
@@ -42,13 +46,17 @@ println("\n=== Preparing Model ===")
 @time model, ps, st_kan, st_lux = prep_model(model, x_test, MLIR = false)
 
 println("\n=== Creating Test Inputs ===")
-# Sample from the prior to get correct shape
+println("Compiling sampling function...")
+@time sample_prior_compiled = Reactant.@compile model.sample_prior(model, b_size, ps, st_kan, st_lux, Random.default_rng())
 println("Sampling from prior...")
-@time z_test = first(model.sample_prior(model, b_size, ps, st_kan, st_lux, Random.default_rng()))
+@time z_test = first(sample_prior_compiled(model, b_size, ps, st_kan, st_lux, Random.default_rng()))
 println("Input shape: ", size(z_test))
 
-println("\n=== Testing Forward Pass (Uncompiled) ===")
-@time result_uncompiled = model.log_prior(z_test, model.prior, ps.ebm, st_kan.ebm, st_lux.ebm)
+println("\n=== Testing Forward Pass (Compiled) ===")
+println("Compiling forward pass...")
+@time log_prior_compiled = Reactant.@compile model.log_prior(z_test, model.prior, ps.ebm, st_kan.ebm, st_lux.ebm)
+println("Running compiled forward pass...")
+@time result_uncompiled = log_prior_compiled(z_test, model.prior, ps.ebm, st_kan.ebm, st_lux.ebm)
 println("Result shape: ", size(result_uncompiled[1]))
 println("Result type: ", typeof(result_uncompiled[1]))
 
