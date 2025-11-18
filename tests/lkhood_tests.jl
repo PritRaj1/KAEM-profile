@@ -36,7 +36,7 @@ function test_generate()
     compiled_generator = Reactant.@compile model.lkhood.generator(ps.gen, st_kan.gen, st_lux.gen, z)
     x, _ = compiled_generator(ps.gen, st_kan.gen, st_lux.gen, z)
     @test size(x) == (32, 32, 1, b_size)
-    return @test !any(isnan, x)
+    return @test !any(isnan, Array(x))
 end
 
 function test_logllhood()
@@ -53,7 +53,7 @@ function test_logllhood()
     compiled_log_likelihood = Reactant.@compile log_likelihood_IS(z, x, model.lkhood, ps.gen, st_kan.gen, st_lux.gen, noise)
     logllhood, _ = compiled_log_likelihood(z, x, model.lkhood, ps.gen, st_kan.gen, st_lux.gen, noise)
     @test size(logllhood) == (b_size, b_size)
-    return @test !any(isnan, logllhood)
+    return @test !any(isnan, Array(logllhood))
 end
 
 function test_cnn_generate()
@@ -69,7 +69,7 @@ function test_cnn_generate()
     compiled_generator = Reactant.@compile model.lkhood.generator(ps.gen, st_kan.gen, st_lux.gen, z)
     x, _ = compiled_generator(ps.gen, st_kan.gen, st_lux.gen, z)
     @test size(x) == (32, 32, out_dim, b_size)
-    @test !any(isnan, x)
+    @test !any(isnan, Array(x))
     return commit!(conf, "CNN", "use_cnn_lkhood", "false")
 end
 
@@ -87,7 +87,7 @@ function test_seq_generate()
     compiled_generator = Reactant.@compile model.lkhood.generator(ps.gen, st_kan.gen, st_lux.gen, z)
     x, _ = compiled_generator(ps.gen, st_kan.gen, st_lux.gen, z)
     @test size(x) == (out_dim, 8, b_size)
-    @test !any(isnan, x)
+    @test !any(isnan, Array(x))
     return commit!(conf, "SEQ", "sequence_length", "1")
 end
 
