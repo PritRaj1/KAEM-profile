@@ -19,7 +19,7 @@ function sample_thermo(
         train_idx = 1,
         rng = Random.default_rng(),
     )
-    temps = collect(Flaot32, [(k / model.N_t)^model.p[train_idx] for k in 0:model.N_t])
+    temps = collect(Float32, [(k / model.N_t)^model.p[train_idx] for k in 0:model.N_t])
     z, st_lux = model.posterior_sampler(
         model,
         ps,
