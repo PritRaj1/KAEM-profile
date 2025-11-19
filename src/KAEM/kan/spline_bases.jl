@@ -11,6 +11,7 @@ export extend_grid,
     Cheby_basis
 
 using ComponentArrays, LinearAlgebra, Lux
+using Reactant: @allowscalar
 
 using ..Utils
 
@@ -150,49 +151,54 @@ function coef2curve_Spline(
     )
 end
 
-function lst_sq(B_i, y_i, G; ε = 1.0f-4)
-    """Reactant-compatible, gaussian elimination"""
-    A = B_i * B_i'
-    b = B_i * y_i
+function regularize(B_i, y_i, J, O, G; ε = 1.0f-4)
+    B_perm = reshape(B_i, G, 1, :, 1, J)
+    B_perm_transpose = reshape(B_perm, 1, G, :, 1, J)
+    A = dropdims(sum(B_perm .* B_perm_transpose; dims = 3); dims = (3, 4)) # G x G x 1 x J
 
-    # Forward elimination using views
+    y_perm = reshape(y_i, 1, 1, :, O, J)
+    b = dropdims(sum(B_perm .* y_perm; dims = 3); dims = (2, 3)) # G x O x J
+
+    eye = 1:G .== (1:G)' |> Lux.f32
+    @. A += ε * eye
+    return A, b
+end
+
+function forward_elimination(A, b, J, G; ε = 1.0f-4)
     for k in 1:(G - 1)
-        pivot = view(A, k, k)
-        pivot = ifelse.(pivot .== 0, ε, pivot)
-        pivot_row = view(A, k, k:G)
-        pivot_col = view(A, (k + 1):G, k)
-
-        sub_A = view(A, (k + 1):G, k:G)
-        sub_b = view(b, (k + 1):G)  # Actually use this!
+        pivot = view(A, k:k, k:k, :)
+        pivot_row = view(A, k:k, k:G, :)
+        pivot_col = view(A, (k + 1):G, k:k, :)
 
         factors = pivot_col ./ pivot
-
-        # Rank-1 update
-        sub_A .-= factors * transpose(pivot_row)
-
-        # Update RHS using sub_b
-        pivot_b = view(b, k)
-        sub_b .-= factors .* pivot_b
+        @allowscalar A[(k + 1):G, k:G, :] = view(A, (k + 1):G, k:G, :) .- factors .* pivot_row
+        @allowscalar b[(k + 1):G, :, :] = view(b, (k + 1):G, :, :) .- factors .* view(b, k:k, :, :)
     end
+    return A, b
+end
 
-    # Back substitution using ifelse
-    x = zero(b)
-    for k in G:-1:1
-        diag_elem = view(A, k, k)
-        diag_elem = ifelse.(diag_elem .== 0, ε, diag_elem)
-        rhs_elem = view(b, k)
+function backward_substitution(A, b, J, G; ε = 1.0f-4)
+    coef = zero(b)
+    A_expanded = reshape(A, G, G, 1, J)
+    diag_elem = view(A_expanded, G, G, :, :)
+    rhs_elem = view(b, G, :, :)
+    coef[G, :, :] = rhs_elem ./ diag_elem
 
-        # Use ifelse instead of if-else
-        sum_term = ifelse(
-            k == G,
-            zero(rhs_elem),  # No upper triangular part
-            sum(view(A, k, (k + 1):G) .* view(x, (k + 1):G))
+    for k in (G - 1):-1:1
+        diag_elem = view(A_expanded, k, k, :, :)
+        rhs_elem = view(b, k, :, :)
+        sum_term = dropdims(
+            sum(
+                view(A_expanded, k, (k + 1):G, :, :) .*
+                    view(coef, (k + 1):G, :, :);
+                dims = 1
+            )
+            ; dims = 1
         )
-
-        view(x, k) .= (rhs_elem .- sum_term) ./ diag_elem
+        @allowscalar coef[k, :, :] = (rhs_elem .- sum_term) ./ diag_elem
     end
 
-    return x
+    return coef
 end
 
 function curve2coef(
@@ -206,20 +212,13 @@ function curve2coef(
     )
     J, O, G = b.I, b.O, b.G
     B = b(x, grid, σ)
+    B = permutedims(B, (2, 3, 1))
+    y = permutedims(y, (3, 2, 1))
 
-    # Least squares for each input and output.
-    coef = similar(B, J, O, G)
-    for i in 1:J
-        for o in 1:O
-            coef[i, o, :] = lst_sq(
-                view(B, i, :, :),
-                view(y, i, o, :),
-                G; ε = ε
-            )
-        end
-    end
-
-    return coef
+    A, b = regularize(B, y, J, O, G; ε = ε)
+    A, b = forward_elimination(A, b, J, G; ε = ε)
+    coef = backward_substitution(A, b, J, G; ε = ε)
+    return permutedims(coef, (3, 2, 1))
 end
 
 ## FFT basis functions ###
