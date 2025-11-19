@@ -90,7 +90,7 @@ function update_model_grid(
         # Must update domain for inverse transform sampling
         if (model.MALA || model.N_t > 1 || model.prior.bool_config.ula)
             min_z, max_z = minimum(z), maximum(z)
-            new_domain = (min_z * T(0.9), max_z * T(1.1))
+            new_domain = (min_z * 0.9f0, max_z * 1.1f0)
             @reset model.prior.fcns_qp[1].grid_range = new_domain
         end
 
@@ -125,13 +125,13 @@ function update_model_grid(
                     st_kan.ebm[symbol_map[i]],
                     z,
                 )
-                @reset ps.ebm.fcn[symbol_map[i]].coef = new_coef
-                @reset st_kan.ebm[symbol_map[i]].grid = new_grid
+                ps.ebm.fcn[symbol_map[i]].coef = new_coef
+                st_kan.ebm[symbol_map[i]].grid = new_grid
 
                 if model.prior.fcns_qp[i].spline_string == "RBF"
                     @reset model.prior.fcns_qp[i].basis_function.scale =
                         (maximum(new_grid) - minimum(new_grid)) / (size(new_grid, 2) - 1) |>
-                        T
+                        Lux.f32
                 end
 
                 z = Lux.apply(
@@ -148,8 +148,8 @@ function update_model_grid(
     end
 
     new_nodes, new_weights = get_gausslegendre(model.prior, st_kan.ebm)
-    @reset st_kan.quad.nodes = new_nodes
-    @reset st_kan.quad.weights = new_weights
+    st_kan.quad.nodes = new_nodes
+    st_kan.quad.weights = new_weights
 
     # Only update if KAN-type generator requires
     (!model.update_llhood_grid || model.lkhood.CNN || model.lkhood.SEQ) &&
@@ -207,12 +207,12 @@ function update_model_grid(
                 st_kan.gen[symbol_map[i]],
                 z,
             )
-            @reset ps.gen.fcn[symbol_map[i]].coef = new_coef
-            @reset st_kan.gen[symbol_map[i]].grid = new_grid
+            ps.gen.fcn[symbol_map[i]].coef = new_coef
+            st_kan.gen[symbol_map[i]].grid = new_grid
 
             if model.lkhood.generator.Φ_fcns[i].spline_string == "RBF"
                 @reset model.lkhood.generator.Φ_fcns[i].basis_function.scale =
-                    (maximum(new_grid) - minimum(new_grid)) / (size(new_grid, 2) - 1) |> Float32
+                    (maximum(new_grid) - minimum(new_grid)) / (size(new_grid, 2) - 1) |> Lux.f32
             end
         end
 

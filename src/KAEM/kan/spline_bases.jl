@@ -10,14 +10,14 @@ export extend_grid,
     FFT_basis,
     Cheby_basis
 
-using ComponentArrays, LinearAlgebra
+using ComponentArrays, LinearAlgebra, Lux
 
 using ..Utils
 
 function extend_grid(
-        grid::AbstractArray{T, 2};
-        k_extend::Int = 0,
-    )::AbstractArray{T, 2} where {T <: Float32}
+        grid;
+        k_extend = 0,
+    )
     h = (grid[:, end] - grid[:, 1]) / (size(grid, 2) - 1)
 
     for i in 1:k_extend
@@ -36,7 +36,7 @@ struct B_spline_basis <: AbstractBasis
 end
 
 struct RBF_basis <: AbstractBasis
-    scale::Float32
+    scale
     I::Int
     O::Int
     G::Int
@@ -150,15 +150,49 @@ function coef2curve_Spline(
     )
 end
 
-function ridge_regression(B, y, i, o, G; ε = 1.0f-4)
-    """Here, '\' needs rows = measurements/samples."""
-    B_i = view(B, :, :, i)
-    y_i = view(y, :, o, i)
+function lst_sq(B_i, y_i, G; ε = 1.0f-4)
+    """Reactant-compatible, gaussian elimination"""
+    A = B_i * B_i'
+    b = B_i * y_i
 
-    λ = ε .* Array{Float32}(I, G, G)
-    BtB = B_i' * B_i .+ λ
-    Bty = B_i' * y_i
-    return reshape(BtB \ Bty, 1, 1, G)
+    # Forward elimination using views
+    for k in 1:(G - 1)
+        pivot = view(A, k, k)
+        pivot = ifelse.(pivot .== 0, ε, pivot)
+        pivot_row = view(A, k, k:G)
+        pivot_col = view(A, (k + 1):G, k)
+
+        sub_A = view(A, (k + 1):G, k:G)
+        sub_b = view(b, (k + 1):G)  # Actually use this!
+
+        factors = pivot_col ./ pivot
+
+        # Rank-1 update
+        sub_A .-= factors * transpose(pivot_row)
+
+        # Update RHS using sub_b
+        pivot_b = view(b, k)
+        sub_b .-= factors .* pivot_b
+    end
+
+    # Back substitution using ifelse
+    x = zero(b)
+    for k in G:-1:1
+        diag_elem = view(A, k, k)
+        diag_elem = ifelse.(diag_elem .== 0, ε, diag_elem)
+        rhs_elem = view(b, k)
+
+        # Use ifelse instead of if-else
+        sum_term = ifelse(
+            k == G,
+            zero(rhs_elem),  # No upper triangular part
+            sum(view(A, k, (k + 1):G) .* view(x, (k + 1):G))
+        )
+
+        view(x, k) .= (rhs_elem .- sum_term) ./ diag_elem
+    end
+
+    return x
 end
 
 function curve2coef(
@@ -173,26 +207,17 @@ function curve2coef(
     J, O, G = b.I, b.O, b.G
     B = b(x, grid, σ)
 
-    B_perm = permutedims(B, (3, 2, 1)) # S, G, I
-    y_perm = permutedims(y, (3, 2, 1)) # S, O, I
-
     # Least squares for each input and output.
-    coef = reduce(
-        vcat,
-        map(
-            i -> reduce(
-                hcat,
-                map(
-                    o -> ridge_regression(
-                        B_perm,
-                        y_perm,
-                        i, o, G;
-                        ε = ε
-                    ), 1:O
-                )
-            ), 1:J
-        )
-    )
+    coef = similar(B, J, O, G)
+    for i in 1:J
+        for o in 1:O
+            coef[i, o, :] = lst_sq(
+                view(B, i, :, :),
+                view(y, i, o, :),
+                G; ε = ε
+            )
+        end
+    end
 
     return coef
 end

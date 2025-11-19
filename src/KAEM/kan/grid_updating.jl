@@ -45,7 +45,7 @@ function update_fcn_grid(
     grid_adaptive = hcat(grid_adaptive, view(x_sort, :, sample_size))
 
     # Uniform grid
-    h = (view(grid_adaptive, :, sample_size) .- view(grid_adaptive, :, 1)) ./ num_interval # step size
+    h = (view(grid_adaptive, :, num_interval) .- view(grid_adaptive, :, 1)) ./ num_interval # step size
     range = (0:num_interval)' |> pu
     grid_uniform = h .* range .+ view(grid_adaptive, :, 1)
 

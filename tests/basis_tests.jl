@@ -98,7 +98,7 @@ function test_Cheby_basis()
     grid = rand(Float32, i, g)
     coef = rand(Float32, i, o, degree + 1)
 
-    basis_function = Cheby_basis(degree, i, o, degree + 1)
+    basis_function = Cheby_basis(degree, i, o)
 
     y = coef2curve_Spline(basis_function, x_eval, grid, coef, σ)
     @test size(y) == (i, o, b)
