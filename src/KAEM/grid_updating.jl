@@ -1,6 +1,6 @@
 module ModelGridUpdating
 
-export update_model_grid!
+export update_model_grid
 
 using Accessors, ComponentArrays, Lux, NNlib, LinearAlgebra, Random
 
@@ -12,7 +12,7 @@ using ..KAEM_model.EBM_Model
 include("kan/grid_updating.jl")
 using .GridUpdating
 
-function update_model_grid!(
+function update_model_grid(
         model,
         x,
         ps,
@@ -153,7 +153,7 @@ function update_model_grid!(
 
     # Only update if KAN-type generator requires
     (!model.update_llhood_grid || model.lkhood.CNN || model.lkhood.SEQ) &&
-        return nothing
+        return model, ps, st_kan, st_lux
 
     if model.N_t > 1
         temps = collect(Float32, [(k / model.N_t)^model.p[train_idx] for k in 1:model.N_t])
@@ -225,7 +225,7 @@ function update_model_grid!(
         z = dropdims(sum(z, dims = 1); dims = 1)
     end
 
-    return nothing
+    return model, ps, st_kan, st_lux
 end
 
 end

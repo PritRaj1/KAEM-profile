@@ -74,7 +74,7 @@ function (sampler::ULA_sampler)(
     η = sampler.η
     sqrt_2η = sqrt(2 * η)
     seq = model.lkhood.SEQ
-    num_temps, Q, S = length(temps), model.prior.q_size, size(x)[end]
+    num_temps, Q, S = max(model.N_t - 1, 1), model.prior.q_size, size(x)[end]
     P = model.prior.bool_config.mixture_model ? 1 : model.prior.p_size
 
     # Initialize from prior
