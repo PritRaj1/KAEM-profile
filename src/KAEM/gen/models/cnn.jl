@@ -17,6 +17,7 @@ struct CNN_Generator <: Lux.AbstractLuxLayer
     Φ_fcns::Tuple{Vararg{Lux.ConvTranspose}}
     batchnorms::Tuple{Vararg{Lux.BatchNorm}}
     bool_config::BoolConfig
+    in_channels::Int
 end
 
 function upsample_to_match(
@@ -194,6 +195,7 @@ function init_CNN_Generator(
         Tuple(Φ_functions),
         Tuple(batchnorms),
         BoolConfig(false, batchnorm_bool, skip_bool),
+        first(widths),
     )
 end
 
@@ -216,7 +218,7 @@ function (gen::CNN_Generator)(
     Returns:
         The generated data.
     """
-    z = reshape(sum(z, dims = 2), 1, 1, first(gen.widths), :)
+    z = reshape(sum(z, dims = 2), 1, 1, gen.in_channels, :)
     gen.bool_config.skip_bool && return forward_with_latent_concat(gen, z, ps, st_lux)
     return forward(gen, z, ps, st_lux)
 end

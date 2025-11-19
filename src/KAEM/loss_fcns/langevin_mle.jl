@@ -117,7 +117,7 @@ function langevin_loss(
         st_kan,
         st_lux,
         model,
-        x;
+        x,
         train_idx,
         rng,
     )

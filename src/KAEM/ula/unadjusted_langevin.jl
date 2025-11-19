@@ -74,7 +74,7 @@ function (sampler::ULA_sampler)(
     η = sampler.η
     sqrt_2η = sqrt(2 * η)
     seq = model.lkhood.SEQ
-    num_temps, Q, S = max(model.N_t - 1, 1), model.prior.q_size, model.max_samples
+    num_temps, Q, S = length(temps), model.prior.q_size, size(x)[end]
     P = model.prior.bool_config.mixture_model ? 1 : model.prior.p_size
 
     # Initialize from prior
@@ -116,7 +116,7 @@ function (sampler::ULA_sampler)(
     noise = randn(rng, Float32, Q, P, S * num_temps, sampler.N)
     log_u_swap = log.(rand(rng, Float32, num_temps - 1, sampler.N))
     ll_noise = randn(rng, Float32, model.lkhood.x_shape..., S, 2, num_temps, sampler.N)
-    swap_replica_idxs = num_temps > 1 ? rand(rng, 1:(num_temps - 1), sampler.N) : nothing
+    swap_replica_idxs = num_temps > 1 ? rand(rng, 1:(num_temps - 1), sampler.N) : rand(rng, 1:1, 1)
 
     for i in 1:sampler.N
         ξ = view(noise, :, :, :, i)

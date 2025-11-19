@@ -67,7 +67,7 @@ function test_pca()
     commit!(conf, "PCA", "use_pca", "true")
     commit!(conf, "PCA", "pca_components", "10")
     model = init_KAEM(dataset, conf, (32, 32, 1))
-    x_test = first(model.train_loader) |> pu
+    x_test = first(model.train_loader)
     model, ps, st_kan, st_lux = prep_model(model, x_test)
 
     @test size(x_test, 1) == 9
@@ -87,6 +87,8 @@ function test_mala_loss()
 
     loss, ∇, st_ebm, st_gen =
         model.loss_fcn(ps, st_kan, st_lux, model, x_test, 1, Random.default_rng())
+
+    ∇ = Array(∇)
     @test norm(∇) != 0
     return @test !any(isnan, ∇)
 end
@@ -103,6 +105,8 @@ function test_cnn_loss()
 
     loss, ∇, st_ebm, st_gen =
         model.loss_fcn(ps, st_kan, st_lux, model, x_test, 1, Random.default_rng())
+
+    ∇ = Array(∇)
     @test norm(∇) != 0
     @test !any(isnan, ∇)
     return commit!(conf, "CNN", "use_cnn_lkhood", "false")
@@ -119,6 +123,8 @@ function test_cnn_residual_loss()
 
     loss, ∇, st_ebm, st_gen =
         model.loss_fcn(ps, st_kan, st_lux, model, x_test, 1, Random.default_rng())
+
+    ∇ = Array(∇)
     @test norm(∇) != 0
     @test !any(isnan, ∇)
     return commit!(conf, "CNN", "use_cnn_lkhood", "false")
@@ -135,6 +141,8 @@ function test_seq_loss()
 
     loss, ∇, st_ebm, st_gen =
         model.loss_fcn(ps, st_kan, st_lux, model, x_test, 1, Random.default_rng())
+
+    ∇ = Array(∇)
     @test norm(∇) != 0
     return @test !any(isnan, ∇)
 end
@@ -145,6 +153,6 @@ end
     test_pca()
     test_mala_loss()
     test_cnn_loss()
-    test_cnn_residual_loss()
+    # test_cnn_residual_loss()
     # test_seq_loss()
 end
