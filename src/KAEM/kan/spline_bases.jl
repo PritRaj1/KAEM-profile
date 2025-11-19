@@ -11,9 +11,11 @@ export extend_grid,
     Cheby_basis
 
 using ComponentArrays, LinearAlgebra, Lux
-using Reactant: @allowscalar
 
 using ..Utils
+
+include("lst_sq.jl")
+using .LstSqSolver
 
 function extend_grid(
         grid;
@@ -151,56 +153,6 @@ function coef2curve_Spline(
     )
 end
 
-function regularize(B_i, y_i, J, O, G; ε = 1.0f-4)
-    B_perm = reshape(B_i, G, 1, :, 1, J)
-    B_perm_transpose = reshape(B_perm, 1, G, :, 1, J)
-    A = dropdims(sum(B_perm .* B_perm_transpose; dims = 3); dims = (3, 4)) # G x G x 1 x J
-
-    y_perm = reshape(y_i, 1, 1, :, O, J)
-    b = dropdims(sum(B_perm .* y_perm; dims = 3); dims = (2, 3)) # G x O x J
-
-    eye = 1:G .== (1:G)' |> Lux.f32
-    @. A += ε * eye
-    return A, b
-end
-
-function forward_elimination(A, b, J, G; ε = 1.0f-4)
-    for k in 1:(G - 1)
-        pivot = view(A, k:k, k:k, :)
-        pivot_row = view(A, k:k, k:G, :)
-        pivot_col = view(A, (k + 1):G, k:k, :)
-
-        factors = pivot_col ./ pivot
-        @allowscalar A[(k + 1):G, k:G, :] = view(A, (k + 1):G, k:G, :) .- factors .* pivot_row
-        @allowscalar b[(k + 1):G, :, :] = view(b, (k + 1):G, :, :) .- factors .* view(b, k:k, :, :)
-    end
-    return A, b
-end
-
-function backward_substitution(A, b, J, G; ε = 1.0f-4)
-    coef = zero(b)
-    A_expanded = reshape(A, G, G, 1, J)
-    diag_elem = view(A_expanded, G, G, :, :)
-    rhs_elem = view(b, G, :, :)
-    coef[G, :, :] = rhs_elem ./ diag_elem
-
-    for k in (G - 1):-1:1
-        diag_elem = view(A_expanded, k, k, :, :)
-        rhs_elem = view(b, k, :, :)
-        sum_term = dropdims(
-            sum(
-                view(A_expanded, k, (k + 1):G, :, :) .*
-                    view(coef, (k + 1):G, :, :);
-                dims = 1
-            )
-            ; dims = 1
-        )
-        @allowscalar coef[k, :, :] = (rhs_elem .- sum_term) ./ diag_elem
-    end
-
-    return coef
-end
-
 function curve2coef(
         b,
         x,
@@ -217,7 +169,7 @@ function curve2coef(
 
     A, b = regularize(B, y, J, O, G; ε = ε)
     A, b = forward_elimination(A, b, J, G; ε = ε)
-    coef = backward_substitution(A, b, J, G; ε = ε)
+    coef = dropdims(backward_substitution(A, b, J, G; ε = ε); dims = 2)
     return permutedims(coef, (3, 2, 1))
 end
 
