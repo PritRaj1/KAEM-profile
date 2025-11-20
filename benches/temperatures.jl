@@ -40,9 +40,9 @@ function setup_model(N_t)
     x_test, loader_state = iterate(model.train_loader)
     x_test = pu(x_test)
     model, ps, st_kan, st_lux = prep_model(model, x_test; rng = rng)
-    ∇ = zero(ps)
+    swap_replica_idxs = rand(1:(model.N_t - 1), model.posterior_sampler.N)
 
-    return model, ps, ∇, st_kan, st_lux, x_test
+    return model, ps, st_kan, st_lux, x_test, swap_replica_idxs
 end
 
 results = DataFrame(
@@ -54,19 +54,41 @@ results = DataFrame(
     gc_percent = Float64[],
 )
 
-function benchmark_temps(params, ∇, st_kan, st_lux, model, x_test)
-    return model.loss_fcn(params, ∇, st_kan, st_lux, model, x_test)
+function benchmark_temps(params, st_kan, st_lux, model, x_test, swap)
+    return model.loss_fcn(
+        params,
+        st_kan,
+        st_lux,
+        model,
+        x_test,
+        1,
+        Random.default_rng(),
+        swap
+    )
 end
 
 for N_t in [2, 4, 6, 8, 10, 12]
     println("Benchmarking N_t = $N_t...")
 
-    model, ps, ∇, st_kan, st_lux, x_test = setup_model(N_t)
+    model, ps, st_kan, st_lux, x_test, swap = setup_model(N_t)
 
-    CUDA.reclaim()
-    GC.gc()
-
-    b = @benchmark benchmark_temps($ps, $∇, $st_kan, $st_lux, $model, $x_test)
+    b = @benchmark f(
+        $ps,
+        $st_kan,
+        $st_lux,
+        $model,
+        $x_test,
+        $swap
+    ) setup = (
+        f = Reactant.@compile sync = true benchmark_temps(
+            $ps,
+            $st_kan,
+            $st_lux,
+            $model,
+            $x_test,
+            $swap
+        )
+    )
 
     push!(
         results,

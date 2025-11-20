@@ -180,7 +180,6 @@ function train!(t::KAEM_trainer; train_idx::Int = 1)
     num_batches = length(t.model.train_loader)
     grid_updated = 0
     num_param_updates = num_batches * t.N_epochs
-    grads = (t.ps .* 0)
 
     loss_file = t.model.file_loc * "loss.csv"
 

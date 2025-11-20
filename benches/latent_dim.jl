@@ -1,4 +1,4 @@
-using BenchmarkTools, ConfParser, Lux, Random, ComponentArrays, CSV, DataFrames
+using BenchmarkTools, ConfParser, Lux, Random, ComponentArrays, CSV, DataFrames, Reactant
 
 ENV["GPU"] = true
 
@@ -40,9 +40,8 @@ function setup_model(n_z)
     x_test, loader_state = iterate(model.train_loader)
     x_test = pu(x_test)
     model, params, st_kan, st_lux = prep_model(model, x_test; rng = rng)
-    ∇ = zero(params)
 
-    return model, params, ∇, st_kan, st_lux, x_test
+    return model, params, st_kan, st_lux, x_test
 end
 
 results = DataFrame(
@@ -54,19 +53,39 @@ results = DataFrame(
     gc_percent = Float64[],
 )
 
-function benchmark_latent_dim(params, ∇, st_kan, st_lux, model, x_test)
-    return model.loss_fcn(params, ∇, st_kan, st_lux, model, x_test)
+function benchmark_latent_dim(params, st_kan, st_lux, model, x_test)
+    return model.loss_fcn(
+        params,
+        st_kan,
+        st_lux,
+        model,
+        x_test,
+        1,
+        Random.default_rng(),
+        nothing
+    )
 end
 
 for n_z in [10, 20, 30, 40, 50]
     println("Benchmarking n_z = $n_z...")
 
-    model, params, ∇, st_kan, st_lux, x_test = setup_model(n_z)
+    model, params, st_kan, st_lux, x_test = setup_model(n_z)
 
-    CUDA.reclaim()
-    GC.gc()
-
-    b = @benchmark benchmark_latent_dim($params, $∇, $st_kan, $st_lux, $model, $x_test)
+    b = @benchmark f(
+        $params,
+        $st_kan,
+        $st_lux,
+        $model,
+        $x_test
+    ) setup = (
+        f = Reactant.@compile sync = true benchmark_latent_dim(
+            $ps,
+            $st_kan,
+            $st_lux,
+            $model,
+            $x_test
+        )
+    )
 
     push!(
         results,
