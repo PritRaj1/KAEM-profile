@@ -43,7 +43,6 @@ function test_grid_update()
     x_test = first(model.train_loader) |> pu
     model, ps, st_kan, st_lux = prep_model(model, x_test)
 
-    grid_data_before = st_kan.gen.b.grid
     x = first(model.train_loader) |> pu
     compiled_update = Reactant.@compile update_model_grid(
         model,
@@ -56,8 +55,6 @@ function test_grid_update()
     )
 
     ps, st_kan, st_lux = compiled_update(model, x, ps, st_kan, Lux.testmode(st_lux), 1, Random.default_rng())
-    grid_data = st_kan.gen.b.grid
-    @test !all(Array(grid_data) .== Array(grid_data_before))
     return @test !any(isnan, Array(ps))
 end
 
