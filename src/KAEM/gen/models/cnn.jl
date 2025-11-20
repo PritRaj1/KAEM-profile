@@ -53,7 +53,7 @@ function forward_with_latent_concat(
             gen.Φ_fcns[i],
             current_z,
             @view(ps.fcn[symbol_map[i]]),
-            @view(st_lux_new.fcn[symbol_map[i]]),
+            st_lux_new.fcn[symbol_map[i]],
         )
         @reset st_lux_new.fcn[symbol_map[i]] = st_layer_new
 
@@ -63,7 +63,7 @@ function forward_with_latent_concat(
                 gen.batchnorms[i],
                 current_z,
                 @view(ps.batchnorm[symbol_map[i]]),
-                @view(st_lux_new.batchnorm[symbol_map[i]]),
+                st_lux_new.batchnorm[symbol_map[i]],
             ) : (current_z, nothing)
         if gen.bool_config.batchnorm && i < gen.depth
             @reset st_lux_new.batchnorm[symbol_map[i]] = st_layer_new

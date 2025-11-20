@@ -26,9 +26,11 @@ function test_model_derivative()
     model = init_KAEM(dataset, conf, (32, 32, 1))
     x_test = first(model.train_loader) |> pu
     model, ps, st_kan, st_lux = prep_model(model, x_test)
+    swap_replica_idxs = rand(rng, 1:(model.N_t - 1), model.posterior_sampler.N)
+
 
     loss, ∇, st_ebm, st_gen =
-        model.loss_fcn(ps, st_kan, st_lux, model, x_test, 1, Random.default_rng())
+        model.loss_fcn(ps, st_kan, st_lux, model, x_test, 1, Random.default_rng(), swap_replica_idxs)
 
     ∇ = Array(∇)
     @test norm(∇) != 0

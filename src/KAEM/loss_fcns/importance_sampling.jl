@@ -181,6 +181,7 @@ function importance_loss(
         x,
         train_idx,
         rng,
+        swap_replica_idxs,
     )
 
     z_posterior, z_prior, st_lux_ebm, st_lux_gen, weights_resampled, resampled_mask, noise =

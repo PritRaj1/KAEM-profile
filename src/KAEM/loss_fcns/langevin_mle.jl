@@ -120,6 +120,7 @@ function langevin_loss(
         x,
         train_idx,
         rng,
+        swap_replica_idxs,
     )
     z_posterior, st_new, noise =
         sample_langevin(ps, st_kan, Lux.testmode(st_lux), model, x; rng = rng)

@@ -29,7 +29,7 @@ function test_ps_derivative()
     model, ps, st_kan, st_lux = prep_model(model, x_test)
 
     loss, ∇, st_ebm, st_gen =
-        model.loss_fcn(ps, st_kan, st_lux, model, x_test, 1, Random.default_rng())
+        model.loss_fcn(ps, st_kan, st_lux, model, x_test, 1, Random.default_rng(), nothing)
 
     ∇ = Array(∇)
     @test norm(∇) != 0
@@ -86,7 +86,7 @@ function test_mala_loss()
     model, ps, st_kan, st_lux = prep_model(model, x_test)
 
     loss, ∇, st_ebm, st_gen =
-        model.loss_fcn(ps, st_kan, st_lux, model, x_test, 1, Random.default_rng())
+        model.loss_fcn(ps, st_kan, st_lux, model, x_test, 1, Random.default_rng(), nothing)
 
     ∇ = Array(∇)
     @test norm(∇) != 0
@@ -104,7 +104,7 @@ function test_cnn_loss()
     model, ps, st_kan, st_lux = prep_model(model, x_test)
 
     loss, ∇, st_ebm, st_gen =
-        model.loss_fcn(ps, st_kan, st_lux, model, x_test, 1, Random.default_rng())
+        model.loss_fcn(ps, st_kan, st_lux, model, x_test, 1, Random.default_rng(), nothing)
 
     ∇ = Array(∇)
     @test norm(∇) != 0
@@ -122,7 +122,7 @@ function test_cnn_residual_loss()
     model, ps, st_kan, st_lux = prep_model(model, x_test)
 
     loss, ∇, st_ebm, st_gen =
-        model.loss_fcn(ps, st_kan, st_lux, model, x_test, 1, Random.default_rng())
+        model.loss_fcn(ps, st_kan, st_lux, model, x_test, 1, Random.default_rng(), nothing)
 
     ∇ = Array(∇)
     @test norm(∇) != 0
@@ -140,7 +140,7 @@ function test_seq_loss()
     model, ps, st_kan, st_lux = prep_model(model, x_test)
 
     loss, ∇, st_ebm, st_gen =
-        model.loss_fcn(ps, st_kan, st_lux, model, x_test, 1, Random.default_rng())
+        model.loss_fcn(ps, st_kan, st_lux, model, x_test, 1, Random.default_rng(), nothing)
 
     ∇ = Array(∇)
     @test norm(∇) != 0

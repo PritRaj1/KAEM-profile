@@ -242,6 +242,13 @@ function train!(t::KAEM_trainer; train_idx::Int = 1)
             t.model.verbose && println("Iter: $(train_idx), Grid updated")
         end
 
+        # Rand like this cannot be compiled with MLIR
+        swap_replica_idxs = (
+            t.model.N_t > 1 ?
+                rand(t.rng, 1:(t.model.N_t - 1), t.model.posterior_sampler.N) :
+                nothing
+        )
+
         t.loss, grads, st_ebm, st_gen = t.model.loss_fcn(
             t.ps,
             t.st_kan,
@@ -250,6 +257,7 @@ function train!(t::KAEM_trainer; train_idx::Int = 1)
             t.x,
             train_idx,
             t.rng,
+            swap_replica_idxs
         )
         copy!(G, (grads))
         @reset t.st_lux.ebm = st_ebm

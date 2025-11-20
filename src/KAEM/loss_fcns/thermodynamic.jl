@@ -18,6 +18,7 @@ function sample_thermo(
         x;
         train_idx = 1,
         rng = Random.default_rng(),
+        swap_replica_idxs = nothing,
     )
     temps = collect(Float32, [(k / model.N_t)^model.p[train_idx] for k in 0:model.N_t])
     z, st_lux = model.posterior_sampler(
@@ -28,10 +29,11 @@ function sample_thermo(
         x;
         temps = temps[2:end],
         rng = rng,
+        swap_replica_idxs = swap_replica_idxs,
     )
 
-    Δt = pu(temps[2:end] - temps[1:(end - 1)])
-    tempered_noise = randn(rng, Float32, model.lkhood.x_shape..., prod(size(z)[3:4])) |> pu
+    Δt = temps[2:end] - temps[1:(end - 1)]
+    tempered_noise = randn(rng, Float32, model.lkhood.x_shape..., prod(size(z)[3:4]))
     noise = randn(rng, Float32, model.lkhood.x_shape..., size(x)[end])
     return z, Δt, st_lux, noise, tempered_noise
 end
@@ -165,6 +167,7 @@ function thermodynamic_loss(
         x,
         train_idx,
         rng,
+        swap_replica_idxs,
     )
     z_posterior, Δt, st_lux, noise, tempered_noise = sample_thermo(
         ps,
@@ -174,6 +177,7 @@ function thermodynamic_loss(
         x;
         train_idx = train_idx,
         rng = rng,
+        swap_replica_idxs = swap_replica_idxs,
     )
     st_lux_ebm, st_lux_gen = st_lux.ebm, st_lux.gen
     z_prior, st_ebm =

@@ -16,6 +16,9 @@ using ..KAEM_model
 include("updates.jl")
 using .LangevinUpdates
 
+include("../gen/loglikelihoods.jl")
+using .LogLikelihoods: log_likelihood_MALA
+
 π_dist = Dict(
     "uniform" => (p, b, rng) -> rand(rng, Float32, p, 1, b),
     "gaussian" => (p, b, rng) -> randn(rng, Float32, p, 1, b),
@@ -48,6 +51,7 @@ function (sampler::ULA_sampler)(
         x;
         temps = [1.0f0],
         rng = Random.default_rng(),
+        swap_replica_idxs = nothing,
     )
     """
     Unadjusted Langevin Algorithm (ULA) sampler to generate posterior samples.
@@ -117,7 +121,6 @@ function (sampler::ULA_sampler)(
     noise = randn(rng, Float32, Q, P, S * num_temps, sampler.N)
     log_u_swap = log.(rand(rng, Float32, num_temps - 1, sampler.N))
     ll_noise = randn(rng, Float32, model.lkhood.x_shape..., S, 2, num_temps, sampler.N)
-    swap_replica_idxs = num_temps > 1 ? rand(rng, 1:(model.N_t - 1), sampler.N) : nothing
 
     for i in 1:sampler.N
         ξ = view(noise, :, :, :, i)
@@ -171,11 +174,11 @@ function (sampler::ULA_sampler)(
             )
 
             log_swap_ratio = (temps[t + 1] - temps[t]) .* (sum(ll_t) - sum(ll_t1))
-            swap = T(log_u_swap[t, i] < log_swap_ratio)
+            swap = view(log_u_swap, t:t, i:i) .< log_swap_ratio
             @reset st_lux.gen = st_gen
 
-            z[:, :, :, t] .= swap .* z_t1 .+ (1 - swap) .* z_t
-            z[:, :, :, t + 1] .= (1 - swap) .* z_t1 .+ swap .* z_t
+            z[:, :, :, t] .= swap .* z_t1 .+ (1 .- swap) .* z_t
+            z[:, :, :, t + 1] .= (1 .- swap) .* z_t1 .+ swap .* z_t
             z_flat .= (reshape(z, Q, P, S * num_temps))
         end
     end

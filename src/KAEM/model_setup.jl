@@ -46,6 +46,12 @@ function setup_training(
     max_samples = max(model.IS_samples, batch_size)
     x = zeros(T, model.lkhood.x_shape..., max_samples) |> pu
 
+    swap_replica_idxs = (
+        model.N_t > 1 ?
+            rand(rng, 1:(model.N_t - 1), num_steps) :
+            nothing
+    )
+
     # Defaults
     @reset model.loss_fcn = begin
         if MLIR
@@ -56,7 +62,8 @@ function setup_training(
                 model,
                 x,
                 1,
-                rng
+                rng,
+                swap_replica_idxs
             )
         else
             importance_loss
@@ -79,7 +86,8 @@ function setup_training(
                     model,
                     x,
                     1,
-                    rng
+                    rng,
+                    swap_replica_idxs
                 )
             else
                 thermodynamic_loss
@@ -97,7 +105,8 @@ function setup_training(
                     model,
                     x,
                     1,
-                    rng
+                    rng,
+                    swap_replica_idxs
                 )
             else
                 langevin_loss
