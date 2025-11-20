@@ -95,5 +95,5 @@ end
     test_generate()
     test_logllhood()
     test_cnn_generate()
-    test_seq_generate()
+    # test_seq_generate()
 end

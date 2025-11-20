@@ -42,7 +42,7 @@ function init_function(
         out_dim::Int;
         spline_degree::Int = 3,
         base_activation::AbstractString = "silu",
-        spline_function::AbstractString = "B-spline",
+        spline_function::AbstractString = "RBF",
         grid_size::Int = 5,
         grid_update_ratio::T = 0.02f0,
         grid_range::Tuple{T, T} = (0.0f0, 1.0f0),
@@ -72,7 +72,7 @@ function init_function(
     A = typeof(base_activation_obj)
 
     initializer =
-        get(SplineBasis_mapping, spline_function, (degree, I, O, G) -> B_spline_basis(degree, I, O, G))
+        get(SplineBasis_mapping, spline_function, (degree, I, O, G) -> RBF_basis(I, O, G))
 
     basis_function = initializer(spline_degree, in_dim, out_dim, size(grid, 2))
 

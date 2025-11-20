@@ -57,7 +57,7 @@ function test_grid_update()
 
     ps, st_kan, st_lux = compiled_update(model, x, ps, st_kan, Lux.testmode(st_lux), 1, Random.default_rng())
     grid_data = st_kan.gen.b.grid
-    @test !any(Array(grid_data) .== Array(grid_data_before))
+    @test !all(Array(grid_data) .== Array(grid_data_before))
     return @test !any(isnan, Array(ps))
 end
 

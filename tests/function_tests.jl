@@ -38,7 +38,7 @@ function test_grid_update()
     y = compiled_f(x, ps, st)
     compiled_update = Reactant.@compile update_fcn_grid(f, ps, st, x)
     grid, coef = compiled_update(f, ps, st, x)
-    return @test size(grid) == (5, 12)
+    return @test !all(st.grid .== Array(grid))
 end
 
 @testset "Univariate Funtion Tests" begin
