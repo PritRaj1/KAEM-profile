@@ -35,7 +35,7 @@ function update_fcn_grid(
     y =
         l.spline_string == "FFT" ?
         coef2curve_FFT(l.basis_function, x_sort, st.grid, coef, τ) :
-        coef2curve_Spline(l.basis_function, x_sort, st.grid, coef, τ)
+        coef2curve_Spline(l.basis_function, x_sort, st.grid, coef, τ, st.scale)
 
     # Adaptive grid - concentrate grid points around regions of higher density
     num_interval = size(st.grid, 2) - 2 * l.spline_degree - 1
@@ -52,9 +52,15 @@ function update_fcn_grid(
     # Grid is a convex combination of the uniform and adaptive grid
     grid = l.grid_update_ratio .* grid_uniform + (1 - l.grid_update_ratio) .* grid_adaptive
     new_grid = extend_grid(grid; k_extend = l.spline_degree)
-    new_coef =
-        l.spline_string == "FFT" ? curve2coef(l.basis_function, x_sort, y, new_grid, τ; ε = l.ε_ridge) :
-        curve2coef(l.basis_function, x_sort, y, new_grid, τ; ε = l.ε_ridge)
+    new_coef = curve2coef(
+        l.basis_function,
+        x_sort,
+        y,
+        new_grid,
+        τ,
+        st.scale;
+        ε = l.ε_ridge
+    )
 
     return new_grid, new_coef
 end

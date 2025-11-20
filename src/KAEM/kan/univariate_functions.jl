@@ -12,9 +12,9 @@ using .spline_functions
 
 const SplineBasis_mapping = Dict(
     "B-spline" => (degree, in_dim, out_dim, grid_size) -> B_spline_basis(degree, in_dim, out_dim, grid_size + 1),
-    "RBF" => (scale, in_dim, out_dim, grid_size) -> RBF_basis(scale, in_dim, out_dim, grid_size),
-    "RSWAF" => (in_dim, out_dim, grid_size) -> RSWAF_basis(in_dim, out_dim, grid_size),
-    "FFT" => (in_dim, out_dim, grid_size) -> FFT_basis(in_dim, out_dim, grid_size),
+    "RBF" => (degree, in_dim, out_dim, grid_size) -> RBF_basis(in_dim, out_dim, grid_size),
+    "RSWAF" => (degree, in_dim, out_dim, grid_size) -> RSWAF_basis(in_dim, out_dim, grid_size),
+    "FFT" => (degree, in_dim, out_dim, grid_size) -> FFT_basis(in_dim, out_dim, grid_size),
     "Cheby" => (degree, in_dim, out_dim, grid_size) -> Cheby_basis(degree, in_dim, out_dim),
 )
 
@@ -74,9 +74,7 @@ function init_function(
     initializer =
         get(SplineBasis_mapping, spline_function, (degree, I, O, G) -> B_spline_basis(degree, I, O, G))
 
-    scale = (maximum(grid) - minimum(grid)) / (size(grid, 2) - 1)
-    basis_function =
-        spline_function == "RBF" ? RBF_basis(scale, in_dim, out_dim, size(grid, 2)) : initializer(spline_degree, in_dim, out_dim, size(grid, 2))
+    basis_function = initializer(spline_degree, in_dim, out_dim, size(grid, 2))
 
     return univariate_function{T, A}(
         in_dim,
@@ -118,12 +116,16 @@ function Lux.initialparameters(
             (rand(rng, Float32, l.in_dim, l.out_dim, l.grid_size) .- 0.5f0) .*
                 l.ε_scale ./ l.grid_size
         )
+
+        grid = l.init_grid
+        scale = (maximum(grid) - minimum(grid)) / (size(grid, 2) - 1) |> Lux.f32
         coef = curve2coef(
             l.basis_function,
             l.init_grid[:, (l.spline_degree + 1):(end - l.spline_degree)],
             ε,
             l.init_grid,
             l.init_τ,
+            scale,
             init = true,
             ε = l.ε_ridge
         )
@@ -146,7 +148,20 @@ function Lux.initialstates(
         rng::AbstractRNG,
         l::univariate_function{T, A},
     )::NamedTuple where {T <: Float32, A <: AbstractActivation}
-    return (grid = l.init_grid, basis_τ = l.init_τ)
+    grid = l.init_grid
+    scale = (maximum(grid) - minimum(grid)) / (size(grid, 2) - 1) |> Lux.f32
+
+    # Domain
+    min_z = [first(l.grid_range)]
+    max_z = [last(l.grid_range)]
+
+    return (
+        grid = grid,
+        basis_τ = l.init_τ,
+        scale = [scale],
+        min = min_z,
+        max = max_z,
+    )
 
 end
 
@@ -168,10 +183,11 @@ function (l::univariate_function)(
         st,
     )
     basis_τ = l.τ_trainable ? ps.basis_τ : st.basis_τ
+    scale = st.scale
     y =
         l.spline_string == "FFT" ?
         coef2curve_FFT(l.basis_function, x, st.grid, ps.coef, basis_τ) :
-        coef2curve_Spline(l.basis_function, x, st.grid, ps.coef, basis_τ)
+        coef2curve_Spline(l.basis_function, x, st.grid, ps.coef, basis_τ, scale)
     l.spline_string == "Cheby" && return y
     return SplineMUL(l, ps, x, y)
 end

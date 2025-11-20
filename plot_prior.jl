@@ -65,8 +65,8 @@ for fcn_type in ["RBF", "FFT"]
             )
 
             if no_grid
-                a = fill(Float32(first(prior.prior_domain)), size(a)) |> pu
-                b = fill(Float32(last(prior.prior_domain)), size(b)) |> pu
+                a = fill(Float32(first(st_kan[:a].min)), size(a)) |> pu
+                b = fill(Float32(last(st_kan[:a].max)), size(b)) |> pu
             end
 
             z = (a + b) ./ 2 .+ (b - a) ./ 2 .* pu(prior.nodes)

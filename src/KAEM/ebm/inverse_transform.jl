@@ -97,14 +97,13 @@ function sample_mixture(
     if ebm.bool_config.use_attention_kernel
         z = rand(rng, Float32, ebm.q_size, num_samples)
         scale = sqrt(Float32(num_samples))
-        min_z, max_z = ebm.prior_domain
         alpha = dotprod_attn(
             ps.attention.Q,
             ps.attention.K,
             z,
             scale,
-            min_z,
-            max_z,
+            st_kan[:a].min,
+            st_kan[:a].max
         )
     end
     mask = choose_component(alpha, num_samples, ebm.q_size, ebm.p_size; rng = rng)

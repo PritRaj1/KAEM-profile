@@ -90,8 +90,8 @@ function update_model_grid(
         # Must update domain for inverse transform sampling
         if (model.MALA || model.N_t > 1 || model.prior.bool_config.ula)
             min_z, max_z = minimum(z), maximum(z)
-            new_domain = (min_z * 0.9f0, max_z * 1.1f0)
-            @reset model.prior.fcns_qp[1].grid_range = new_domain
+            st_kan.ebm[:a].min = [min_z * 0.9f0]
+            st_kan.ebm[:a].max = [max_z * 1.1f0]
         end
 
         if !(
@@ -129,9 +129,8 @@ function update_model_grid(
                 st_kan.ebm[symbol_map[i]].grid = new_grid
 
                 if model.prior.fcns_qp[i].spline_string == "RBF"
-                    @reset model.prior.fcns_qp[i].basis_function.scale =
-                        (maximum(new_grid) - minimum(new_grid)) / (size(new_grid, 2) - 1) |>
-                        Lux.f32
+                    scale = (maximum(new_grid) - minimum(new_grid)) / (size(new_grid, 2) - 1) |> Lux.f32
+                    st_kan.ebm[symbol_map[i]].scale = [scale]
                 end
 
                 z = Lux.apply(
@@ -153,7 +152,7 @@ function update_model_grid(
 
     # Only update if KAN-type generator requires
     (!model.update_llhood_grid || model.lkhood.CNN || model.lkhood.SEQ) &&
-        return model, ps, st_kan, st_lux
+        return ps, st_kan, st_lux
 
     if model.N_t > 1
         temps = collect(Float32, [(k / model.N_t)^model.p[train_idx] for k in 1:model.N_t])
@@ -211,8 +210,8 @@ function update_model_grid(
             st_kan.gen[symbol_map[i]].grid = new_grid
 
             if model.lkhood.generator.Φ_fcns[i].spline_string == "RBF"
-                @reset model.lkhood.generator.Φ_fcns[i].basis_function.scale =
-                    (maximum(new_grid) - minimum(new_grid)) / (size(new_grid, 2) - 1) |> Lux.f32
+                scale = (maximum(new_grid) - minimum(new_grid)) / (size(new_grid, 2) - 1) |> Lux.f32
+                st_kan.gen[symbol_map[i]].scale = [scale]
             end
         end
 
@@ -225,7 +224,7 @@ function update_model_grid(
         z = dropdims(sum(z, dims = 1); dims = 1)
     end
 
-    return model, ps, st_kan, st_lux
+    return ps, st_kan, st_lux
 end
 
 end

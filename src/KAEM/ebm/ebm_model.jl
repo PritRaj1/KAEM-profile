@@ -40,7 +40,6 @@ struct EbmModel{T <: Float32, A <: AbstractActivation} <: Lux.AbstractLuxLayer
     quad::AbstractQuadrature
     N_quad::Int
     λ::T
-    prior_domain::Tuple{T, T}
 end
 
 function init_EbmModel(conf::ConfParse; rng::AbstractRNG = Random.default_rng())
@@ -157,7 +156,6 @@ function init_EbmModel(conf::ConfParse; rng::AbstractRNG = Random.default_rng())
         quad_fcn,
         N_quad,
         reg,
-        Tuple(prior_domain),
     )
 end
 

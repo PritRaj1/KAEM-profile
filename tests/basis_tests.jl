@@ -8,7 +8,7 @@ using .Utils
 include("../src/KAEM/kan/spline_bases.jl")
 using .spline_functions
 
-b, o, i, g, degree, σ = 100, 8, 7, 2, 2, [one(Float32)]
+b, o, i, g, degree, σ, scale = 100, 8, 7, 2, 2, [one(Float32)], [one(Float32)]
 
 function test_extend_grid()
     Random.seed!(42)
@@ -27,14 +27,14 @@ function test_B_spline_basis()
 
     basis_function = B_spline_basis(degree, i, o, size(extended_grid, 2))
 
-    y = coef2curve_Spline(basis_function, x_eval, extended_grid, coef, σ)
+    y = coef2curve_Spline(basis_function, x_eval, extended_grid, coef, σ, scale)
     @test size(y) == (i, o, b)
     @test !any(isnan.(y))
 
-    recovered_coef = curve2coef(basis_function, x_eval, y, extended_grid, σ; init = true, ε = 1.0f-4)
+    recovered_coef = curve2coef(basis_function, x_eval, y, extended_grid, σ, scale; init = true, ε = 1.0f-4)
     @test size(recovered_coef) == size(coef)
     y_reconstructed =
-        coef2curve_Spline(basis_function, x_eval, extended_grid, recovered_coef, σ)
+        coef2curve_Spline(basis_function, x_eval, extended_grid, recovered_coef, σ, scale)
     return @test norm(y - y_reconstructed) < Float32(0.1)
 end
 
@@ -45,16 +45,15 @@ function test_RBF_basis()
     grid = rand(Float32, i, g)
     coef = rand(Float32, i, o, g)
 
-    scale = (maximum(grid) - minimum(grid)) / (size(grid, 2) - 1)
-    basis_function = RBF_basis(scale, i, o, g)
+    basis_function = RBF_basis(i, o, g)
 
-    y = coef2curve_Spline(basis_function, x_eval, grid, coef, σ)
+    y = coef2curve_Spline(basis_function, x_eval, grid, coef, σ, scale)
     @test size(y) == (i, o, b)
     @test !any(isnan.(y))
 
-    recovered_coef = curve2coef(basis_function, x_eval, y, grid, σ; init = true, ε = 1.0f-4)
+    recovered_coef = curve2coef(basis_function, x_eval, y, grid, σ, scale; init = true, ε = 1.0f-4)
     @test size(recovered_coef) == size(coef)
-    y_reconstructed = coef2curve_Spline(basis_function, x_eval, grid, recovered_coef, σ)
+    y_reconstructed = coef2curve_Spline(basis_function, x_eval, grid, recovered_coef, σ, scale)
     return @test norm(y - y_reconstructed) < Float32(0.1)
 end
 
@@ -67,13 +66,13 @@ function test_RSWAF_basis()
 
     basis_function = RSWAF_basis(i, o, g)
 
-    y = coef2curve_Spline(basis_function, x_eval, grid, coef, σ)
+    y = coef2curve_Spline(basis_function, x_eval, grid, coef, σ, scale)
     @test size(y) == (i, o, b)
     @test !any(isnan.(y))
 
-    recovered_coef = curve2coef(basis_function, x_eval, y, grid, σ; init = true, ε = 1.0f-4)
+    recovered_coef = curve2coef(basis_function, x_eval, y, grid, σ, scale; init = true, ε = 1.0f-4)
     @test size(recovered_coef) == size(coef)
-    y_reconstructed = coef2curve_Spline(basis_function, x_eval, grid, recovered_coef, σ)
+    y_reconstructed = coef2curve_Spline(basis_function, x_eval, grid, recovered_coef, σ, scale)
     return @test norm(y - y_reconstructed) < Float32(0.1)
 end
 
@@ -100,13 +99,13 @@ function test_Cheby_basis()
 
     basis_function = Cheby_basis(degree, i, o)
 
-    y = coef2curve_Spline(basis_function, x_eval, grid, coef, σ)
+    y = coef2curve_Spline(basis_function, x_eval, grid, coef, σ, scale)
     @test size(y) == (i, o, b)
     @test !any(isnan.(y))
 
-    recovered_coef = curve2coef(basis_function, x_eval, y, grid, σ; init = true, ε = 1.0f-4)
+    recovered_coef = curve2coef(basis_function, x_eval, y, grid, σ, scale; init = true, ε = 1.0f-4)
     @test size(recovered_coef) == size(coef)
-    y_reconstructed = coef2curve_Spline(basis_function, x_eval, grid, recovered_coef, σ)
+    y_reconstructed = coef2curve_Spline(basis_function, x_eval, grid, recovered_coef, σ, scale)
     return @test norm(y - y_reconstructed) < Float32(0.1)
 end
 

@@ -39,7 +39,6 @@ struct B_spline_basis <: AbstractBasis
 end
 
 struct RBF_basis <: AbstractBasis
-    scale
     I::Int
     O::Int
     G::Int
@@ -67,7 +66,8 @@ end
 function (b::B_spline_basis)(
         x,
         grid,
-        σ
+        σ,
+        scale
     )
     I, G = b.I, b.G - 1
     x = reshape(x, I, 1, :)
@@ -106,16 +106,18 @@ function (b::RBF_basis)(
         x,
         grid,
         σ,
+        scale
     )
     I, G = b.I, b.G
     x_3d = reshape(x, I, 1, :)
-    return @. exp(-((x_3d - grid) * (b.scale * σ))^2 / 2)
+    return @. exp(-((x_3d - grid) * (scale * σ))^2 / 2)
 end
 
 function (b::RSWAF_basis)(
         x,
         grid,
         σ,
+        scale
     )
     I, G = b.I, b.G
     x_3d = reshape(x, I, 1, :)
@@ -127,6 +129,7 @@ function (b::Cheby_basis)(
         x,
         grid,
         σ,
+        scale
     )
     I = b.I
     x = reshape(x, I, 1, :)
@@ -140,9 +143,10 @@ function coef2curve_Spline(
         grid,
         coef,
         σ,
+        scale
     )
     I, O, G = b.I, b.O, b.G
-    spl = b(x_eval, grid, σ)
+    spl = b(x_eval, grid, σ, scale)
     spl_4d = reshape(spl, I, 1, :, G)
     coef_4d = reshape(coef, I, O, 1, G)
 
@@ -158,12 +162,13 @@ function curve2coef(
         x,
         y,
         grid,
-        σ;
+        σ,
+        scale;
         init = false,
         ε = 1.0f-4
     )
     J, O, G = b.I, b.O, b.G
-    B = b(x, grid, σ)
+    B = b(x, grid, σ, scale)
     B = permutedims(B, (2, 3, 1))
     y = permutedims(y, (3, 2, 1))
 
