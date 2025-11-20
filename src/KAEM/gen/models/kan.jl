@@ -150,7 +150,7 @@ function (gen::KAN_Generator)(
                 gen.layernorms[i],
                 z,
                 @view(ps.layernorm[symbol_map[i]]),
-                @view(st_lyrnorm_new[symbol_map[i]]),
+                st_lyrnorm_new[symbol_map[i]],
             ) : (z, nothing)
         if gen.bool_config.layernorm
             @reset st_lyrnorm_new[symbol_map[i]] = st_layer_new

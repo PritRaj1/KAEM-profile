@@ -4,6 +4,7 @@ export pu,
     xdev,
     symbol_map,
     activation_mapping,
+    lux_activation_mapping,
     AbstractActivation,
     AbstractBasis,
     AbstractPrior,
@@ -106,6 +107,19 @@ const activation_mapping::Dict{String, AbstractActivation} = Dict(
     "none" => NoneActivation(),
     "identity" => IdentityActivation(),
     "sequence" => SeqActivation(),
+)
+
+const lux_activation_mapping::Dict{String, Function} = Dict(
+    "relu" => NNlib.relu,
+    "leakyrelu" => NNlib.leakyrelu,
+    "tanh" => NNlib.tanh_fast,
+    "sigmoid" => NNlib.sigmoid_fast,
+    "swish" => NNlib.hardswish,
+    "gelu" => NNlib.gelu,
+    "selu" => NNlib.selu,
+    "elu" => NNlib.elu,
+    "celu" => NNlib.celu,
+    "identity" => identity,
 )
 
 abstract type AbstractBasis end

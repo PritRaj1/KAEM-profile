@@ -189,7 +189,7 @@ function (ebm::EbmModel)(
                 ebm.layernorms[i - 1],
                 z,
                 @view(ps.layernorm[symbol_map[i]]),
-                @view(st_lyrnorm_new[symbol_map[i]]),
+                st_lyrnorm_new[symbol_map[i]],
             ) : (z, nothing)
 
         if ebm.bool_config.layernorm && i != 1

@@ -52,7 +52,40 @@ function setup_training(
             nothing
     )
 
-    # Defaults
+    # Prior sampling setup
+    if model.prior.bool_config.ula
+        num_steps_prior = parse(Int, retrieve(conf, "PRIOR_LANGEVIN", "iters"))
+        step_size_prior = parse(Float32, retrieve(conf, "PRIOR_LANGEVIN", "step_size"))
+
+        prior_sampler = initialize_ULA_sampler(;
+            η = step_size_prior,
+            N = num_steps_prior,
+            prior_sampling_bool = true,
+        )
+
+        @reset model.sample_prior =
+            (m, n, p, sk, sl, r) -> prior_sampler(m, p, sk, Lux.trainmode(sl), x; rng = r)
+
+        @reset model.log_prior = LogPriorULA(model.ε)
+        println("Prior sampler: ULA")
+    elseif model.prior.bool_config.mixture_model
+        @reset model.sample_prior =
+            (m, n, p, sk, sl, r) ->
+        sample_mixture(m.prior, n, p.ebm, sk.ebm, Lux.testmode(sl.ebm), sk.quad; rng = r)
+
+        @reset model.log_prior =
+            LogPriorMix(model.ε, !model.prior.bool_config.contrastive_div)
+        println("Prior sampler: Mix ITS")
+    else
+        @reset model.sample_prior =
+            (m, n, p, sk, sl, r) ->
+        sample_univariate(m.prior, n, p.ebm, sk.ebm, Lux.testmode(sl.ebm), sk.quad; rng = r)
+        @reset model.log_prior =
+            LogPriorUnivariate(model.ε, !model.prior.bool_config.contrastive_div)
+        println("Prior sampler: Univar ITS")
+    end
+
+    # Default training criterion
     @reset model.loss_fcn = begin
         if MLIR
             Reactant.@compile importance_loss(
@@ -116,38 +149,6 @@ function setup_training(
     else
 
         println("Posterior sampler: MLE IS")
-    end
-
-    if model.prior.bool_config.ula
-        num_steps_prior = parse(Int, retrieve(conf, "PRIOR_LANGEVIN", "iters"))
-        step_size_prior = parse(Float32, retrieve(conf, "PRIOR_LANGEVIN", "step_size"))
-
-        prior_sampler = initialize_ULA_sampler(;
-            η = step_size_prior,
-            N = num_steps_prior,
-            prior_sampling_bool = true,
-        )
-
-        @reset model.sample_prior =
-            (m, n, p, sk, sl, r) -> prior_sampler(m, p, sk, Lux.testmode(sl), x; rng = r)
-
-        @reset model.log_prior = LogPriorULA(model.ε)
-        println("Prior sampler: ULA")
-    elseif model.prior.bool_config.mixture_model
-        @reset model.sample_prior =
-            (m, n, p, sk, sl, r) ->
-        sample_mixture(m.prior, n, p.ebm, sk.ebm, sl.ebm, sk.quad; rng = r)
-
-        @reset model.log_prior =
-            LogPriorMix(model.ε, !model.prior.bool_config.contrastive_div)
-        println("Prior sampler: Mix ITS")
-    else
-        @reset model.sample_prior =
-            (m, n, p, sk, sl, r) ->
-        sample_univariate(m.prior, n, p.ebm, sk.ebm, sl.ebm, sk.quad; rng = r)
-        @reset model.log_prior =
-            LogPriorUnivariate(model.ε, !model.prior.bool_config.contrastive_div)
-        println("Prior sampler: Univar ITS")
     end
 
     return model

@@ -123,10 +123,10 @@ function langevin_loss(
         swap_replica_idxs,
     )
     z_posterior, st_new, noise =
-        sample_langevin(ps, st_kan, Lux.testmode(st_lux), model, x; rng = rng)
+        sample_langevin(ps, st_kan, Lux.trainmode(st_lux), model, x; rng = rng)
     st_lux_ebm, st_lux_gen = st_new.ebm, st_new.gen
     z_prior, st_lux_ebm =
-        model.sample_prior(model, size(x)[end], ps, st_kan, Lux.testmode(st_lux), rng)
+        model.sample_prior(model, size(x)[end], ps, st_kan, st_lux, rng)
 
     ∇ = grad_langevin_llhood(
         ps,
@@ -135,8 +135,8 @@ function langevin_loss(
         x,
         model,
         st_kan,
-        Lux.trainmode(st_lux_ebm),
-        Lux.trainmode(st_lux_gen),
+        st_lux_ebm,
+        st_lux_gen,
         noise,
     )
 
@@ -147,8 +147,8 @@ function langevin_loss(
         x,
         model,
         st_kan,
-        Lux.trainmode(st_lux_ebm),
-        Lux.trainmode(st_lux_gen),
+        st_lux_ebm,
+        st_lux_gen,
         noise,
     )
     return loss, ∇, st_lux_ebm, st_lux_gen

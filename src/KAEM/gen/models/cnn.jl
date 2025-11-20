@@ -144,7 +144,7 @@ function init_CNN_Generator(
     strides = parse.(Int, retrieve(conf, "CNN", "strides"))
     k_size = parse.(Int, retrieve(conf, "CNN", "kernel_sizes"))
     paddings = parse.(Int, retrieve(conf, "CNN", "paddings"))
-    act = activation_mapping[retrieve(conf, "CNN", "activation")]
+    act = lux_activation_mapping[retrieve(conf, "CNN", "activation")]
     batchnorm_bool = parse(Bool, retrieve(conf, "CNN", "batchnorm"))
     skip_bool = parse(Bool, retrieve(conf, "CNN", "latent_concat")) # Residual connection
 

@@ -72,6 +72,7 @@ function test_pca()
     x_recon = reconstruct(model.PCA_model, cpu_device()(x_test))
     x_recon = reshape(x_recon, model.original_data_size..., :)
     return @test all(size(x_recon)[1:3] .== size(dataset)[1:3])
+    commit!(conf, "PCA", "use_pca", "false")
 end
 
 function test_mala_loss()
@@ -150,6 +151,6 @@ end
     test_pca()
     test_mala_loss()
     test_cnn_loss()
-    # test_cnn_residual_loss()
-    # test_seq_loss()
+    test_cnn_residual_loss()
+    test_seq_loss()
 end

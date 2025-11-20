@@ -185,7 +185,7 @@ function importance_loss(
     )
 
     z_posterior, z_prior, st_lux_ebm, st_lux_gen, weights_resampled, resampled_mask, noise =
-        sample_importance(ps, st_kan, Lux.testmode(st_lux), model, x; rng = rng)
+        sample_importance(ps, st_kan, st_lux, model, x; rng = rng)
 
     st_ebm = Lux.trainmode(st_lux_ebm)
     st_gen = Lux.trainmode(st_lux_gen)

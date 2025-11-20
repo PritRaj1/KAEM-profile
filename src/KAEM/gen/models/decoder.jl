@@ -62,7 +62,6 @@ function init_SEQ_Generator(
 
     sequence_length = parse(Int, retrieve(conf, "SEQ", "sequence_length"))
 
-    act = gelu
     d_model = parse(Int, retrieve(conf, "SEQ", "d_model"))
     # Projection
     push!(Φ_functions, Lux.Dense(q_size => d_model))

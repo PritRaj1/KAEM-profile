@@ -172,7 +172,7 @@ function thermodynamic_loss(
     z_posterior, Δt, st_lux, noise, tempered_noise = sample_thermo(
         ps,
         st_kan,
-        Lux.testmode(st_lux),
+        Lux.trainmode(st_lux),
         model,
         x;
         train_idx = train_idx,
@@ -181,7 +181,7 @@ function thermodynamic_loss(
     )
     st_lux_ebm, st_lux_gen = st_lux.ebm, st_lux.gen
     z_prior, st_ebm =
-        model.sample_prior(model, size(x)[end], ps, st_kan, Lux.testmode(st_lux), rng)
+        model.sample_prior(model, size(x)[end], ps, st_kan, st_lux, rng)
 
     ∇ = grad_thermo_llhood(
         ps,
@@ -191,8 +191,8 @@ function thermodynamic_loss(
         Δt,
         model,
         st_kan,
-        Lux.trainmode(st_lux_ebm),
-        Lux.trainmode(st_lux_gen),
+        st_lux_ebm,
+        st_lux_gen,
         noise,
         tempered_noise,
     )
@@ -205,8 +205,8 @@ function thermodynamic_loss(
         Δt,
         model,
         st_kan,
-        Lux.trainmode(st_lux_ebm),
-        Lux.trainmode(st_lux_gen),
+        st_lux_ebm,
+        st_lux_gen,
         noise,
         tempered_noise,
     )
