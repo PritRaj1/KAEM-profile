@@ -1,4 +1,4 @@
-using BenchmarkTools, ConfParser, Lux, Random, ComponentArrays, CSV, DataFrames
+using BenchmarkTools, ConfParser, Lux, Random, ComponentArrays, CSV, DataFrames, Reactant
 
 ENV["GPU"] = true
 

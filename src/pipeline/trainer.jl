@@ -201,18 +201,6 @@ function train!(t::KAEM_trainer; train_idx::Int = 1)
         t.rng,
     )
 
-    function find_nan(grads)
-        for k in keys(grads)
-            if any(isnan, grads[k]) || any(isinf, grads[k])
-                for i in keys(grads[k])
-                    any(isnan.(grads[k][i])) ||
-                        any(isinf.(grads[k][i])) && error("NaN/Inf in $k, $i gradients")
-                end
-            end
-        end
-        return
-    end
-
     # Gradient for a single batch
     function grad_fcn(G, u, args...)
         t.ps = u
@@ -262,7 +250,6 @@ function train!(t::KAEM_trainer; train_idx::Int = 1)
         @reset t.st_lux.ebm = st_ebm
         @reset t.st_lux.gen = st_gen
 
-        isnan(norm(G)) || isinf(norm(G)) && find_nan(G)
         t.model.verbose && println("Iter: $(train_idx), Loss: $(t.loss)")
         return G
     end
@@ -329,7 +316,7 @@ function train!(t::KAEM_trainer; train_idx::Int = 1)
             num_batches_to_save = fld(t.num_generated_samples, 10) ÷ t.batch_size_for_gen # Save 1/10 of the samples to conserve space
             if num_batches_to_save > 0
                 concat_dim = length(t.model.lkhood.x_shape) + 1
-                
+
                 # Get first batch to determine type
                 first_batch, st_ebm, st_gen = gen_compiled(
                     t.ps,
