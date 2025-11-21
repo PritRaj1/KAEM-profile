@@ -39,7 +39,7 @@ function setup_model(n_z)
     model = init_KAEM(dataset, conf, img_size; rng = rng)
     x_test, loader_state = iterate(model.train_loader)
     x_test = pu(x_test)
-    model, params, st_kan, st_lux = prep_model(model, x_test; rng = rng)
+    model, params, st_kan, st_lux = prep_model(model, x_test; rng = rng, MLIR = false)
 
     return model, params, st_kan, st_lux, x_test
 end
@@ -61,7 +61,7 @@ function benchmark_latent_dim(params, st_kan, st_lux, model, x_test)
         model,
         x_test,
         1,
-        Random.default_rng(),
+        rng,
         nothing
     )
 end
@@ -79,7 +79,7 @@ for n_z in [10, 20, 30, 40, 50]
         $x_test
     ) setup = (
         f = Reactant.@compile sync = true benchmark_latent_dim(
-            $ps,
+            $params,
             $st_kan,
             $st_lux,
             $model,

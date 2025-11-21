@@ -197,8 +197,8 @@ function train!(t::KAEM_trainer; train_idx::Int = 1)
         t.ps,
         t.st_kan,
         Lux.testmode(t.st_lux),
-        size(t.x)[end];
-        rng = t.rng,
+        size(t.x)[end],
+        t.rng,
     )
 
     function find_nan(grads)
@@ -443,8 +443,8 @@ function train!(t::KAEM_trainer; train_idx::Int = 1)
         t.ps,
         t.st_kan,
         Lux.testmode(t.st_lux),
-        t.batch_size_for_gen;
-        rng = t.rng,
+        t.batch_size_for_gen,
+        t.rng,
     )
     batches_to_cat = Vector{typeof(cpu_device()(first_batch))}()
     sizehint!(batches_to_cat, num_batches)
@@ -455,8 +455,8 @@ function train!(t::KAEM_trainer; train_idx::Int = 1)
             t.ps,
             t.st_kan,
             Lux.testmode(t.st_lux),
-            t.batch_size_for_gen;
-            rng = t.rng,
+            t.batch_size_for_gen,
+            t.rng,
         )
         push!(batches_to_cat, cpu_device()(batch))
     end

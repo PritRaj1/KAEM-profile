@@ -39,7 +39,7 @@ function setup_model(N_t)
     model = init_KAEM(dataset, conf, img_size; rng = rng)
     x_test, loader_state = iterate(model.train_loader)
     x_test = pu(x_test)
-    model, ps, st_kan, st_lux = prep_model(model, x_test; rng = rng)
+    model, ps, st_kan, st_lux = prep_model(model, x_test; rng = rng, MLIR = false)
     swap_replica_idxs = rand(1:(model.N_t - 1), model.posterior_sampler.N)
 
     return model, ps, st_kan, st_lux, x_test, swap_replica_idxs
@@ -62,7 +62,7 @@ function benchmark_temps(params, st_kan, st_lux, model, x_test, swap)
         model,
         x_test,
         1,
-        Random.default_rng(),
+        rng,
         swap
     )
 end

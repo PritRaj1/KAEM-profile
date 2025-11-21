@@ -106,7 +106,7 @@ function update_model_grid(
             B = size(z, 3)
             z = reshape(z, P, Q * B)
 
-            mid_size = !ebm.bool_config.mixture_model ? ebm.q_size : ebm.p_size
+            mid_size = !model.prior.bool_config.mixture_model ? model.prior.q_size : model.prior.p_size
 
             for i in 1:model.prior.depth
                 if model.prior.bool_config.layernorm && i != 1
