@@ -71,13 +71,16 @@ for n_z in [10, 20, 30, 40, 50]
 
     model, params, st_kan, st_lux, x_test = setup_model(n_z)
 
-    b = @benchmark f(
-        $params,
-        $st_kan,
-        $st_lux,
-        $model,
-        $x_test
-    ) setup = (
+    b = @benchmark begin
+        result = f(
+            $params,
+            $st_kan,
+            $st_lux,
+            $model,
+            $x_test
+        )
+        Reactant.synchronize(result)
+    end setup = (
         f = Reactant.@compile sync = true benchmark_latent_dim(
             $params,
             $st_kan,

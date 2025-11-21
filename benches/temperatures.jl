@@ -72,14 +72,17 @@ for N_t in [2, 4, 6, 8, 10, 12]
 
     model, ps, st_kan, st_lux, x_test, swap = setup_model(N_t)
 
-    b = @benchmark f(
-        $ps,
-        $st_kan,
-        $st_lux,
-        $model,
-        $x_test,
-        $swap
-    ) setup = (
+    b = @benchmark begin
+        result = f(
+            $ps,
+            $st_kan,
+            $st_lux,
+            $model,
+            $x_test,
+            $swap
+        )
+        Reactant.synchronize(result)
+    end setup = (
         f = Reactant.@compile sync = true benchmark_temps(
             $ps,
             $st_kan,
