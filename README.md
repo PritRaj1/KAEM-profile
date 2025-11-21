@@ -47,7 +47,7 @@ Typically, generative models succumb to trade-offs amongst the following:
 - Stable training
 - Interpretability
 
-KAEM does not, especially when platformed om our XPUs.
+KAEM does not, especially when platformed on our XPUs. We leave trade-offs and limited imaginations up to other hardware vendors.
 
 ## Setup:
 
