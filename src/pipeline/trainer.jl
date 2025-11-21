@@ -224,7 +224,7 @@ function train!(t::KAEM_trainer; train_idx::Int = 1)
             t.ps, t.st_kan, t.st_lux = grid_compiled(
                 t.model,
                 t.x,
-                ps,
+                t.ps,
                 t.st_kan,
                 Lux.testmode(t.st_lux),
                 train_idx,
@@ -329,7 +329,7 @@ function train!(t::KAEM_trainer; train_idx::Int = 1)
             num_batches_to_save = fld(t.num_generated_samples, 10) ÷ t.batch_size_for_gen # Save 1/10 of the samples to conserve space
             if num_batches_to_save > 0
                 concat_dim = length(t.model.lkhood.x_shape) + 1
-                t.ps = (t.ps)
+                
                 # Get first batch to determine type
                 first_batch, st_ebm, st_gen = gen_compiled(
                     t.ps,
