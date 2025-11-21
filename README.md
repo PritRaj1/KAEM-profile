@@ -2,42 +2,52 @@
 
 KAEM is a generative model presented [here](https://www.arxiv.org/abs/2506.14167).
 
-## Brief:
+---
 
-The Kolmogorov-Arnold Energy Model (KAEM) is a latent variable model that 
+## Brief
 
-- Pairs univariate, energy-based priors with a flexible generator for different data modalities
-- Is defined entirely with respect to the Kolmogorov-Arnold representation theorem, thus bridging deterministic representation and probabilistic modeling.
-- Has been designed to prioritise training stability, inference speed, and interpretability 
-- Can work without an encoder, score-based approximations, and even MCMC (depending on the dataset)
-- Written with various sampling procedures to improve statistical properties depending on problem characteristics
-- Is XLA/EnzymeMLIR-compiled
+KAEM is an *extremely* fast and interpretable generative model for any data modality/top-down generator network.
 
-## Robust prior and posterior sampling
+---
 
-Fast (single forward pass) and unbiased sampling can be feasible with:
-- **Inverse transform sampling** from the prior (inference)
-- **Importance sampling** for the posterior (training)
+### ⚡ How is it so fast?
 
-<p align="center">
-  <img src="figures/results/individual_plots/mnist_ebm_rbf.png" width="20%" />
-  <img src="figures/results/individual_plots/fmnist_gaussian_rbf.png" width="20%" />
-  <img src="figures/results/individual_plots/darcy_flow_gaussian_fft.png" width="20%" />
-</p>
+#### Inference
+- KAEM uses inverse transform sampling from its latent prior. This produces exact samples within a single forward pass, i.e., almost instantaneously.
 
-When importance sampling fails, the unadjusted Langevin algorithm (ULA) may be used for posterior sampling instead. Prior sampling can still proceed by inverse transform to preserve fast inference post-training. 
+#### Training
+- 3 training strategies are provided depending on statistical requirements. All of them avoid the use of encoders, and learning is solely conducted in a low-dimensional latent space.
+- Annealing/population-based MCMC is also presented as an embarassingly parallel and scalable alternative to diffusion/score-matching.
 
-And when ULA and maximum likelihood fail, it can also be trained with a variance-reduction strategy based on Thermodynamic Integration:
+#### Compilation/runtime
+- KAEM is compiled using Reactant.jl and trained with EnzymeMLIR for autodifferentiation.
+- These are bleeding-edge, experimental tools that offer first-in-class speed and allocations, faster than any other machine learning framework.
 
-<p align="center">
-<img src="figures/results/individual_plots/celeba_real_reference.png" width="20%" />
-  <img src="figures/results/individual_plots/celeba_vanilla_ula_mixture.png" width="20%" />
-  <img src="figures/results/individual_plots/celeba_thermodynamic_ula_mixture.png" width="20%" />
-</p>
+---
 
-*This images are after training on a budget with 8,000 parameter updates.
+### 🔍 How is it interpretable?
 
-Unlike diffusion and score-based models, annealing is more interpretable, fully parallelizable, and only applied to posterior expectations, (thus preserving inference speed). The main trade-off is expressivity, though this may improve with scaling. And unlike denoising, which scales sequentially, annealing can scale by adding more temperatures in parallel.
+#### Deterministic representation
+- KAEM has completely redefined generative modeling using the Kolmogorov-Arnold Representation theorem as its basis.
+- While generative modeling is a probabilistic task, KAEM uses the inverse transform method to instead reframe the theorem without introducing stochasticity.
+
+#### Latent distributions
+- KAEM uses a Kolmogorov-Arnold Network prior.
+- One can simply plot each latent feature's distribution and look at it.
+- Complex covariance relationships are deferred to the generator.
+
+---
+
+## Why should you care?
+
+Typically, generative models succumb to trade-offs amongst the following:
+
+- Fast inference
+- High quality
+- Stable training
+- Interpretability
+
+KAEM does not, especially when platformed on our XPUs. We leave trade-offs and limited imaginations up to other vendors in the hardware space.
 
 ## Setup:
 
