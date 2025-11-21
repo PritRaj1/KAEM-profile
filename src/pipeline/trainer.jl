@@ -406,7 +406,7 @@ function train!(t::KAEM_trainer; train_idx::Int = 1)
     start_time = time()
 
     optf = Optimization.OptimizationFunction(opt_loss; grad = grad_fcn)
-    optprob = Optimization.OptimizationProblem(optf, copy(t.ps))
+    optprob = Optimization.OptimizationProblem(optf, t.ps)
 
     # Optimization only stops when maxiters is reached
     res = Optimization.solve(
