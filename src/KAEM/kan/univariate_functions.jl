@@ -14,7 +14,7 @@ const SplineBasis_mapping = Dict(
     "B-spline" => (degree, in_dim, out_dim, grid_size) -> B_spline_basis(degree, in_dim, out_dim, grid_size + 1),
     "RBF" => (degree, in_dim, out_dim, grid_size) -> RBF_basis(in_dim, out_dim, grid_size),
     "RSWAF" => (degree, in_dim, out_dim, grid_size) -> RSWAF_basis(in_dim, out_dim, grid_size),
-    "FFT" => (degree, in_dim, out_dim, grid_size) -> FFT_basis(in_dim, out_dim, grid_size),
+    "FFT" => (degree, in_dim, out_dim, grid_size) -> FFT_basis(in_dim, out_dim, grid_size + 1),
     "Cheby" => (degree, in_dim, out_dim, grid_size) -> Cheby_basis(degree, in_dim, out_dim),
 )
 
