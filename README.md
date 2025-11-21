@@ -2,53 +2,6 @@
 
 KAEM is a generative model presented [here](https://www.arxiv.org/abs/2506.14167).
 
----
-
-## Brief
-
-KAEM is an *extremely* fast and interpretable generative model for any data modality/top-down generator network.
-
----
-
-### ⚡ How is it so fast?
-
-#### Inference
-- KAEM uses inverse transform sampling from its latent prior. This produces exact samples within a single forward pass, i.e., almost instantaneously.
-
-#### Training
-- 3 training strategies are provided depending on statistical requirements. All of them avoid the use of encoders, and learning is solely conducted in a low-dimensional latent space.
-- Annealing/population-based MCMC is also presented as an embarassingly parallel and scalable alternative to diffusion/score-matching.
-
-#### Compilation/runtime
-- KAEM is compiled using Reactant.jl and trained with EnzymeMLIR for autodifferentiation.
-- These are bleeding-edge, experimental tools that offer first-in-class speed and allocations, faster than any other machine learning framework.
-
----
-
-### 🔍 How is it interpretable?
-
-#### Deterministic representation
-- KAEM has completely redefined generative modeling using the Kolmogorov-Arnold Representation theorem as its basis.
-- While generative modeling is a probabilistic task, KAEM uses the inverse transform method to instead reframe the theorem without introducing stochasticity.
-
-#### Latent distributions
-- KAEM uses a Kolmogorov-Arnold Network prior.
-- One can simply plot each latent feature's distribution and look at it.
-- Complex covariance relationships are deferred to the generator.
-
----
-
-## Why should you care?
-
-Typically, generative models succumb to trade-offs amongst the following:
-
-- Fast inference
-- High quality
-- Stable training
-- Interpretability
-
-KAEM does not, especially when platformed on our XPUs. We leave trade-offs and limited imaginations up to other vendors in the hardware space.
-
 ## Setup:
 
 Need [Conda](https://docs.conda.io/projects/conda/en/latest/user-guide/install/index.html) and [Julia](https://github.com/JuliaLang/juliaup). Choose your favourite installer and run: 
@@ -73,6 +26,8 @@ make test
 ### Note for windows users:
 
 This repo uses shell scripts solely for convenience, you can run everything without them too. If you want to use the shell scripts, [WSL](https://learn.microsoft.com/en-us/windows/wsl/install) is recommended.
+
+---
 
 ## Quick start:
 
@@ -105,6 +60,8 @@ For benchmarking run:
 ```bash
 make bench
 ```
+
+---
 
 ## Julia flow:
 
@@ -164,6 +121,7 @@ loss, grads, st_ebm, st_gen = model.loss_fcn(
 @reset st.ebm = st_ebm
 @reset st.gen = st_gen
 ```
+---
 
 ## Citation/license [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
