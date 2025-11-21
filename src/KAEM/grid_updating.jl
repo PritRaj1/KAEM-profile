@@ -47,7 +47,6 @@ function update_model_grid(
             temps = collect(Float32, [(k / model.N_t)^model.p[train_idx] for k in 1:model.N_t])
             z = first(
                 model.posterior_sampler(
-                    model,
                     ps,
                     st_kan,
                     st_lux,
@@ -62,7 +61,7 @@ function update_model_grid(
                 end,
             ]
         elseif model.prior.bool_config.ula || model.MALA
-            z = first(model.posterior_sampler(model, ps, st_kan, st_lux, x; rng = rng))[
+            z = first(model.posterior_sampler(ps, st_kan, st_lux, x; rng = rng))[
                 :,
                 :,
                 :,
@@ -79,7 +78,7 @@ function update_model_grid(
             #         rng,
             #     ),
             # )
-            z = first(model.posterior_sampler(model, ps, st_kan, st_lux, x; rng = rng))[
+            z = first(model.posterior_sampler(ps, st_kan, st_lux, x; rng = rng))[
                 :,
                 :,
                 :,

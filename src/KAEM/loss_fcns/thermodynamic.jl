@@ -22,7 +22,6 @@ function sample_thermo(
     )
     temps = collect(Float32, [(k / model.N_t)^model.p[train_idx] for k in 0:model.N_t])
     z, st_lux = model.posterior_sampler(
-        model,
         ps,
         st_kan,
         st_lux,

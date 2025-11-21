@@ -57,14 +57,15 @@ function setup_training(
         num_steps_prior = parse(Int, retrieve(conf, "PRIOR_LANGEVIN", "iters"))
         step_size_prior = parse(Float32, retrieve(conf, "PRIOR_LANGEVIN", "step_size"))
 
-        prior_sampler = initialize_ULA_sampler(;
+        prior_sampler = initialize_ULA_sampler(
+            model;
             η = step_size_prior,
             N = num_steps_prior,
             prior_sampling_bool = true,
         )
         @reset model.log_prior = LogPriorULA(model.ε)
         @reset model.sample_prior =
-            (m, p, sk, sl, r) -> prior_sampler(m, p, sk, Lux.trainmode(sl), x; rng = r)
+            (m, p, sk, sl, r) -> prior_sampler(p, sk, Lux.trainmode(sl), x; rng = r)
 
         println("Prior sampler: ULA")
     elseif model.prior.bool_config.mixture_model
@@ -85,7 +86,7 @@ function setup_training(
     end
 
     # Default training criterion
-    @reset model.loss_fcn = begin #
+    @reset model.loss_fcn = begin
 
         wrapped = (p, sk, sl, xi, ti, r, sri) ->
         importance_loss(
@@ -114,7 +115,8 @@ function setup_training(
         end
     end
 
-    @reset model.posterior_sampler = initialize_ULA_sampler(;
+    @reset model.posterior_sampler = initialize_ULA_sampler(
+        model;
         η = η_init,
         N = num_steps,
         RE_frequency = replica_exchange_frequency,

@@ -1,8 +1,9 @@
 module LangevinUpdates
 
-export unadjusted_logpos_grad, update_z!
+export unadjusted_logpos, unadjusted_logprior, unadjusted_grad
 
 using ComponentArrays, Statistics, Lux, LinearAlgebra, Random, Enzyme
+using Reactant: @trace
 
 using ..Utils
 using ..KAEM_model
@@ -20,16 +21,15 @@ function unadjusted_logpos(
         st_kan,
         st_lux,
         num_temps,
-        prior_sampling_bool::Bool,
         zero_vector,
     )
 
     log_posterior = 0.0f0
-    for t in 1:num_temps
+    @trace for t in 1:num_temps
         lp = sum(
             first(
                 model.log_prior(
-                    view(z, :, :, :, t),
+                    z[:, :, :, t],
                     model.prior,
                     ps.ebm,
                     st_kan.ebm,
@@ -42,7 +42,7 @@ function unadjusted_logpos(
         ll = temps[t] * sum(
             first(
                 log_likelihood_MALA(
-                    view(z, :, :, :, t),
+                    z[:, :, :, t],
                     x,
                     model.lkhood,
                     ps.gen,
@@ -60,7 +60,7 @@ function unadjusted_logpos(
     return log_posterior
 end
 
-function unadjusted_logpos_grad(
+function unadjusted_logprior(
         z,
         x,
         temps,
@@ -69,7 +69,38 @@ function unadjusted_logpos_grad(
         st_kan,
         st_lux,
         num_temps,
-        prior_sampling_bool::Bool,
+        zero_vector,
+    )
+
+    lp = 0.0f0
+    @trace for t in 1:num_temps
+        lp += sum(
+            first(
+                model.log_prior(
+                    z[:, :, :, t],
+                    model.prior,
+                    ps.ebm,
+                    st_kan.ebm,
+                    st_lux.ebm;
+                    ula = true
+                )
+            )
+        )
+    end
+
+    return lp
+end
+
+function unadjusted_grad(
+        z,
+        x,
+        temps,
+        model,
+        ps,
+        st_kan,
+        st_lux,
+        num_temps,
+        log_dist,
     )
 
     zero_vector = zeros(Float32, model.lkhood.x_shape..., size(x)[end])
@@ -77,7 +108,7 @@ function unadjusted_logpos_grad(
     return first(
         Enzyme.gradient(
             Enzyme.Reverse,
-            Enzyme.Const(unadjusted_logpos),
+            Enzyme.Const(log_dist),
             z,
             Enzyme.Const(x),
             Enzyme.Const(temps),
@@ -86,7 +117,6 @@ function unadjusted_logpos_grad(
             Enzyme.Const(st_kan),
             Enzyme.Const(st_lux),
             Enzyme.Const(num_temps),
-            Enzyme.Const(prior_sampling_bool),
             Enzyme.Const(zero_vector)
         )
     )

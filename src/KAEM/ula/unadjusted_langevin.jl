@@ -27,25 +27,26 @@ using .LogLikelihoods: log_likelihood_MALA
     "ebm" => (p, b, rng) -> randn(rng, Float32, p, 1, b),
 )
 
-struct ULA_sampler{T <: Float32}
+struct ULA_sampler{T}
     prior_sampling_bool::Bool
     N::Int
     RE_frequency::Int
     η::T
+    model::KAEM{T}
 end
 
-function initialize_ULA_sampler(;
+function initialize_ULA_sampler(
+        model::KAEM{T};
         η::T = 1.0f-3,
         prior_sampling_bool::Bool = false,
         N::Int = 20,
         RE_frequency::Int = 10,
-    ) where {T <: Float32}
+    ) where {T}
 
-    return ULA_sampler(prior_sampling_bool, N, RE_frequency, η)
+    return ULA_sampler(prior_sampling_bool, N, RE_frequency, η, model)
 end
 
 function (sampler::ULA_sampler)(
-        model,
         ps,
         st_kan,
         st_lux,
@@ -76,12 +77,13 @@ function (sampler::ULA_sampler)(
     Returns:
         The posterior samples.
     """
+    model = sampler.model
     η = sampler.η
     sqrt_2η = sqrt(2 * η)
     seq = model.lkhood.SEQ
     Q, S = model.prior.q_size, model.batch_size
     P = model.prior.bool_config.mixture_model ? 1 : model.prior.p_size
-    num_temps = model.N_t > 1 ? model.N_t : 1
+    num_temps = (model.N_t > 1 && !sampler.prior_sampling_bool) ? model.N_t : 1
 
     # Initialize from prior
     z = begin
@@ -104,17 +106,21 @@ function (sampler::ULA_sampler)(
         end
     end
 
-    z = reshape(z, Q, P, S, num_temps)
+    z = reshape(z, Q, P, S, num_temps) .* 1.0f0
+    log_dist = sampler.prior_sampling_bool ? unadjusted_logprior : unadjusted_logpos
+
+    N_steps = sampler.N
+    RE_freq = sampler.RE_frequency
 
     # Pre-allocate noise
-    noise = randn(rng, Float32, Q, P, S, num_temps, sampler.N)
-    log_u_swap = log.(rand(rng, Float32, num_temps - 1, sampler.N))
-    ll_noise = randn(rng, Float32, model.lkhood.x_shape..., S, 2, num_temps, sampler.N)
+    noise = randn(rng, Float32, Q, P, S, num_temps, N_steps)
+    log_u_swap = log.(rand(rng, Float32, num_temps - 1, N_steps))
+    ll_noise = randn(rng, Float32, model.lkhood.x_shape..., S, 2, num_temps, N_steps)
 
-    @trace for i in 1:sampler.N
-        ξ = view(noise, :, :, :, :, i)
+    @trace for i in 1:N_steps
+        ξ = noise[:, :, :, :, i]
         ∇z =
-            unadjusted_logpos_grad(
+            unadjusted_grad(
             z,
             x,
             temps,
@@ -123,22 +129,22 @@ function (sampler::ULA_sampler)(
             st_kan,
             st_lux,
             num_temps,
-            sampler.prior_sampling_bool,
+            log_dist,
         )
 
         @. z = z + η * ∇z + sqrt_2η * ξ
 
-        if i % sampler.RE_frequency == 0 && num_temps > 1 && !sampler.prior_sampling_bool
+        if i % RE_freq == 0 && num_temps > 1
             t = swap_replica_idxs[i] # Randomly pick two adjacent temperatures to swap
-            z_t = view(z, :, :, :, t)
-            z_t1 = view(z, :, :, :, t + 1)
+            z_t = z[:, :, :, t]
+            z_t1 = z[:, :, :, t + 1]
 
             noise_1 =
-                model.lkhood.SEQ ? view(ll_noise, :, :, :, 1, t, i) :
-                view(ll_noise, :, :, :, :, 1, t, i)
+                model.lkhood.SEQ ? ll_noise[:, :, :, 1, t, i] :
+                ll_noise[:, :, :, :, 1, t, i]
             noise_2 =
-                model.lkhood.SEQ ? view(ll_noise, :, :, :, 2, t, i) :
-                view(ll_noise, :, :, :, :, 2, t, i)
+                model.lkhood.SEQ ? ll_noise[:, :, :, 2, t, i] :
+                ll_noise[:, :, :, :, 2, t, i]
 
             ll_t, st_gen = log_likelihood_MALA(
                 z_t,
@@ -162,7 +168,7 @@ function (sampler::ULA_sampler)(
             )
 
             log_swap_ratio = (temps[t + 1] - temps[t]) .* (sum(ll_t) - sum(ll_t1))
-            swap = view(log_u_swap, t:t, i:i) .< log_swap_ratio
+            swap = log_u_swap[t:t, i:i] .< log_swap_ratio
             @reset st_lux.gen = st_gen
 
             z[:, :, :, t] .= swap .* z_t1 .+ (1 .- swap) .* z_t
@@ -170,7 +176,7 @@ function (sampler::ULA_sampler)(
         end
     end
 
-    if sampler.prior_sampling_bool
+    if prior_sampling
         st_lux = st_lux.ebm
         z = dropdims(z; dims = 4)
     end
