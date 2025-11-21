@@ -85,7 +85,7 @@ function (sampler::ULA_sampler)(
     # Initialize from prior
     z = begin
         if model.prior.bool_config.ula && sampler.prior_sampling_bool
-            π_dist[model.prior.prior_type](P, S, rng) |> pu
+            π_dist[model.prior.prior_type](P, S, rng)
         else
             z_initial, st_ebm =
                 model.sample_prior(model, S, ps, st_kan, st_lux, rng)
@@ -112,10 +112,10 @@ function (sampler::ULA_sampler)(
     z_copy = similar(z[:, :, :, 1])
     z_t, z_t1 = z_copy, z_copy
 
-    x_t = (
-        model.lkhood.SEQ ? repeat(x, 1, 1, num_temps) :
+    x_t = sampler.prior_sampling_bool ? nothing : (
+            model.lkhood.SEQ ? repeat(x, 1, 1, num_temps) :
             (model.use_pca ? repeat(x, 1, num_temps) : repeat(x, 1, 1, 1, num_temps))
-    )
+        )
 
     # Pre-allocate noise
     noise = randn(rng, Float32, Q, P, S * num_temps, sampler.N)

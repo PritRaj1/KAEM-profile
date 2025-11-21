@@ -14,7 +14,7 @@ const SplineBasis_mapping = Dict(
     "B-spline" => (degree, in_dim, out_dim, grid_size) -> B_spline_basis(degree, in_dim, out_dim, grid_size + 1),
     "RBF" => (degree, in_dim, out_dim, grid_size) -> RBF_basis(in_dim, out_dim, grid_size),
     "RSWAF" => (degree, in_dim, out_dim, grid_size) -> RSWAF_basis(in_dim, out_dim, grid_size),
-    "FFT" => (degree, in_dim, out_dim, grid_size) -> FFT_basis(in_dim, out_dim, grid_size + 1),
+    "FFT" => (degree, in_dim, out_dim, grid_size) -> FFT_basis(in_dim, out_dim, grid_size),
     "Cheby" => (degree, in_dim, out_dim, grid_size) -> Cheby_basis(degree, in_dim, out_dim),
 )
 
@@ -106,9 +106,9 @@ function Lux.initialparameters(
 
     coef = [0.0f0]
     if l.spline_string == "FFT"
-        grid_norm_factor = collect(T, 1:(l.grid_size + 1)) .^ 2
+        grid_norm_factor = collect(T, 1:(l.grid_size)) .^ 2
         coef =
-            glorot_normal(rng, Float32, 2, l.in_dim, l.out_dim, l.grid_size + 1) ./
+            glorot_normal(rng, Float32, 2, l.in_dim, l.out_dim, l.grid_size) ./
             (sqrt(l.in_dim) .* permutedims(grid_norm_factor[:, :, :, :], [2, 3, 4, 1]))
     elseif !(l.spline_string == "Cheby")
         ε =

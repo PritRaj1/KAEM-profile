@@ -25,6 +25,7 @@ function unadjusted_logpos(
     lp = sum(
         first(model.log_prior(z, model.prior, ps.ebm, st_kan.ebm, st_lux.ebm; ula = true)),
     )
+    prior_sampling_bool && return lp
     ll = first(
         log_likelihood_MALA(
             z,

@@ -1,4 +1,4 @@
-# using BenchmarkTools, ConfParser, Lux, Random, ComponentArrays, CSV, DataFrames
+# using BenchmarkTools, ConfParser, Lux, Random, ComponentArrays, CSV, DataFrames, Reactant
 
 # ENV["GPU"] = true
 
@@ -40,13 +40,13 @@
 
 #     x_test, loader_state = iterate(model.train_loader)
 #     x_test = pu(x_test)
-#     model, ps, st_kan, st_lux = prep_model(model, x_test; rng = rng)
+#     model, ps, st_kan, st_lux = prep_model(model, x_test; rng = rng, MLIR = false)
 
 #     return model, ps, st_kan, st_lux
 # end
 
 # function benchmark_prior(model, ps, st_kan, st_lux)
-#     first(model.sample_prior(model, model.grid_updates_samples, ps, st_kan, st_lux, rng))
+#     return first(model.sample_prior(model, model.grid_updates_samples, ps, st_kan, st_lux, rng))
 # end
 
 
@@ -64,16 +64,29 @@
 
 #     model, ps, st_kan, st_lux = setup_model(N_l)
 
-#     GC.gc()
-
-#     b = @benchmark benchmark_prior($model, $ps, $st_kan, $st_lux)
+#     b = @benchmark begin
+#         result = f(
+#             $model,
+#             $params,
+#             $st_kan,
+#             $st_lux
+#         )
+#         Reactant.synchronize(result)
+#     end setup = (
+#         f = Reactant.@compile sync = true benchmark_prior(
+#             $model,
+#             $params,
+#             $st_kan,
+#             $st_lux
+#         )
+#     )
 
 #     push!(
 #         results,
 #         (
 #             N_l,
-#             b.times[end] / 1e9,  # Convert nanoseconds to seconds (median time)
-#             std(b.times) / 1e9,  # Standard deviation
+#             b.times[end] / 1.0e9,  # Convert nanoseconds to seconds (median time)
+#             std(b.times) / 1.0e9,  # Standard deviation
 #             b.memory / (1024^3),  # Convert bytes to GiB
 #             b.allocs,
 #             b.gctimes[end] / b.times[end] * 100,  # GC percentage

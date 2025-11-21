@@ -267,7 +267,6 @@ function train!(t::KAEM_trainer; train_idx::Int = 1)
             test_loss = 0
             for x in t.model.test_loader
                 x_gen, st_ebm, st_gen = gen_compiled(
-                    t.model,
                     t.ps,
                     t.st_kan,
                     Lux.testmode(t.st_lux),

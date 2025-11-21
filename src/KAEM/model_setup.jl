@@ -62,11 +62,10 @@ function setup_training(
             N = num_steps_prior,
             prior_sampling_bool = true,
         )
-
+        @reset model.log_prior = LogPriorULA(model.ε)
         @reset model.sample_prior =
             (m, n, p, sk, sl, r) -> prior_sampler(m, p, sk, Lux.trainmode(sl), x; rng = r)
 
-        @reset model.log_prior = LogPriorULA(model.ε)
         println("Prior sampler: ULA")
     elseif model.prior.bool_config.mixture_model
         @reset model.sample_prior =
