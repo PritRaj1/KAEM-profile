@@ -67,7 +67,7 @@ function benchmark_temps(params, st_kan, st_lux, model, x_test, swap)
     )
 end
 
-for N_t in [2, 4, 6, 8, 10, 12]
+for N_t in [2, 4, 6, 8, 10]
     println("Benchmarking N_t = $N_t...")
 
     model, ps, st_kan, st_lux, x_test, swap = setup_model(N_t)
