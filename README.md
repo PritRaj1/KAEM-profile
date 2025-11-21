@@ -2,16 +2,37 @@
 
 KAEM is a generative model presented [here](https://www.arxiv.org/abs/2506.14167).
 
-## Brief:
+## Brief
 
-The Kolmogorov-Arnold Energy Model (KAEM) is a latent variable model that 
+KAEM is an *extremely* fast and interpretable generative model for any data modality/top-down generator network.
 
-- Pairs univariate, energy-based priors with a flexible generator for different data modalities
-- Is defined entirely with respect to the Kolmogorov-Arnold representation theorem, thus bridging deterministic representation and probabilistic modeling.
-- Has been designed to prioritise training stability, inference speed, and interpretability 
-- Can work without an encoder, score-based approximations, and even MCMC (depending on the dataset)
-- Written with various sampling procedures to improve statistical properties depending on problem characteristics
-- Is XLA/EnzymeMLIR-compiled
+---
+
+### ⚡ How is it so fast?
+
+#### Inference
+- KAEM uses inverse transform sampling from its latent prior. This produces exact samples within a single forward pass, i.e., almost instantaneously.
+
+#### Training
+- 3 training strategies are provided depending on statistical requirements. All of them avoid the use of encoders, and learning is solely conducted in a low-dimensional latent space.
+- Annealing/population-based MCMC is also presented as an embarassingly parallel and scalable alternative to diffusion/score-matching.
+
+#### Compilation/runtime
+- KAEM is compiled using Reactant.jl and trained with EnzymeMLIR for autodifferentiation.
+- These are bleeding-edge, experimental tools that offer first-in-class speed and allocations in comparison to any other machine learning framework.
+
+---
+
+### 🔍 How is it interpretable?
+
+#### Deterministic representation
+- KAEM has completely redefined generative modeling using the Kolmogorov-Arnold Representation theorem as its basis.
+- While generative modeling is a probabilistic task, KAEM uses the inverse transform method to instead reframe the theorem without introducing stochasticity.
+
+#### Latent distributions
+- KAEM uses a Kolmogorov-Arnold Network prior.
+- One can simply plot each latent feature's distribution and look at it.
+- Complex covariance relationships are deferred to the generator.
 
 ## Robust prior and posterior sampling
 
