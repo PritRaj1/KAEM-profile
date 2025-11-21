@@ -59,7 +59,6 @@ function benchmark_temps(params, st_kan, st_lux, model, x_test, swap)
         params,
         st_kan,
         st_lux,
-        model,
         x_test,
         1,
         rng,

@@ -1,7 +1,7 @@
 using Test, Random, LinearAlgebra, Lux, ConfParser, ComponentArrays
 
 ENV["THERMO"] = "true"
-ENV["GPU"] = false
+ENV["GPU"] = true
 
 include("../src/utils.jl")
 using .Utils
@@ -30,7 +30,7 @@ function test_model_derivative()
 
 
     loss, ∇, st_ebm, st_gen =
-        model.loss_fcn(ps, st_kan, st_lux, model, x_test, 1, Random.default_rng(), swap_replica_idxs)
+        model.loss_fcn(ps, st_kan, st_lux, x_test, 1, Random.default_rng(), swap_replica_idxs)
 
     ∇ = Array(∇)
     @test norm(∇) != 0

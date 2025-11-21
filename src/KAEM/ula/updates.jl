@@ -19,27 +19,45 @@ function unadjusted_logpos(
         ps,
         st_kan,
         st_lux,
+        num_temps,
         prior_sampling_bool::Bool,
         zero_vector,
     )
-    lp = sum(
-        first(model.log_prior(z, model.prior, ps.ebm, st_kan.ebm, st_lux.ebm; ula = true)),
-    )
-    prior_sampling_bool && return lp
-    ll = first(
-        log_likelihood_MALA(
-            z,
-            x,
-            model.lkhood,
-            ps.gen,
-            st_kan.gen,
-            st_lux.gen,
-            zero_vector;
-            ε = model.ε,
-        ),
-    )
-    tempered_ll = sum(temps .* ll)
-    return (lp + tempered_ll)
+
+    log_posterior = 0.0f0
+    for t in 1:num_temps
+        lp = sum(
+            first(
+                model.log_prior(
+                    view(z, :, :, :, t),
+                    model.prior,
+                    ps.ebm,
+                    st_kan.ebm,
+                    st_lux.ebm;
+                    ula = true
+                )
+            )
+        )
+
+        ll = temps[t] * sum(
+            first(
+                log_likelihood_MALA(
+                    view(z, :, :, :, t),
+                    x,
+                    model.lkhood,
+                    ps.gen,
+                    st_kan.gen,
+                    st_lux.gen,
+                    zero_vector;
+                    ε = model.ε,
+                )
+            )
+        )
+
+        log_posterior += lp + ll
+    end
+
+    return log_posterior
 end
 
 function unadjusted_logpos_grad(
@@ -50,10 +68,11 @@ function unadjusted_logpos_grad(
         ps,
         st_kan,
         st_lux,
+        num_temps,
         prior_sampling_bool::Bool,
     )
 
-    zero_vector = zeros(Float32, model.lkhood.x_shape..., size(z)[end])
+    zero_vector = zeros(Float32, model.lkhood.x_shape..., size(x)[end])
 
     return first(
         Enzyme.gradient(
@@ -66,21 +85,11 @@ function unadjusted_logpos_grad(
             Enzyme.Const(ps),
             Enzyme.Const(st_kan),
             Enzyme.Const(st_lux),
+            Enzyme.Const(num_temps),
             Enzyme.Const(prior_sampling_bool),
             Enzyme.Const(zero_vector)
         )
     )
-end
-
-function update_z!(
-        z,
-        ∇z,
-        η,
-        ξ,
-        sqrt_2η,
-    )
-    @. z = z + η * ∇z + sqrt_2η * ξ
-    return nothing
 end
 
 end

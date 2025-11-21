@@ -18,6 +18,7 @@ struct KAN_Generator{T <: Float32, A <: AbstractActivation} <: Lux.AbstractLuxLa
     layernorms::Tuple{Vararg{Lux.LayerNorm}}
     bool_config::BoolConfig
     x_shape::Tuple
+    s_size::Int
 end
 
 function init_KAN_Generator(
@@ -71,6 +72,8 @@ function init_KAN_Generator(
     τ_trainable = spline_function == "B-spline" ? false : τ_trainable
     eps = parse(Float32, retrieve(conf, "TRAINING", "eps"))
 
+    s_size = parse(Int, retrieve(conf, "TRAINING", "batch_size"))
+
     depth = length(widths) - 1
 
     initialize_function =
@@ -89,6 +92,7 @@ function init_KAN_Generator(
         init_τ = init_τ,
         τ_trainable = τ_trainable,
         ε_ridge = eps,
+        sample_size = s_size,
     )
     # Let Julia infer the concrete activation type from the elements we push
     Φ_functions = []
@@ -117,6 +121,7 @@ function init_KAN_Generator(
         Tuple(layernorms),
         BoolConfig(layernorm_bool, false),
         x_shape,
+        s_size,
     )
 end
 
@@ -160,7 +165,7 @@ function (gen::KAN_Generator)(
         z = dropdims(sum(z, dims = 1); dims = 1)
     end
 
-    return reshape(z, gen.x_shape..., :), st_lyrnorm_new
+    return reshape(z, gen.x_shape..., gen.s_size), st_lyrnorm_new
 end
 
 end

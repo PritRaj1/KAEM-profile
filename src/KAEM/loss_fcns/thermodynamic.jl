@@ -33,8 +33,8 @@ function sample_thermo(
     )
 
     Δt = temps[2:end] - temps[1:(end - 1)]
-    tempered_noise = randn(rng, Float32, model.lkhood.x_shape..., prod(size(z)[3:4]))
-    noise = randn(rng, Float32, model.lkhood.x_shape..., size(x)[end])
+    tempered_noise = randn(rng, Float32, model.lkhood.x_shape..., model.batch_size, model.N_t)
+    noise = randn(rng, Float32, model.lkhood.x_shape..., model.batch_size)
     return z, Δt, st_lux, noise, tempered_noise
 end
 
@@ -51,26 +51,35 @@ function marginal_llhood(
         noise,
         tempered_noise
     )
-    Q, P, S, num_temps = size(z_posterior)
-    log_ss = 0.0f0
 
     # Steppingstone estimator
-    x_rep = model.lkhood.SEQ ? repeat(x, 1, 1, num_temps) : repeat(x, 1, 1, 1, num_temps)
-    ll, st_gen = log_likelihood_MALA(
-        reshape(z_posterior, Q, P, S * num_temps),
-        x_rep,
-        model.lkhood,
-        ps.gen,
-        st_kan.gen,
-        st_lux_gen,
-        tempered_noise;
-        ε = model.ε,
-    )
-    log_ss = sum(reshape(ll, num_temps, S) .* Δt) / S
+    num_temps = model.N_t > 1 ? model.N_t : 1
+
+    log_ss = 0.0f0
+    for t in 1:num_temps
+
+        noise_t = (
+            model.lkhood.SEQ ? view(tempered_noise, :, :, :, t) : (
+                    model.use_pca ? view(tempered_noise, :, :, t) : view(tempered_noise, :, :, :, :, t)
+                )
+        )
+
+        ll, st_gen = log_likelihood_MALA(
+            view(z_posterior, :, :, :, t),
+            x,
+            model.lkhood,
+            ps.gen,
+            st_kan.gen,
+            st_lux_gen,
+            noise_t;
+            ε = model.ε,
+        )
+        log_ss += Δt[t] * mean(ll)
+    end
 
     # MLE estimator
     logprior_pos, st_ebm = model.log_prior(
-        z_posterior[:, :, :, num_temps - 1],
+        view(z_posterior, :, :, :, num_temps),
         model.prior,
         ps.ebm,
         st_kan.ebm,
@@ -91,7 +100,7 @@ function marginal_llhood(
         noise;
         ε = model.ε,
     )
-    steppingstone_loss = mean(logllhood .* view(Δt, 1)) + log_ss
+    steppingstone_loss = Δt[1] * mean(logllhood) + log_ss
     return -(steppingstone_loss + mean(logprior_pos) - ex_prior),
         st_ebm,
         st_gen
@@ -181,7 +190,7 @@ function thermodynamic_loss(
     )
     st_lux_ebm, st_lux_gen = st_lux.ebm, st_lux.gen
     z_prior, st_ebm =
-        model.sample_prior(model, size(x)[end], ps, st_kan, st_lux, rng)
+        model.sample_prior(model, ps, st_kan, st_lux, rng)
 
     ∇ = grad_thermo_llhood(
         ps,

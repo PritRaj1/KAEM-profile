@@ -42,8 +42,8 @@ function setup_training(
     )
 
     batch_size = parse(Int, retrieve(conf, "TRAINING", "batch_size"))
-    zero_vec = pu(zeros(T, model.lkhood.x_shape..., model.IS_samples, batch_size))
-    max_samples = max(model.IS_samples, batch_size)
+    zero_vec = pu(zeros(T, model.lkhood.x_shape..., model.batch_size, batch_size))
+    max_samples = max(model.batch_size, batch_size)
     x = zeros(T, model.lkhood.x_shape..., max_samples) |> pu
 
     swap_replica_idxs = (
@@ -64,41 +64,53 @@ function setup_training(
         )
         @reset model.log_prior = LogPriorULA(model.ε)
         @reset model.sample_prior =
-            (m, n, p, sk, sl, r) -> prior_sampler(m, p, sk, Lux.trainmode(sl), x; rng = r)
+            (m, p, sk, sl, r) -> prior_sampler(m, p, sk, Lux.trainmode(sl), x; rng = r)
 
         println("Prior sampler: ULA")
     elseif model.prior.bool_config.mixture_model
         @reset model.sample_prior =
-            (m, n, p, sk, sl, r) ->
-        sample_mixture(m.prior, n, p.ebm, sk.ebm, Lux.testmode(sl.ebm), sk.quad; rng = r)
+            (m, p, sk, sl, r) ->
+        sample_mixture(m.prior, p.ebm, sk.ebm, Lux.testmode(sl.ebm), sk.quad; rng = r)
 
         @reset model.log_prior =
             LogPriorMix(model.ε, !model.prior.bool_config.contrastive_div)
         println("Prior sampler: Mix ITS")
     else
         @reset model.sample_prior =
-            (m, n, p, sk, sl, r) ->
-        sample_univariate(m.prior, n, p.ebm, sk.ebm, Lux.testmode(sl.ebm), sk.quad; rng = r)
+            (m, p, sk, sl, r) ->
+        sample_univariate(m.prior, p.ebm, sk.ebm, Lux.testmode(sl.ebm), sk.quad; rng = r)
         @reset model.log_prior =
             LogPriorUnivariate(model.ε, !model.prior.bool_config.contrastive_div)
         println("Prior sampler: Univar ITS")
     end
 
     # Default training criterion
-    @reset model.loss_fcn = begin
+    @reset model.loss_fcn = begin #
+
+        wrapped = (p, sk, sl, xi, ti, r, sri) ->
+        importance_loss(
+            p,
+            sk,
+            sl,
+            model,
+            xi,
+            ti,
+            r,
+            sri,
+        )
+
         if MLIR
-            Reactant.@compile importance_loss(
+            Reactant.@compile wrapped(
                 ps,
                 st_kan,
                 st_lux,
-                model,
                 x,
                 1,
                 rng,
                 swap_replica_idxs
             )
         else
-            importance_loss
+            wrapped
         end
     end
 
@@ -110,38 +122,62 @@ function setup_training(
 
     if model.N_t > 1
         @reset model.loss_fcn = begin
+
+            wrapped = (p, sk, sl, xi, ti, r, sri) ->
+            thermodynamic_loss(
+                p,
+                sk,
+                sl,
+                model,
+                xi,
+                ti,
+                r,
+                sri,
+            )
+
             if MLIR
-                Reactant.@compile thermodynamic_loss(
+                Reactant.@compile wrapped(
                     ps,
                     st_kan,
                     st_lux,
-                    model,
                     x,
                     1,
                     rng,
                     swap_replica_idxs
                 )
             else
-                thermodynamic_loss
+                wrapped
             end
         end
         println("Posterior sampler: Thermo ULA")
 
     elseif model.MALA || model.prior.bool_config.ula
+
+        wrapped = (p, sk, sl, xi, ti, r, sri) ->
+        langevin_loss(
+            p,
+            sk,
+            sl,
+            model,
+            xi,
+            ti,
+            r,
+            sri,
+        )
+
         @reset model.loss_fcn = begin
             if MLIR
-                Reactant.@compile langevin_loss(
+                Reactant.@compile wrapped(
                     ps,
                     st_kan,
                     st_lux,
-                    model,
                     x,
                     1,
                     rng,
                     swap_replica_idxs
                 )
             else
-                langevin_loss
+                wrapped
             end
         end
         println("Posterior sampler: MLE ULA")

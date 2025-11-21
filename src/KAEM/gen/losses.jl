@@ -24,9 +24,8 @@ function cross_entropy_IS(
         ε,
         scale,
     )
-    D, L, S, B = size(x̂)
     ll =
-        dropdims(sum(log.(x̂ .+ ε) .* reshape(x, D, L, 1, B), dims = (1, 2)), dims = (1, 2))
+        dropdims(sum(log.(x̂ .+ ε) .* x, dims = (1, 2)), dims = (1, 2))
     return ll' ./ Float32(D) ./ scale
 end
 
@@ -39,7 +38,7 @@ function l2_IS(
     W, H, C, S, B = size(x̂)
     ll =
         -dropdims(
-        sum((reshape(x, W, H, C, 1, B) .- x̂) .^ 2, dims = (1, 2, 3)),
+        sum((x .- x̂) .^ 2, dims = (1, 2, 3)),
         dims = (1, 2, 3),
     )
     return ll' ./ scale
@@ -52,7 +51,7 @@ function l2_IS_PCA(
         scale,
     )
     D, S, B = size(x̂)
-    ll = -dropdims(sum((reshape(x, D, 1, B) .- x̂) .^ 2, dims = 1), dims = 1)
+    ll = -dropdims(sum((x .- x̂) .^ 2, dims = 1), dims = 1)
     return ll' ./ scale
 end
 
@@ -65,7 +64,7 @@ function IS_loss(
         S,
         SEQ,
     )
-    loss_fcn = (SEQ ? cross_entropy_IS : (ndims(x) == 2 ? l2_IS_PCA : l2_IS))
+    loss_fcn = (SEQ ? cross_entropy_IS : (ndims(x) == 3 ? l2_IS_PCA : l2_IS))
     return loss_fcn(x, x̂, ε, scale)
 end
 

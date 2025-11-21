@@ -46,7 +46,7 @@
 # end
 
 # function benchmark_prior(model, ps, st_kan, st_lux)
-#     return first(model.sample_prior(model, model.grid_updates_samples, ps, st_kan, st_lux, rng))
+#     return first(model.sample_prior(model, ps, st_kan, st_lux, rng))
 # end
 
 

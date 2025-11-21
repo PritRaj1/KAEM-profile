@@ -2,6 +2,7 @@ module ULA_sampling
 
 export initialize_ULA_sampler, ULA_sampler
 
+using Reactant: @trace
 using LinearAlgebra,
     Random,
     Lux,
@@ -78,7 +79,7 @@ function (sampler::ULA_sampler)(
     η = sampler.η
     sqrt_2η = sqrt(2 * η)
     seq = model.lkhood.SEQ
-    Q, S = model.prior.q_size, size(x)[end]
+    Q, S = model.prior.q_size, model.batch_size
     P = model.prior.bool_config.mixture_model ? 1 : model.prior.p_size
     num_temps = model.N_t > 1 ? model.N_t : 1
 
@@ -88,14 +89,14 @@ function (sampler::ULA_sampler)(
             π_dist[model.prior.prior_type](P, S, rng)
         else
             z_initial, st_ebm =
-                model.sample_prior(model, S, ps, st_kan, st_lux, rng)
+                model.sample_prior(model, ps, st_kan, st_lux, rng)
             z_samples = Vector{typeof(z_initial)}()
             sizehint!(z_samples, length(temps))
             push!(z_samples, z_initial)
 
             for i in 1:(length(temps) - 1)
                 z_i, st_ebm =
-                    model.sample_prior(model, S, ps, st_kan, st_lux, rng)
+                    model.sample_prior(model, ps, st_kan, st_lux, rng)
                 push!(z_samples, z_i)
             end
             @reset st_lux.ebm = st_ebm
@@ -104,41 +105,28 @@ function (sampler::ULA_sampler)(
     end
 
     z = reshape(z, Q, P, S, num_temps)
-    temps_gpu = repeat(temps, S)
-
-    # Pre-allocate for both precisions
-    z_flat = reshape(z, Q, P, S * num_temps)
-    ∇z_flat = zero(z_flat)
-    z_copy = similar(z[:, :, :, 1])
-    z_t, z_t1 = z_copy, z_copy
-
-    x_t = sampler.prior_sampling_bool ? nothing : (
-            model.lkhood.SEQ ? repeat(x, 1, 1, num_temps) :
-            (model.use_pca ? repeat(x, 1, num_temps) : repeat(x, 1, 1, 1, num_temps))
-        )
 
     # Pre-allocate noise
-    noise = randn(rng, Float32, Q, P, S * num_temps, sampler.N)
+    noise = randn(rng, Float32, Q, P, S, num_temps, sampler.N)
     log_u_swap = log.(rand(rng, Float32, num_temps - 1, sampler.N))
     ll_noise = randn(rng, Float32, model.lkhood.x_shape..., S, 2, num_temps, sampler.N)
 
-    for i in 1:sampler.N
-        ξ = view(noise, :, :, :, i)
-        ∇z_flat .=
+    @trace for i in 1:sampler.N
+        ξ = view(noise, :, :, :, :, i)
+        ∇z =
             unadjusted_logpos_grad(
-            z_flat,
-            x_t,
-            temps_gpu,
+            z,
+            x,
+            temps,
             model,
             ps,
             st_kan,
             st_lux,
+            num_temps,
             sampler.prior_sampling_bool,
         )
 
-        # update_z!(z_flat, ∇z_flat, η, ξ, sqrt_2η, Q, P, S)
-        @. z_flat = z_flat + η * ∇z_flat + sqrt_2η * ξ
-        z .= (reshape(z_flat, Q, P, S, num_temps))
+        @. z = z + η * ∇z + sqrt_2η * ξ
 
         if i % sampler.RE_frequency == 0 && num_temps > 1 && !sampler.prior_sampling_bool
             t = swap_replica_idxs[i] # Randomly pick two adjacent temperatures to swap
@@ -179,7 +167,6 @@ function (sampler::ULA_sampler)(
 
             z[:, :, :, t] .= swap .* z_t1 .+ (1 .- swap) .* z_t
             z[:, :, :, t + 1] .= (1 .- swap) .* z_t1 .+ swap .* z_t
-            z_flat .= (reshape(z, Q, P, S * num_temps))
         end
     end
 

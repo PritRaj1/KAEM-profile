@@ -39,8 +39,8 @@ function sample_importance(
         rng = Random.default_rng(),
     )
     # Prior is proposal for importance sampling
-    z_posterior, st_lux_ebm = m.sample_prior(m, m.IS_samples, ps, st_kan, st_lux, rng)
-    noise = randn(rng, Float32, m.lkhood.x_shape..., size(z_posterior)[end], size(x)[end])
+    z_posterior, st_lux_ebm = m.sample_prior(m, ps, st_kan, st_lux, rng)
+    noise = randn(rng, Float32, m.lkhood.x_shape..., m.batch_size, m.batch_size)
     logllhood, st_lux_gen = log_likelihood_IS(
         z_posterior,
         x,
@@ -55,14 +55,14 @@ function sample_importance(
     # Posterior weights and resampling
     weights = softmax(logllhood, dims = 2)
     resampled_indices = m.lkhood.resample_z(weights; rng = rng)
-    resampled_mask = resampled_indices .== reshape(1:size(weights, 2), 1, 1, size(weights, 2)) |> Lux.f32
+    resampled_mask = resampled_indices .== reshape(1:m.batch_size, 1, 1, m.batch_size) |> Lux.f32
     weights_resampled = softmax(
         dropdims(sum(weights .* resampled_mask; dims = 3); dims = 3);
         dims = 2
     )
 
     # Works better with more samples
-    z_prior, st_lux_ebm = m.sample_prior(m, m.IS_samples, ps, st_kan, st_lux, rng)
+    z_prior, st_lux_ebm = m.sample_prior(m, ps, st_kan, st_lux, rng)
     return z_posterior,
         z_prior,
         st_lux_ebm,
@@ -85,7 +85,7 @@ function marginal_llhood(
         st_lux_gen,
         noise,
     )
-    B, S = size(x)[end], size(z_posterior)[end]
+    B, S = m.batch_size, m.batch_size
 
     logprior_posterior, st_ebm =
         m.log_prior(z_posterior, m.prior, ps.ebm, st_kan.ebm, st_lux_ebm)

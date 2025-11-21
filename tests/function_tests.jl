@@ -14,7 +14,7 @@ using .GridUpdating: update_fcn_grid
 function test_fwd()
     Random.seed!(42)
     x = rand(Float32, 5, 3)
-    f = init_function(5, 2)
+    f = init_function(5, 2; sample_size = 3)
 
     Random.seed!(42)
     ps, st = Lux.setup(Random.GLOBAL_RNG, f)
@@ -29,7 +29,7 @@ end
 function test_grid_update()
     Random.seed!(42)
     x = rand(Float32, 5, 3)
-    f = init_function(5, 2)
+    f = init_function(5, 2; sample_size = 3)
     ps, st = Lux.setup(Random.GLOBAL_RNG, f)
     ps = ps |> ComponentArray
     st = st |> ComponentArray

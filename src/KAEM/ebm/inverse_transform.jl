@@ -10,11 +10,11 @@ include("mixture_selection.jl")
 using .MixtureChoice: choose_component
 
 
-function interpolate_kernel(cdf, grid, rand_vals, Q, P, G; mix_bool = false)
+function interpolate_kernel(cdf, grid, rand_vals, Q, P, G, S; mix_bool = false)
     grid_idxs = reshape(1:G, 1, 1, G, 1) |> pu
 
     # First index, i, such that cdf[i] >= rand_vals
-    indices = sum(1 .+ (cdf .< reshape(rand_vals, Q, P, 1, :)); dims = 3)
+    indices = sum(1 .+ (cdf .< reshape(rand_vals, Q, P, 1, S)); dims = 3)
     first_bool = indices .== 1 |> Lux.f32
     mask2 = indices .== grid_idxs |> Lux.f32
     mask1 = mask2 .- 1.0f0
@@ -36,7 +36,6 @@ end
 
 function sample_univariate(
         ebm,
-        num_samples,
         ps,
         st_kan,
         st_lyrnorm,
@@ -47,14 +46,15 @@ function sample_univariate(
     cdf, grid, st_lyrnorm_new = ebm.quad(ebm, ps, st_kan, st_lyrnorm, st_quad)
     cdf = cumsum(cdf; dims = 3) # Cumulative trapezium = CDF
 
-    rand_vals = rand(rng, Float32, 1, ebm.p_size, num_samples) .* cdf[:, :, end]
+    rand_vals = rand(rng, Float32, 1, ebm.p_size, ebm.s_size) .* cdf[:, :, end]
     z = interpolate_kernel(
         cdf,
         reshape(grid, 1, :, ebm.N_quad),
         rand_vals,
         ebm.q_size,
         ebm.p_size,
-        ebm.N_quad
+        ebm.N_quad,
+        ebm.s_size
     )
     return z, st_lyrnorm_new
 end
@@ -66,14 +66,15 @@ function dotprod_attn(
         scale,
         min_z,
         max_z,
+        q_size,
+        s_size
     )
-    z = reshape(z, size(z, 1), 1, size(z, 2)) .* ((max_z - min_z) + min_z)
+    z = reshape(z, q_size, 1, s_size) .* ((max_z - min_z) + min_z)
     return dropdims(sum((Q .* z) .* (K .* z); dims = 3); dims = 3) ./ scale
 end
 
 function sample_mixture(
         ebm,
-        num_samples,
         ps,
         st_kan,
         st_lyrnorm,
@@ -95,31 +96,34 @@ function sample_mixture(
     """
     alpha = @view(ps.dist.α[:, :])
     if ebm.bool_config.use_attention_kernel
-        z = rand(rng, Float32, ebm.q_size, num_samples)
-        scale = sqrt(Float32(num_samples))
+        z = rand(rng, Float32, ebm.q_size, ebm.s_size)
+        scale = sqrt(Float32(ebm.s_size))
         alpha = dotprod_attn(
             ps.attention.Q,
             ps.attention.K,
             z,
             scale,
             st_kan[:a].min,
-            st_kan[:a].max
+            st_kan[:a].max,
+            ebm.q_size,
+            ebm.s_size
         )
     end
-    mask = choose_component(alpha, num_samples, ebm.q_size, ebm.p_size; rng = rng)
+    mask = choose_component(alpha, ebm.s_size, ebm.q_size, ebm.p_size; rng = rng)
     cdf, grid, st_lyrnorm_new =
         ebm.quad(ebm, ps, st_kan, st_lyrnorm, st_quad; component_mask = mask, mix_bool = true)
     cdf = cumsum(cdf; dims = 3) # Cumulative trapezium = CDF
-    cdf = reshape(cdf, ebm.q_size, 1, :, num_samples)
+    cdf = reshape(cdf, ebm.q_size, 1, :, ebm.s_size)
 
-    rand_vals = rand(rng, Float32, ebm.q_size, 1, 1, num_samples) .* cdf[:, :, end:end, :]
+    rand_vals = rand(rng, Float32, ebm.q_size, 1, 1, ebm.s_size) .* cdf[:, :, end:end, :]
     z = interpolate_kernel(
         cdf,
         reshape(grid, :, 1, ebm.N_quad),
         rand_vals,
         ebm.q_size,
         1, # Single component chosen already
-        ebm.N_quad;
+        ebm.N_quad,
+        ebm.s_size;
         mix_bool = true
     )
     return z, st_lyrnorm_new

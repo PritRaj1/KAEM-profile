@@ -4,12 +4,12 @@ export regularize, forward_elimination, backward_substitution
 
 using Lux
 
-function regularize(B_i, y_i, J, O, G; ε = 1.0f-4)
-    B_perm = reshape(B_i, G, 1, :, 1, J)
-    B_perm_transpose = reshape(B_perm, 1, G, :, 1, J)
+function regularize(B_i, y_i, J, O, G, S; ε = 1.0f-4)
+    B_perm = reshape(B_i, G, 1, S, 1, J)
+    B_perm_transpose = reshape(B_perm, 1, G, S, 1, J)
     A = dropdims(sum(B_perm .* B_perm_transpose; dims = 3); dims = 3) # G x G x 1 x J
 
-    y_perm = reshape(y_i, 1, 1, :, O, J)
+    y_perm = reshape(y_i, 1, 1, S, O, J)
     b = dropdims(sum(B_perm .* y_perm; dims = 3); dims = 3) # G x 1 x O x J
 
     eye = 1:G .== (1:G)' |> Lux.f32

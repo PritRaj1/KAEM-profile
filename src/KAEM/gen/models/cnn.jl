@@ -18,6 +18,7 @@ struct CNN_Generator <: Lux.AbstractLuxLayer
     batchnorms::Tuple{Vararg{Lux.BatchNorm}}
     bool_config::BoolConfig
     in_channels::Int
+    s_size::Int
 end
 
 function upsample_to_match(
@@ -148,6 +149,8 @@ function init_CNN_Generator(
     batchnorm_bool = parse(Bool, retrieve(conf, "CNN", "batchnorm"))
     skip_bool = parse(Bool, retrieve(conf, "CNN", "latent_concat")) # Residual connection
 
+    s_size = parse(Int, retrieve(conf, "TRAINING", "batch_size"))
+
     Φ_functions = Vector{Lux.ConvTranspose}(undef, 0)
     batchnorms = Vector{Lux.BatchNorm}(undef, 0)
 
@@ -196,6 +199,7 @@ function init_CNN_Generator(
         Tuple(batchnorms),
         BoolConfig(false, batchnorm_bool, skip_bool),
         first(widths),
+        s_size,
     )
 end
 
@@ -218,7 +222,7 @@ function (gen::CNN_Generator)(
     Returns:
         The generated data.
     """
-    z = reshape(sum(z, dims = 2), 1, 1, gen.in_channels, :)
+    z = reshape(sum(z, dims = 2), 1, 1, gen.in_channels, gen.s_size)
     gen.bool_config.skip_bool && return forward_with_latent_concat(gen, z, ps, st_lux)
     return forward(gen, z, ps, st_lux)
 end

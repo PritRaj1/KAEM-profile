@@ -102,8 +102,7 @@ function update_model_grid(
                 (model.prior.bool_config.ula || model.prior.bool_config.mixture_model) ?
                     reverse(size(z)[1:2]) : size(z)[1:2]
             )
-            z = reshape(z, P, Q, :)
-            B = size(z, 3)
+            B = model.batch_size
             z = reshape(z, P, Q * B)
 
             mid_size = !model.prior.bool_config.mixture_model ? model.prior.q_size : model.prior.p_size

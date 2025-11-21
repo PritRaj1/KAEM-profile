@@ -36,18 +36,21 @@ struct B_spline_basis <: AbstractBasis
     I::Int
     O::Int
     G::Int
+    S::Int
 end
 
 struct RBF_basis <: AbstractBasis
     I::Int
     O::Int
     G::Int
+    S::Int
 end
 
 struct RSWAF_basis <: AbstractBasis
     I::Int
     O::Int
     G::Int
+    S::Int
 end
 
 struct Cheby_basis <: AbstractBasis
@@ -56,21 +59,23 @@ struct Cheby_basis <: AbstractBasis
     I::Int
     O::Int
     G::Int
+    S::Int
 end
 
-function Cheby_basis(degree::Int, I::Int, O::Int)
+function Cheby_basis(degree::Int, I::Int, O::Int, S::Int)
     lin = collect(Float32, 0:degree)'
-    return Cheby_basis(degree, lin, I, O, degree + 1)
+    return Cheby_basis(degree, lin, I, O, degree + 1, S)
 end
 
 function (b::B_spline_basis)(
         x,
         grid,
         σ,
-        scale
+        scale;
+        init::Bool = false,
     )
-    I, G = b.I, b.G - 1
-    x = reshape(x, I, 1, :)
+    I, G, S = b.I, b.G - 1, b.S
+    x = init ? reshape(x, I, 1, :) : reshape(x, I, 1, S)
 
     # B0
     grid_1 = @view grid[:, 1:(end - 1)]
@@ -106,10 +111,11 @@ function (b::RBF_basis)(
         x,
         grid,
         σ,
-        scale
+        scale;
+        init::Bool = false,
     )
-    I, G = b.I, b.G
-    x_3d = reshape(x, I, 1, :)
+    I, G, S = b.I, b.G, b.S
+    x_3d = init ? reshape(x, I, 1, :) : reshape(x, I, 1, S)
     return @. exp(-((x_3d - grid) * (scale * σ))^2 / 2)
 end
 
@@ -117,10 +123,11 @@ function (b::RSWAF_basis)(
         x,
         grid,
         σ,
-        scale
+        scale;
+        init::Bool = false,
     )
-    I, G = b.I, b.G
-    x_3d = reshape(x, I, 1, :)
+    I, G, S = b.I, b.G, b.S
+    x_3d = init ? reshape(x, I, 1, :) : reshape(x, I, 1, S)
     diff = @. tanh((x_3d - grid) / σ)
     return @. 1.0f0 - diff^2
 end
@@ -129,10 +136,11 @@ function (b::Cheby_basis)(
         x,
         grid,
         σ,
-        scale
+        scale;
+        init::Bool = false,
     )
-    I = b.I
-    x = reshape(x, I, 1, :)
+    I, S = b.I, b.S
+    x = init ? reshape(x, I, 1, :) : reshape(x, I, 1, S)
     x = @. acos(tanh(x) / σ)
     return @. cos(x * b.lin)
 end
@@ -143,11 +151,12 @@ function coef2curve_Spline(
         grid,
         coef,
         σ,
-        scale
+        scale;
+        init::Bool = false,
     )
-    I, O, G = b.I, b.O, b.G
+    I, O, G, S = b.I, b.O, b.G, b.S
     spl = b(x_eval, grid, σ, scale)
-    spl_4d = reshape(spl, I, 1, :, G)
+    spl_4d = reshape(spl, I, 1, S, G)
     coef_4d = reshape(coef, I, O, 1, G)
 
     return dropdims(
@@ -168,11 +177,12 @@ function curve2coef(
         ε = 1.0f-4
     )
     J, O, G = b.I, b.O, b.G
-    B = b(x, grid, σ, scale)
+    S = init ? size(x, 2) : b.S
+    B = b(x, grid, σ, scale; init = init)
     B = permutedims(B, (2, 3, 1))
     y = permutedims(y, (3, 2, 1))
 
-    A, b = regularize(B, y, J, O, G; ε = ε)
+    A, b = regularize(B, y, J, O, G, S; ε = ε)
     A, b = forward_elimination(A, b, J, G; ε = ε)
     coef = dropdims(backward_substitution(A, b, J, G; ε = ε); dims = 2)
     return permutedims(coef, (3, 2, 1))
@@ -183,16 +193,17 @@ struct FFT_basis <: AbstractBasis
     I::Int
     O::Int
     G::Int
+    S::Int
 end
 
 function (b::FFT_basis)(
         x,
         grid,
-        σ,
+        σ
     )
-    I, G = b.I, b.G
+    I, G, S = b.I, b.G, b.S
 
-    x_3d = reshape(x, I, 1, :)
+    x_3d = reshape(x, I, 1, S)
     grid_3d = reshape(grid, I, G, 1)
     freq = @. x_3d * grid_3d * Float32(2π) * σ
     return cos.(freq), sin.(freq)
@@ -205,11 +216,11 @@ function coef2curve_FFT(
         coef,
         σ,
     )
-    I, O, G = b.I, b.O, b.G
+    I, O, G, S = b.I, b.O, b.G, b.S
 
     even, odd = b(x_eval, grid, σ)
-    even = reshape(even, I, 1, :, G)
-    odd = reshape(odd, I, 1, :, G)
+    even = reshape(permutedims(even, (1, 3, 2)), I, 1, S, G)
+    odd = reshape(permutedims(odd, (1, 3, 2)), I, 1, S, G)
     even_coef = reshape(coef[1, :, :, :], I, O, 1, G)
     odd_coef = reshape(coef[2, :, :, :], I, O, 1, G)
 

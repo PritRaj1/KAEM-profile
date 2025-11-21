@@ -19,9 +19,8 @@ function sample_langevin(
         rng = Random.default_rng(),
     )
     z, st_lux, = model.posterior_sampler(model, ps, st_kan, st_lux, x; rng = rng)
-    z = z[:, :, :, 1]
-    noise = randn(rng, Float32, model.lkhood.x_shape..., size(z)[end])
-    return z, st_lux, noise
+    noise = randn(rng, Float32, model.lkhood.x_shape..., model.batch_size)
+    return view(z, :, :, :, 1), st_lux, noise
 end
 
 function marginal_llhood(
@@ -126,7 +125,7 @@ function langevin_loss(
         sample_langevin(ps, st_kan, Lux.trainmode(st_lux), model, x; rng = rng)
     st_lux_ebm, st_lux_gen = st_new.ebm, st_new.gen
     z_prior, st_lux_ebm =
-        model.sample_prior(model, size(x)[end], ps, st_kan, st_lux, rng)
+        model.sample_prior(model, ps, st_kan, st_lux, rng)
 
     ∇ = grad_langevin_llhood(
         ps,

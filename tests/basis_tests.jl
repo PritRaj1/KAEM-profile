@@ -25,7 +25,7 @@ function test_B_spline_basis()
     extended_grid = extend_grid(grid; k_extend = degree)
     coef = rand(Float32, i, o, g + degree - 1)
 
-    basis_function = B_spline_basis(degree, i, o, size(extended_grid, 2))
+    basis_function = B_spline_basis(degree, i, o, size(extended_grid, 2), b)
 
     y = coef2curve_Spline(basis_function, x_eval, extended_grid, coef, σ, scale)
     @test size(y) == (i, o, b)
@@ -45,7 +45,7 @@ function test_RBF_basis()
     grid = rand(Float32, i, g)
     coef = rand(Float32, i, o, g)
 
-    basis_function = RBF_basis(i, o, g)
+    basis_function = RBF_basis(i, o, g, b)
 
     y = coef2curve_Spline(basis_function, x_eval, grid, coef, σ, scale)
     @test size(y) == (i, o, b)
@@ -64,7 +64,7 @@ function test_RSWAF_basis()
     grid = rand(Float32, i, g)
     coef = rand(Float32, i, o, g)
 
-    basis_function = RSWAF_basis(i, o, g)
+    basis_function = RSWAF_basis(i, o, g, b)
 
     y = coef2curve_Spline(basis_function, x_eval, grid, coef, σ, scale)
     @test size(y) == (i, o, b)
@@ -83,7 +83,7 @@ function test_FFT_basis()
     grid = rand(Float32, i, g)
     coef = rand(Float32, 2, i, o, g)
 
-    basis_function = FFT_basis(i, o, g)
+    basis_function = FFT_basis(i, o, g, b)
 
     y = coef2curve_FFT(basis_function, x_eval, grid, coef, σ)
     @test size(y) == (i, o, b)
@@ -97,7 +97,7 @@ function test_Cheby_basis()
     grid = rand(Float32, i, g)
     coef = rand(Float32, i, o, degree + 1)
 
-    basis_function = Cheby_basis(degree, i, o)
+    basis_function = Cheby_basis(degree, i, o, b)
 
     y = coef2curve_Spline(basis_function, x_eval, grid, coef, σ, scale)
     @test size(y) == (i, o, b)

@@ -37,6 +37,7 @@ struct EbmModel{T <: Float32, A <: AbstractActivation} <: Lux.AbstractLuxLayer
     π_pdf::AbstractPrior
     p_size::Int
     q_size::Int
+    s_size::Int
     quad::AbstractQuadrature
     N_quad::Int
     λ::T
@@ -66,6 +67,7 @@ function init_EbmModel(conf::ConfParse; rng::AbstractRNG = Random.default_rng())
     batch_size = parse(Int, retrieve(conf, "TRAINING", "batch_size"))
     τ_trainable = spline_function == "B-spline" ? false : τ_trainable
     reg = parse(Float32, retrieve(conf, "MixtureModel", "λ_reg"))
+    sample_size = parse(Int, retrieve(conf, "TRAINING", "batch_size"))
 
     P, Q = first(widths), last(widths)
 
@@ -83,10 +85,13 @@ function init_EbmModel(conf::ConfParse; rng::AbstractRNG = Random.default_rng())
     )[prior_type]
 
     eps = parse(Float32, retrieve(conf, "TRAINING", "eps"))
+    ula = length(widths) > 2
 
-    # Let Julia infer the concrete activation type from the elements we push
     functions = []
     layernorms = Vector{Lux.LayerNorm}(undef, 0)
+
+    outer_dim = mixture_model ? sample_size : P * sample_size
+    s_size = sample_size
 
     for i in eachindex(widths[1:(end - 1)])
         base_scale = (
@@ -114,7 +119,10 @@ function init_EbmModel(conf::ConfParse; rng::AbstractRNG = Random.default_rng())
             init_τ = init_τ,
             τ_trainable = τ_trainable,
             ε_ridge = eps,
+            sample_size = s_size,
         )
+
+        s_size = (i == 1 && !ula) ? outer_dim : s_size
 
         push!(functions, func)
 
@@ -123,7 +131,6 @@ function init_EbmModel(conf::ConfParse; rng::AbstractRNG = Random.default_rng())
         end
     end
 
-    ula = length(widths) > 2
     contrastive_div =
         parse(Bool, retrieve(conf, "TRAINING", "contrastive_divergence_training")) && !ula
 
@@ -153,6 +160,7 @@ function init_EbmModel(conf::ConfParse; rng::AbstractRNG = Random.default_rng())
         ref_initializer(eps),
         P,
         Q,
+        sample_size,
         quad_fcn,
         N_quad,
         reg,
@@ -180,7 +188,8 @@ function (ebm::EbmModel)(
     """
 
     st_lyrnorm_new = st_lyrnorm
-    mid_size = !ebm.bool_config.mixture_model ? ebm.q_size : ebm.p_size
+    mid_size = ebm.bool_config.mixture_model ? ebm.p_size : ebm.q_size
+    outer_dim = ebm.bool_config.mixture_model ? ebm.s_size : ebm.p_size * ebm.s_size
 
     for i in 1:ebm.depth
         z, st_layer_new =
@@ -198,11 +207,11 @@ function (ebm::EbmModel)(
 
         z = Lux.apply(ebm.fcns_qp[i], z, @view(ps.fcn[symbol_map[i]]), @view(st_kan[symbol_map[i]]))
         z =
-            (i == 1 && !ebm.bool_config.ula) ? reshape(z, mid_size, :) :
+            (i == 1 && !ebm.bool_config.ula) ? reshape(z, mid_size, outer_dim) :
             dropdims(sum(z, dims = 1); dims = 1)
     end
 
-    z = ebm.bool_config.ula ? z : reshape(z, ebm.q_size, ebm.p_size, :)
+    z = ebm.bool_config.ula ? z : reshape(z, ebm.q_size, ebm.p_size, ebm.s_size)
     return z, st_lyrnorm_new
 end
 

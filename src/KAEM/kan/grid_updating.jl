@@ -27,9 +27,9 @@ function update_fcn_grid(
         new_grid: The updated grid.
         new_coef: The updated spline coefficients.
     """
-    sample_size = size(x, 2)
     coef = ps.coef
     τ = l.τ_trainable ? ps.basis_τ : st.basis_τ
+    I, S = l.basis_function.I, l.basis_function.S
 
     x_sort = sort(x, dims = 2)
     y =
@@ -39,15 +39,15 @@ function update_fcn_grid(
 
     # Adaptive grid - concentrate grid points around regions of higher density
     num_interval = size(st.grid, 2) - 2 * l.spline_degree - 1
-    ids = reshape([div(sample_size * i, num_interval) + 1 for i in 0:(num_interval - 1)], 1, 1, :)
-    mask = ids .== (1:sample_size)'
+    ids = reshape([div(S * i, num_interval) + 1 for i in 0:(num_interval - 1)], 1, 1, num_interval)
+    mask = ids .== (1:S)'
     grid_adaptive = dropdims(sum(mask .* x_sort; dims = 2); dims = 2)
-    grid_adaptive = hcat(grid_adaptive, view(x_sort, :, sample_size))
+    grid_adaptive = hcat(grid_adaptive, view(x_sort, :, S:S))
 
     # Uniform grid
-    h = (view(grid_adaptive, :, num_interval) .- view(grid_adaptive, :, 1)) ./ num_interval # step size
+    h = (view(grid_adaptive, :, num_interval:num_interval) .- view(grid_adaptive, :, 1:1)) ./ num_interval # step size
     range = (0:num_interval)' |> pu
-    grid_uniform = h .* range .+ view(grid_adaptive, :, 1)
+    grid_uniform = h .* range .+ view(grid_adaptive, :, 1:1)
 
     # Grid is a convex combination of the uniform and adaptive grid
     grid = l.grid_update_ratio .* grid_uniform + (1 - l.grid_update_ratio) .* grid_adaptive

@@ -35,7 +35,7 @@ struct KAEM{T <: Float32} <: Lux.AbstractLuxLayer
     update_llhood_grid::Bool
     grid_update_decay::T
     grid_updates_samples::Int
-    IS_samples::Int
+    batch_size::Int
     verbose::Bool
     p::AbstractArray{T}
     N_t::Int
@@ -44,7 +44,6 @@ struct KAEM{T <: Float32} <: Lux.AbstractLuxLayer
     loss_fcn::Any
     ε::T
     file_loc::AbstractString
-    max_samples::Int
     MALA::Bool
     conf::ConfParse
     log_prior::AbstractLogPrior
@@ -62,7 +61,6 @@ function init_KAEM(
     )::KAEM{Float32}
 
     batch_size = parse(Int, retrieve(conf, "TRAINING", "batch_size"))
-    IS_samples = parse(Int, retrieve(conf, "TRAINING", "importance_sample_size"))
     N_train = parse(Int, retrieve(conf, "TRAINING", "N_train"))
     N_test = parse(Int, retrieve(conf, "TRAINING", "N_test"))
     verbose = parse(Bool, retrieve(conf, "TRAINING", "verbose"))
@@ -120,7 +118,6 @@ function init_KAEM(
     num_grid_updating_samples =
         parse(Int, retrieve(conf, "GRID_UPDATING", "num_grid_updating_samples"))
 
-    max_samples = max(IS_samples, batch_size)
     η_init = parse(Float32, retrieve(conf, "POST_LANGEVIN", "initial_step_size"))
     N_t = parse(Int, retrieve(conf, "THERMODYNAMIC_INTEGRATION", "num_temps"))
     num_steps = parse(Int, retrieve(conf, "POST_LANGEVIN", "iters"))
@@ -156,7 +153,7 @@ function init_KAEM(
         update_llhood_grid,
         grid_update_decay,
         num_grid_updating_samples,
-        IS_samples,
+        batch_size,
         verbose,
         p,
         N_t,
@@ -165,7 +162,6 @@ function init_KAEM(
         nothing,
         eps,
         file_loc,
-        max_samples,
         MALA,
         conf,
         LogPriorUnivariate(eps, !prior_model.bool_config.contrastive_div),
@@ -234,7 +230,7 @@ function (model::KAEM{T})(
         Lux states of the prior.
         Lux states of the likelihood.
     """
-    z, st_ebm = model.sample_prior(model, num_samples, ps, st_kan, st_lux, rng)
+    z, st_ebm = model.sample_prior(model, model.batch_size, ps, st_kan, st_lux, rng)
     x̂, st_gen = model.lkhood.generator(ps.gen, st_kan.gen, st_lux.gen, z)
     return model.lkhood.output_activation(x̂), st_ebm, st_gen
 end

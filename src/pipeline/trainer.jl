@@ -240,7 +240,6 @@ function train!(t::KAEM_trainer; train_idx::Int = 1)
             t.ps,
             t.st_kan,
             t.st_lux,
-            t.model,
             t.x,
             train_idx,
             t.rng,
@@ -275,15 +274,16 @@ function train!(t::KAEM_trainer; train_idx::Int = 1)
                 )
                 @reset t.st_lux.ebm = st_ebm
                 @reset t.st_lux.gen = st_gen
+                x_gen = Array(x_gen)
 
                 # MSE loss between pixels for images, and max index for logits
                 if t.gen_type == "logits"
                     idxs = dropdims(argmax(x_gen, dims = 1); dims = 1)
                     test_loss +=
-                        sum((pu(onecold(x, 1:size(x, 1))) .- getindex.(idxs, 1)) .^ 2) /
+                        sum((onecold(x, 1:size(x, 1)) .- getindex.(idxs, 1)) .^ 2) /
                         size(x)[end]
                 else
-                    test_loss += mse(pu(x), x_gen)
+                    test_loss += mse(x, x_gen)
                 end
             end
 
@@ -326,9 +326,11 @@ function train!(t::KAEM_trainer; train_idx::Int = 1)
                 )
                 @reset t.st_lux.ebm = st_ebm
                 @reset t.st_lux.gen = st_gen
-                batches_to_cat = Vector{typeof(cpu_device()(first_batch))}()
+                first_batch = Array(first_batch)
+
+                batches_to_cat = Vector{typeof(first_batch)}()
                 sizehint!(batches_to_cat, num_batches_to_save)
-                push!(batches_to_cat, cpu_device()(first_batch))
+                push!(batches_to_cat, first_batch)
 
                 for i in 2:num_batches_to_save
                     batch, st_ebm, st_gen = gen_compiled(
@@ -340,7 +342,7 @@ function train!(t::KAEM_trainer; train_idx::Int = 1)
                     )
                     @reset t.st_lux.ebm = st_ebm
                     @reset t.st_lux.gen = st_gen
-                    push!(batches_to_cat, cpu_device()(batch))
+                    push!(batches_to_cat, Array(batch))
                 end
                 gen_data = cat(batches_to_cat..., dims = concat_dim)
             else
@@ -432,9 +434,10 @@ function train!(t::KAEM_trainer; train_idx::Int = 1)
         t.batch_size_for_gen,
         t.rng,
     )
-    batches_to_cat = Vector{typeof(cpu_device()(first_batch))}()
+    first_batch = Array(first_batch)
+    batches_to_cat = Vector{typeof(first_batch)}()
     sizehint!(batches_to_cat, num_batches)
-    push!(batches_to_cat, cpu_device()(first_batch))
+    push!(batches_to_cat, first_batch)
 
     for i in 2:num_batches
         batch, st_ebm, st_gen = gen_compiled(
@@ -444,7 +447,7 @@ function train!(t::KAEM_trainer; train_idx::Int = 1)
             t.batch_size_for_gen,
             t.rng,
         )
-        push!(batches_to_cat, cpu_device()(batch))
+        push!(batches_to_cat, Array(batch))
     end
     gen_data = cat(batches_to_cat..., dims = concat_dim)
 

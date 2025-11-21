@@ -84,19 +84,17 @@ function (lp::LogPriorUnivariate)(
         The unnormalized log-probability of the ebm-prior.
         The updated states of the ebm-prior.
     """
-    Q, P = ebm.q_size, ebm.p_size
+    Q, P, S = ebm.q_size, ebm.p_size, ebm.s_size
     log_π0 = ebm.π_pdf(z, ps.dist.π_μ, ps.dist.π_σ; log_bool = true)
 
     log_π0 =
         lp.normalize && !ula ?
         log_π0 .- log_norm(first(ebm.quad(ebm, ps, st_kan, st_lyrnorm)), lp.ε) : log_π0
 
-    f, st_lyrnorm_new = ebm(ps, st_kan, st_lyrnorm, reshape(z, P, :))
-    f_4d = reshape(f, Q, Q, P, :)
-
-    f_diag = similar(z)
+    f_diag, st_lyrnorm_new = similar(z), st_lyrnorm
     for i in 1:Q
-        f_diag[i, :, :] = selectdim(selectdim(f_4d, 1, i), 1, i)
+        f, st_lyrnorm_new = ebm(ps, st_kan, st_lyrnorm_new, view(z, i, :, :))
+        f_diag[i, :, :] = selectdim(f, 1, i)
     end
 
     log_p = dropdims(sum(f_diag .+ log_π0; dims = (1, 2)); dims = (1, 2))
@@ -107,8 +105,9 @@ function dotprod_attn(
         Q,
         K,
         z,
+        s_size,
     )
-    scale = sqrt(Float32(size(z)[end]))
+    scale = sqrt(Float32(s_size))
     return dropdims(sum(Q .* z .* K .* z; dims = 3); dims = 3) ./ scale
 end
 
@@ -138,10 +137,10 @@ function (lp::LogPriorMix)(
         The unnormalized log-probability of the mixture ebm-prior.
         The updated states of the mixture ebm-prior.
     """
-    Q, P = ebm.q_size, ebm.p_size
+    Q, P, S = ebm.q_size, ebm.p_size, ebm.s_size
     alpha =
         ebm.bool_config.use_attention_kernel ?
-        dotprod_attn(ps.attention.Q, ps.attention.K, z) :
+        dotprod_attn(ps.attention.Q, ps.attention.K, z, S) :
         (ebm.bool_config.train_props ? ps.dist.α : zero(ps.dist.α) .+ 1.0f0)
 
     alpha = softmax(alpha; dims = 2)

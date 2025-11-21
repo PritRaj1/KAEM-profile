@@ -42,7 +42,15 @@ function log_likelihood_IS(
     noise_scaled = lkhood.σ.noise .* noise
     x̂_noised = lkhood.output_activation(x̂ .+ noise_scaled)
 
-    ll = IS_loss(x, x̂_noised, ε, 2 * lkhood.σ.llhood^2, B, S, lkhood.SEQ)
+    # Add singleton dimension
+    x_expanded = reshape(
+        x,
+        lkhood.x_shape...,
+        1,
+        B
+    )
+
+    ll = IS_loss(x_expanded, x̂_noised, ε, 2 * lkhood.σ.llhood^2, B, S, lkhood.SEQ)
     return ll, st_lux_new
 end
 

@@ -11,11 +11,11 @@ include("spline_bases.jl")
 using .spline_functions
 
 const SplineBasis_mapping = Dict(
-    "B-spline" => (degree, in_dim, out_dim, grid_size) -> B_spline_basis(degree, in_dim, out_dim, grid_size + 1),
-    "RBF" => (degree, in_dim, out_dim, grid_size) -> RBF_basis(in_dim, out_dim, grid_size),
-    "RSWAF" => (degree, in_dim, out_dim, grid_size) -> RSWAF_basis(in_dim, out_dim, grid_size),
-    "FFT" => (degree, in_dim, out_dim, grid_size) -> FFT_basis(in_dim, out_dim, grid_size),
-    "Cheby" => (degree, in_dim, out_dim, grid_size) -> Cheby_basis(degree, in_dim, out_dim),
+    "B-spline" => (degree, in_dim, out_dim, grid_size, batch_size) -> B_spline_basis(degree, in_dim, out_dim, grid_size + 1, batch_size),
+    "RBF" => (degree, in_dim, out_dim, grid_size, batch_size) -> RBF_basis(in_dim, out_dim, grid_size, batch_size),
+    "RSWAF" => (degree, in_dim, out_dim, grid_size, batch_size) -> RSWAF_basis(in_dim, out_dim, grid_size, batch_size),
+    "FFT" => (degree, in_dim, out_dim, grid_size, batch_size) -> FFT_basis(in_dim, out_dim, grid_size, batch_size),
+    "Cheby" => (degree, in_dim, out_dim, grid_size, batch_size) -> Cheby_basis(degree, in_dim, out_dim, batch_size),
 )
 
 struct univariate_function{T <: Float32, A <: AbstractActivation} <: Lux.AbstractLuxLayer
@@ -52,6 +52,7 @@ function init_function(
         init_τ::T = 1.0f0,
         τ_trainable::Bool = true,
         ε_ridge::T = 1.0f-6,
+        sample_size::Int = 1,
     ) where {T <: Float32}
     spline_degree =
         (spline_function == "B-spline" || spline_function == "Cheby") ? spline_degree : 0
@@ -72,9 +73,9 @@ function init_function(
     A = typeof(base_activation_obj)
 
     initializer =
-        get(SplineBasis_mapping, spline_function, (degree, I, O, G) -> RBF_basis(I, O, G))
+        get(SplineBasis_mapping, spline_function, (degree, I, O, G, S) -> RBF_basis(I, O, G, S))
 
-    basis_function = initializer(spline_degree, in_dim, out_dim, size(grid, 2))
+    basis_function = initializer(spline_degree, in_dim, out_dim, size(grid, 2), sample_size)
 
     return univariate_function{T, A}(
         in_dim,
@@ -173,8 +174,8 @@ function SplineMUL(
     )
     x_act = l.base_activation(x)
     w_base, w_sp = ps.w_base, ps.w_sp
-    I = l.basis_function.I
-    return w_base .* reshape(x_act, I, 1, :) .+ w_sp .* y
+    I, S = l.basis_function.I, l.basis_function.S
+    return w_base .* reshape(x_act, I, 1, S) .+ w_sp .* y
 end
 
 function (l::univariate_function)(
