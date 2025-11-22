@@ -83,7 +83,9 @@ function (sampler::ULA_sampler)(
     seq = model.lkhood.SEQ
     Q, S = model.prior.q_size, model.batch_size
     P = model.prior.bool_config.mixture_model ? 1 : model.prior.p_size
-    num_temps = (model.N_t > 1 && !sampler.prior_sampling_bool) ? model.N_t : 1
+
+    thermo_bool = model.N_t > 1
+    num_temps = (thermo_bool && !sampler.prior_sampling_bool) ? model.N_t : 1
 
     # Initialize from prior
     z_flat = begin
@@ -119,7 +121,6 @@ function (sampler::ULA_sampler)(
     @reset model.prior.s_size = S * num_temps
     @reset model.lkhood.generator.s_size = S * num_temps
 
-    z = reshape(z_flat, Q, P, S, num_temps) .* 1.0f0
     temps_gpu = repeat(temps, S)
     log_dist = sampler.prior_sampling_bool ? unadjusted_logprior : unadjusted_logpos
 
@@ -135,7 +136,55 @@ function (sampler::ULA_sampler)(
     log_u_swap = log.(rand(rng, Float32, num_temps - 1, N_steps))
     ll_noise = randn(rng, Float32, model.lkhood.x_shape..., S, 2, num_temps, N_steps)
 
+    function replica_exchange_step(z_i, i)
+        z = reshape(z_i, Q, P, S, num_temps)
+
+        # Randomly pick two adjacent temperatures to swap
+        t = swap_replica_idxs[i]
+        t1 = swap_replica_idxs_plus[i]
+        z_t = z[:, :, :, t]
+        z_t1 = z[:, :, :, t1]
+
+        noise_1 =
+            model.lkhood.SEQ ? ll_noise[:, :, :, 1, t, i] :
+            ll_noise[:, :, :, :, 1, t, i]
+        noise_2 =
+            model.lkhood.SEQ ? ll_noise[:, :, :, 2, t, i] :
+            ll_noise[:, :, :, :, 2, t, i]
+
+        ll_t, st_gen = log_likelihood_MALA(
+            z_t,
+            x,
+            model.lkhood,
+            ps.gen,
+            st_kan.gen,
+            st_lux.gen,
+            noise_1;
+            ε = model.ε,
+        )
+        ll_t1, st_gen = log_likelihood_MALA(
+            z_t1,
+            x,
+            model.lkhood,
+            ps.gen,
+            st_kan.gen,
+            st_lux.gen,
+            noise_2;
+            ε = model.ε,
+        )
+
+        # Global exchange criterion
+        log_swap_ratio = (temps[t1] - temps[t]) .* (sum(ll_t) - sum(ll_t1))
+        swap = log_u_swap[t:t, i:i] .< log_swap_ratio
+        @reset st_lux.gen = st_gen
+
+        z[:, :, :, t] .= swap .* z_t1 .+ (1 .- swap) .* z_t
+        z[:, :, :, t1] .= (1 .- swap) .* z_t1 .+ swap .* z_t
+        return reshape(z, Q, P, S * num_temps)
+    end
+
     swap_replica_idxs_plus = isnothing(swap_replica_idxs) ? nothing : swap_replica_idxs .+ 1
+    RE_func = isnothing(swap_replica_idxs) ? (z_i, i) -> z_i : replica_exchange_step
 
     @trace for i in 1:N_steps
         ξ = noise[:, :, :, i]
@@ -152,53 +201,10 @@ function (sampler::ULA_sampler)(
         )
 
         @. z_flat += η * ∇z + sqrt_2η * ξ
-
-        if i % RE_freq == 0 && num_temps > 1
-            z .= reshape(z_flat, Q, P, S, num_temps)
-            t = swap_replica_idxs[i] # Randomly pick two adjacent temperatures to swap
-            t1 = swap_replica_idxs_plus[i]
-            z_t = z[:, :, :, t]
-            z_t1 = z[:, :, :, t1]
-
-            noise_1 =
-                model.lkhood.SEQ ? ll_noise[:, :, :, 1, t, i] :
-                ll_noise[:, :, :, :, 1, t, i]
-            noise_2 =
-                model.lkhood.SEQ ? ll_noise[:, :, :, 2, t, i] :
-                ll_noise[:, :, :, :, 2, t, i]
-
-            ll_t, st_gen = log_likelihood_MALA(
-                z_t,
-                x,
-                model.lkhood,
-                ps.gen,
-                st_kan.gen,
-                st_lux.gen,
-                noise_1;
-                ε = model.ε,
-            )
-            ll_t1, st_gen = log_likelihood_MALA(
-                z_t1,
-                x,
-                model.lkhood,
-                ps.gen,
-                st_kan.gen,
-                st_lux.gen,
-                noise_2;
-                ε = model.ε,
-            )
-
-            log_swap_ratio = (temps[t1] - temps[t]) .* (sum(ll_t) - sum(ll_t1))
-            swap = log_u_swap[t:t, i:i] .< log_swap_ratio
-            @reset st_lux.gen = st_gen
-
-            z[:, :, :, t] .= swap .* z_t1 .+ (1 .- swap) .* z_t
-            z[:, :, :, t1] .= (1 .- swap) .* z_t1 .+ swap .* z_t
-            z_flat .= reshape(z, Q, P, S * num_temps)
-        end
+        z_flat .= ifelse(i % RE_freq == 0, RE_func(z_flat, i), z_flat)
     end
 
-    z .= reshape(z_flat, Q, P, S, num_temps)
+    z = reshape(z_flat, Q, P, S, num_temps)
 
     if prior_sampling
         st_lux = st_lux.ebm
