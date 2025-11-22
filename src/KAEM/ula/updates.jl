@@ -39,8 +39,7 @@ function unadjusted_logpos(
             )
         )
 
-        mask = (1:num_temps .== t) |> Lux.f32
-        temp = sum(temps .* mask)
+        temp = sum(temps[t:t])
         logpos += temp * sum(
             first(
                 log_likelihood_MALA(
