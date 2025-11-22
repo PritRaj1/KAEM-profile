@@ -39,7 +39,7 @@ function unadjusted_logpos(
             )
         )
 
-        temp = sum(temps[t:t])
+        temp = sum(temps[t:t, :])
         logpos += temp * sum(
             first(
                 log_likelihood_MALA(

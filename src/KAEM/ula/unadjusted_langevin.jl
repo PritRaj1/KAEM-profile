@@ -107,6 +107,7 @@ function (sampler::ULA_sampler)(
     end
 
     z = reshape(z, Q, P, S, num_temps) .* 1.0f0
+    temps_gpu = reshape(temps, num_temps, 1) .* 1.0f0
     log_dist = sampler.prior_sampling_bool ? unadjusted_logprior : unadjusted_logpos
 
     N_steps = sampler.N
@@ -123,7 +124,7 @@ function (sampler::ULA_sampler)(
             unadjusted_grad(
             z,
             x,
-            temps,
+            temps_gpu,
             model,
             ps,
             st_kan,
@@ -167,7 +168,7 @@ function (sampler::ULA_sampler)(
                 ε = model.ε,
             )
 
-            log_swap_ratio = (temps[t + 1] - temps[t]) .* (sum(ll_t) - sum(ll_t1))
+            log_swap_ratio = sum(temps_gpu[t + 1, :] - temps_gpu[t, :]) .* (sum(ll_t) - sum(ll_t1))
             swap = log_u_swap[t:t, i:i] .< log_swap_ratio
             @reset st_lux.gen = st_gen
 
