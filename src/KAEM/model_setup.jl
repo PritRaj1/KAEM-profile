@@ -36,10 +36,6 @@ function setup_training(
     num_steps = parse(Int, retrieve(conf, "POST_LANGEVIN", "iters"))
     N_unadjusted = parse(Int, retrieve(conf, "POST_LANGEVIN", "N_unadjusted"))
     η_init = parse(Float32, retrieve(conf, "POST_LANGEVIN", "initial_step_size"))
-    replica_exchange_frequency = parse(
-        Int,
-        retrieve(conf, "THERMODYNAMIC_INTEGRATION", "replica_exchange_frequency"),
-    )
 
     batch_size = parse(Int, retrieve(conf, "TRAINING", "batch_size"))
     zero_vec = pu(zeros(T, model.lkhood.x_shape..., model.batch_size, batch_size))
@@ -119,7 +115,6 @@ function setup_training(
         model;
         η = η_init,
         N = num_steps,
-        RE_frequency = replica_exchange_frequency,
     )
 
     if model.N_t > 1

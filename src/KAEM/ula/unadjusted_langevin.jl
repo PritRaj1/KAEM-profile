@@ -2,7 +2,6 @@ module ULA_sampling
 
 export initialize_ULA_sampler, ULA_sampler
 
-using Reactant: @trace
 using LinearAlgebra,
     Random,
     Lux,
@@ -30,7 +29,6 @@ using .LogLikelihoods: log_likelihood_MALA
 struct ULA_sampler{T}
     prior_sampling_bool::Bool
     N::Int
-    RE_frequency::Int
     η::T
     model::KAEM{T}
 end
@@ -40,10 +38,9 @@ function initialize_ULA_sampler(
         η::T = 1.0f-3,
         prior_sampling_bool::Bool = false,
         N::Int = 20,
-        RE_frequency::Int = 10,
     ) where {T}
 
-    return ULA_sampler(prior_sampling_bool, N, RE_frequency, η, model)
+    return ULA_sampler(prior_sampling_bool, N, η, model)
 end
 
 function (sampler::ULA_sampler)(
@@ -127,7 +124,6 @@ function (sampler::ULA_sampler)(
     log_dist = sampler.prior_sampling_bool ? unadjusted_logprior : unadjusted_logpos
 
     N_steps = sampler.N
-    RE_freq = sampler.RE_frequency
     x_t = (
         model.lkhood.SEQ ? repeat(x, 1, 1, num_temps) :
             (model.use_pca ? repeat(x, 1, num_temps) : repeat(x, 1, 1, 1, num_temps))
@@ -146,48 +142,50 @@ function (sampler::ULA_sampler)(
     function replica_exchange_step(z_i, i)
         z = reshape(z_i, Q, P, S, num_temps)
 
-        @trace if i % RE_freq == 0
-            mask1 = mask_swap_1[:, i]
-            mask2 = mask_swap_2[:, i]
+        mask1 = mask_swap_1[:, i]
+        mask2 = mask_swap_2[:, i]
+        mask1_expanded = reshape(mask1, 1, 1, 1, num_temps)
+        mask2_expanded = reshape(mask2, 1, 1, 1, num_temps)
 
-            # Randomly pick two adjacent temperatures to swap
-            z_t = dropdims(sum(z .* reshape(mask1, 1, 1, 1, num_temps); dims = 4); dims = 4)
-            z_t1 = dropdims(sum(z .* reshape(mask2, 1, 1, 1, num_temps); dims = 4); dims = 4)
+        # Randomly pick two adjacent temperatures to swap
+        z_t = dropdims(sum(z .* reshape(mask1, 1, 1, 1, num_temps); dims = 4); dims = 4)
+        z_t1 = dropdims(sum(z .* reshape(mask2, 1, 1, 1, num_temps); dims = 4); dims = 4)
 
-            noise_1 =
-                (
-                model.lkhood.SEQ ?
-                    dropdims(
-                        sum(
-                            ll_noise[:, :, :, 1, :, i] .* reshape(mask1, 1, 1, 1, num_temps)
-                            ; dims = 4
-                        ); dims = 4
-                    ) :
-                    dropdims(
-                        sum(
-                            ll_noise[:, :, :, :, 1, :, i] .* reshape(mask1, 1, 1, 1, 1, num_temps)
-                            ; dims = 5
-                        ); dims = 5
-                    )
-            )
-            noise_2 =
-                (
-                model.lkhood.SEQ ?
-                    dropdims(
-                        sum(
-                            ll_noise[:, :, :, 2, :, i] .* reshape(mask2, 1, 1, 1, num_temps)
-                            ; dims = 4
-                        ); dims = 4
-                    ) :
-                    dropdims(
-                        sum(
-                            ll_noise[:, :, :, :, 2, :, i] .* reshape(mask2, 1, 1, 1, 1, num_temps)
-                            ; dims = 5
-                        ); dims = 5
-                    )
-            )
+        noise_1 =
+            (
+            model.lkhood.SEQ ?
+                dropdims(
+                    sum(
+                        ll_noise[:, :, :, 1, :, i] .* mask1_expanded
+                        ; dims = 4
+                    ); dims = 4
+                ) :
+                dropdims(
+                    sum(
+                        ll_noise[:, :, :, :, 1, :, i] .* reshape(mask1, 1, 1, 1, 1, num_temps)
+                        ; dims = 5
+                    ); dims = 5
+                )
+        )
+        noise_2 =
+            (
+            model.lkhood.SEQ ?
+                dropdims(
+                    sum(
+                        ll_noise[:, :, :, 2, :, i] .* mask2_expanded
+                        ; dims = 4
+                    ); dims = 4
+                ) :
+                dropdims(
+                    sum(
+                        ll_noise[:, :, :, :, 2, :, i] .* reshape(mask2, 1, 1, 1, 1, num_temps)
+                        ; dims = 5
+                    ); dims = 5
+                )
+        )
 
-            ll_t, st_gen = log_likelihood_MALA(
+        ll_t = first(
+            log_likelihood_MALA(
                 z_t,
                 x,
                 lkhood_copy,
@@ -197,7 +195,9 @@ function (sampler::ULA_sampler)(
                 noise_1;
                 ε = model.ε,
             )
-            ll_t1, st_gen = log_likelihood_MALA(
+        )
+        ll_t1 = first(
+            log_likelihood_MALA(
                 z_t1,
                 x,
                 lkhood_copy,
@@ -207,32 +207,29 @@ function (sampler::ULA_sampler)(
                 noise_2;
                 ε = model.ε,
             )
+        )
 
-            # Global exchange criterion
-            temps_t = sum(temps .* mask1)
-            temps_t1 = sum(temps .* mask2)
-            log_swap_ratio = (temps_t1 - temps_t) .* (sum(ll_t) - sum(ll_t1))
-            swap = sum(log_u_swap[:, i] .* mask1) < log_swap_ratio
-            @reset st_lux.gen = st_gen
+        # Global exchange criterion
+        temps_t = sum(temps .* mask1)
+        temps_t1 = sum(temps .* mask2)
+        log_swap_ratio = (temps_t1 - temps_t) .* (sum(ll_t) - sum(ll_t1))
+        swap = sum(log_u_swap[:, i] .* mask1) < log_swap_ratio
 
-            z = (
-                (swap .* z_t1 .+ (1 .- swap) .* z_t) .+ # Swap or not
-                    reshape(mask1, 1, 1, 1, num_temps) .* z # Index of t
-            )
-            z = (
-                ((1 .- swap) .* z_t1 .+ swap .* z_t) .+ # Swap or not
-                    reshape(mask2, 1, 1, 1, num_temps) .* z # Index of t1
-            )
-        else
-            z = z
-        end
+        z = (
+            (swap .* z_t1 .+ (1 .- swap) .* z_t) .+ # Swap or not
+                mask1_expanded .* z # Index of t
+        )
+        z = (
+            ((1 .- swap) .* z_t1 .+ swap .* z_t) .+ # Swap or not
+                mask2_expanded .* z # Index of t1
+        )
 
         return reshape(z, Q, P, S * num_temps)
     end
 
     RE_func = isnothing(swap_replica_idxs) ? (z_i, i) -> z_i : replica_exchange_step
 
-    @trace for i in 1:N_steps
+    for i in 1:N_steps
         ξ = noise[:, :, :, i]
         ∇z =
             unadjusted_grad(
@@ -247,7 +244,7 @@ function (sampler::ULA_sampler)(
         )
 
         @. z_flat += η * ∇z + sqrt_2η * ξ
-        z_flat .= RE_func(z_flat, i)
+        z_flat = RE_func(z_flat, i)
     end
 
     z = reshape(z_flat, Q, P, S, num_temps)
