@@ -232,7 +232,7 @@ function train!(t::KAEM_trainer; train_idx::Int = 1)
         # Rand like this cannot be compiled with MLIR
         swap_replica_idxs = (
             t.model.N_t > 1 ?
-                rand(t.rng, 1:(t.model.N_t - 1), t.model.posterior_sampler.N) :
+                rand(t.rng, 1:(t.model.N_t - 1), t.model.posterior_sampler.N) |> pu :
                 nothing
         )
 

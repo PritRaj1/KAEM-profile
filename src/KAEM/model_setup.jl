@@ -48,7 +48,7 @@ function setup_training(
 
     swap_replica_idxs = (
         model.N_t > 1 ?
-            rand(rng, 1:(model.N_t - 1), num_steps) :
+            rand(rng, 1:(model.N_t - 1), num_steps) |> pu :
             nothing
     )
 

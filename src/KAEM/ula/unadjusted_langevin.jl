@@ -108,6 +108,8 @@ function (sampler::ULA_sampler)(
         end
     end
 
+    lkhood_copy = deepcopy(model.lkhood)
+
     for i in 1:model.prior.depth
         @reset model.prior.fcns_qp[i].basis_function.S = S * num_temps
     end
@@ -133,29 +135,60 @@ function (sampler::ULA_sampler)(
 
     # Pre-allocate noise
     noise = randn(rng, Float32, Q, P, S * num_temps, N_steps)
-    log_u_swap = log.(rand(rng, Float32, num_temps - 1, N_steps))
+    log_u_swap = log.(rand(rng, Float32, num_temps, N_steps))
     ll_noise = randn(rng, Float32, model.lkhood.x_shape..., S, 2, num_temps, N_steps)
+    swap_replica_idxs_plus = isnothing(swap_replica_idxs) ? nothing : swap_replica_idxs .+ 1
+
+    # Traced HLO does not support int arrays, so handle mask outside
+    mask_swap_1 = Lux.f32(1:num_temps .== swap_replica_idxs') .* 1.0f0
+    mask_swap_2 = Lux.f32(1:num_temps .== swap_replica_idxs_plus') .* 1.0f0
 
     function replica_exchange_step(z_i, i)
         z = reshape(z_i, Q, P, S, num_temps)
 
         # Randomly pick two adjacent temperatures to swap
-        t = swap_replica_idxs[i]
-        t1 = swap_replica_idxs_plus[i]
-        z_t = z[:, :, :, t]
-        z_t1 = z[:, :, :, t1]
+        mask1 = mask_swap_1[:, i]
+        mask2 = mask_swap_2[:, i]
+        z_t = dropdims(sum(z .* reshape(mask1, 1, 1, 1, num_temps), dims = 4); dims = 4)
+        z_t1 = dropdims(sum(z .* reshape(mask2, 1, 1, 1, num_temps), dims = 4); dims = 4)
 
         noise_1 =
-            model.lkhood.SEQ ? ll_noise[:, :, :, 1, t, i] :
-            ll_noise[:, :, :, :, 1, t, i]
+            (
+            model.lkhood.SEQ ?
+                dropdims(
+                    sum(
+                        ll_noise[:, :, :, 1, :, i] .* reshape(mask1, 1, 1, 1, num_temps)
+                        , dims = 4
+                    ); dims = 4
+                ) :
+                dropdims(
+                    sum(
+                        ll_noise[:, :, :, :, 1, :, i] .* reshape(mask1, 1, 1, 1, 1, num_temps)
+                        , dims = 5
+                    ); dims = 5
+                )
+        )
         noise_2 =
-            model.lkhood.SEQ ? ll_noise[:, :, :, 2, t, i] :
-            ll_noise[:, :, :, :, 2, t, i]
+            (
+            model.lkhood.SEQ ?
+                dropdims(
+                    sum(
+                        ll_noise[:, :, :, 2, :, i] .* reshape(mask2, 1, 1, 1, num_temps)
+                        , dims = 4
+                    ); dims = 4
+                ) :
+                dropdims(
+                    sum(
+                        ll_noise[:, :, :, :, 2, :, i] .* reshape(mask2, 1, 1, 1, 1, num_temps)
+                        , dims = 5
+                    ); dims = 5
+                )
+        )
 
         ll_t, st_gen = log_likelihood_MALA(
             z_t,
             x,
-            model.lkhood,
+            lkhood_copy,
             ps.gen,
             st_kan.gen,
             st_lux.gen,
@@ -165,7 +198,7 @@ function (sampler::ULA_sampler)(
         ll_t1, st_gen = log_likelihood_MALA(
             z_t1,
             x,
-            model.lkhood,
+            lkhood_copy,
             ps.gen,
             st_kan.gen,
             st_lux.gen,
@@ -174,8 +207,10 @@ function (sampler::ULA_sampler)(
         )
 
         # Global exchange criterion
-        log_swap_ratio = (temps[t1] - temps[t]) .* (sum(ll_t) - sum(ll_t1))
-        swap = log_u_swap[t:t, i:i] .< log_swap_ratio
+        temps_t = sum(temps .* mask1)
+        temps_t1 = sum(temps .* mask2)
+        log_swap_ratio = (temps_t1 - temps_t) .* (sum(ll_t) - sum(ll_t1))
+        swap = sum(log_u_swap[:, i] .* mask1) < log_swap_ratio
         @reset st_lux.gen = st_gen
 
         z[:, :, :, t] .= swap .* z_t1 .+ (1 .- swap) .* z_t
@@ -183,7 +218,6 @@ function (sampler::ULA_sampler)(
         return reshape(z, Q, P, S * num_temps)
     end
 
-    swap_replica_idxs_plus = isnothing(swap_replica_idxs) ? nothing : swap_replica_idxs .+ 1
     RE_func = isnothing(swap_replica_idxs) ? (z_i, i) -> z_i : replica_exchange_step
 
     @trace for i in 1:N_steps
