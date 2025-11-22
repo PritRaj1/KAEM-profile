@@ -34,7 +34,6 @@ struct KAEM{T <: Float32} <: Lux.AbstractLuxLayer
     update_prior_grid::Bool
     update_llhood_grid::Bool
     grid_update_decay::T
-    grid_updates_samples::Int
     batch_size::Int
     verbose::Bool
     p::AbstractArray{T}
@@ -115,8 +114,6 @@ function init_KAEM(
 
     grid_update_decay =
         parse(Float32, retrieve(conf, "GRID_UPDATING", "grid_update_decay"))
-    num_grid_updating_samples =
-        parse(Int, retrieve(conf, "GRID_UPDATING", "num_grid_updating_samples"))
 
     η_init = parse(Float32, retrieve(conf, "POST_LANGEVIN", "initial_step_size"))
     N_t = parse(Int, retrieve(conf, "THERMODYNAMIC_INTEGRATION", "num_temps"))
@@ -152,7 +149,6 @@ function init_KAEM(
         update_prior_grid,
         update_llhood_grid,
         grid_update_decay,
-        num_grid_updating_samples,
         batch_size,
         verbose,
         p,
@@ -210,7 +206,6 @@ function (model::KAEM{T})(
         ps,
         st_kan,
         st_lux,
-        num_samples,
         rng,
     ) where {T <: Float32}
     """
@@ -230,7 +225,7 @@ function (model::KAEM{T})(
         Lux states of the prior.
         Lux states of the likelihood.
     """
-    z, st_ebm = model.sample_prior(model, model.batch_size, ps, st_kan, st_lux, rng)
+    z, st_ebm = model.sample_prior(model, ps, st_kan, st_lux, rng)
     x̂, st_gen = model.lkhood.generator(ps.gen, st_kan.gen, st_lux.gen, z)
     return model.lkhood.output_activation(x̂), st_ebm, st_gen
 end

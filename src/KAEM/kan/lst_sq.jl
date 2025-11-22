@@ -13,7 +13,7 @@ function regularize(B_i, y_i, J, O, G, S; ε = 1.0f-4)
     b = dropdims(sum(B_perm .* y_perm; dims = 3); dims = 3) # G x 1 x O x J
 
     eye = 1:G .== (1:G)' |> Lux.f32
-    @. A += ε * eye
+    A = @. A + ε * eye
     return A, b
 end
 

@@ -37,7 +37,6 @@ mutable struct KAEM_trainer{T <: Float32}
     train_loader_state::Tuple{Any, Int}
     x::AbstractArray{T}
     num_generated_samples::Int
-    batch_size_for_gen::Int
     grid_update_frequency::Int
     last_grid_update::Int
     save_model::Bool
@@ -60,7 +59,6 @@ function init_trainer(
     N_train = parse(Int, retrieve(conf, "TRAINING", "N_train"))
     N_test = parse(Int, retrieve(conf, "TRAINING", "N_test"))
     num_generated_samples = parse(Int, retrieve(conf, "TRAINING", "num_generated_samples"))
-    batch_size_for_gen = parse(Int, retrieve(conf, "TRAINING", "batch_size_for_gen"))
     seq = dataset_name == "PTB" || dataset_name == "SMS_SPAM"
     gen_type = seq ? "logits" : "images"
     cnn = parse(Bool, retrieve(conf, "CNN", "use_cnn_lkhood"))
@@ -163,7 +161,6 @@ function init_trainer(
         loader_state,
         x,
         num_generated_samples,
-        batch_size_for_gen,
         grid_update_frequency,
         1,
         save_model,
@@ -197,7 +194,6 @@ function train!(t::KAEM_trainer; train_idx::Int = 1)
         t.ps,
         t.st_kan,
         Lux.testmode(t.st_lux),
-        size(t.x)[end],
         t.rng,
     )
 
@@ -269,7 +265,6 @@ function train!(t::KAEM_trainer; train_idx::Int = 1)
                     t.ps,
                     t.st_kan,
                     Lux.testmode(t.st_lux),
-                    size(x)[end],
                     t.rng,
                 )
                 @reset t.st_lux.ebm = st_ebm
@@ -312,7 +307,7 @@ function train!(t::KAEM_trainer; train_idx::Int = 1)
             grid_updated = 0
 
             # Save images - collect batches first then concatenate once to avoid O(n²) allocations
-            num_batches_to_save = fld(t.num_generated_samples, 10) ÷ t.batch_size_for_gen # Save 1/10 of the samples to conserve space
+            num_batches_to_save = fld(t.num_generated_samples, 10) ÷ t.model.batch_size # Save 1/10 of the samples to conserve space
             if num_batches_to_save > 0
                 concat_dim = length(t.model.lkhood.x_shape) + 1
 
@@ -321,7 +316,6 @@ function train!(t::KAEM_trainer; train_idx::Int = 1)
                     t.ps,
                     t.st_kan,
                     Lux.testmode(t.st_lux),
-                    t.batch_size_for_gen,
                     t.rng,
                 )
                 @reset t.st_lux.ebm = st_ebm
@@ -337,7 +331,6 @@ function train!(t::KAEM_trainer; train_idx::Int = 1)
                         t.ps,
                         t.st_kan,
                         Lux.testmode(t.st_lux),
-                        t.batch_size_for_gen,
                         t.rng,
                     )
                     @reset t.st_lux.ebm = st_ebm
@@ -425,13 +418,12 @@ function train!(t::KAEM_trainer; train_idx::Int = 1)
     )
 
     # Generate samples
-    num_batches = t.num_generated_samples ÷ t.batch_size_for_gen
+    num_batches = t.num_generated_samples ÷ t.model.batch_size
     concat_dim = length(t.model.lkhood.x_shape) + 1
     first_batch, st_ebm, st_gen = gen_compiled(
         t.ps,
         t.st_kan,
         Lux.testmode(t.st_lux),
-        t.batch_size_for_gen,
         t.rng,
     )
     first_batch = Array(first_batch)
@@ -444,7 +436,6 @@ function train!(t::KAEM_trainer; train_idx::Int = 1)
             t.ps,
             t.st_kan,
             Lux.testmode(t.st_lux),
-            t.batch_size_for_gen,
             t.rng,
         )
         push!(batches_to_cat, Array(batch))

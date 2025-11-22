@@ -152,7 +152,7 @@ function (gen::SEQ_Generator)(
         @reset st_lux_new.attention[:V] = st_layer_new
 
         attn = scaled_dotprod_attn(Q, K, V, gen.d_model)
-        @. z = z + attn
+        z = @. z + attn
 
         # Feed forward
         z, st_layer_new = Lux.apply(gen.Φ_fcns[2], z, @view(ps.fcn[:b]), st_lux_new.fcn[:b])

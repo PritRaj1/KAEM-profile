@@ -30,7 +30,13 @@ struct ULA_sampler{T}
     prior_sampling_bool::Bool
     N::Int
     η::T
+    sqrt_2η::T
     model::KAEM{T}
+    Q::Int
+    P::Int
+    S::Int
+    num_temps::Int
+    thermo_bool::Bool
 end
 
 function initialize_ULA_sampler(
@@ -40,7 +46,11 @@ function initialize_ULA_sampler(
         N::Int = 20,
     ) where {T}
 
-    return ULA_sampler(prior_sampling_bool, N, η, model)
+    Q, S = model.prior.q_size, model.batch_size
+    P = model.prior.bool_config.mixture_model ? 1 : model.prior.p_size
+    thermo_bool = model.N_t > 1
+    num_temps = (thermo_bool && !prior_sampling_bool) ? model.N_t : 1
+    return ULA_sampler(prior_sampling_bool, N, η, sqrt(2 * η), model, Q, P, S, num_temps, thermo_bool)
 end
 
 function (sampler::ULA_sampler)(
@@ -76,13 +86,10 @@ function (sampler::ULA_sampler)(
     """
     model = sampler.model
     η = sampler.η
-    sqrt_2η = sqrt(2 * η)
+    sqrt_2η = sampler.sqrt_2η
     seq = model.lkhood.SEQ
-    Q, S = model.prior.q_size, model.batch_size
-    P = model.prior.bool_config.mixture_model ? 1 : model.prior.p_size
-
-    thermo_bool = model.N_t > 1
-    num_temps = (thermo_bool && !sampler.prior_sampling_bool) ? model.N_t : 1
+    Q, P, S, num_temps = sampler.Q, sampler.P, sampler.S, sampler.num_temps
+    thermo_bool = sampler.thermo_bool
 
     # Initialize from prior
     z_flat = begin
@@ -243,13 +250,15 @@ function (sampler::ULA_sampler)(
             log_dist,
         )
 
-        @. z_flat += η * ∇z + sqrt_2η * ξ
-        z_flat = RE_func(z_flat, i)
+        z_flat = RE_func(
+            z_flat .+ η .* ∇z .+ sqrt_2η .* ξ,
+            i
+        )
     end
 
     z = reshape(z_flat, Q, P, S, num_temps)
 
-    if prior_sampling
+    if sampler.prior_sampling_bool
         st_lux = st_lux.ebm
         z = dropdims(z; dims = 4)
     end
