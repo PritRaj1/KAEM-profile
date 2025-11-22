@@ -81,7 +81,7 @@ function (gq::GaussLegendreQuadrature)(
 
     nodes, weights = st_quad.nodes, st_quad.weights
     I, O = first(ebm.fcns_qp).in_dim, first(ebm.fcns_qp).out_dim
-    Q, P, S = ebm.q_size, ebm.p_size, ebm.s_size
+    Q, P, S = ebm.q_size, ebm.p_size, ebm.N_quad
 
     π_nodes = ebm.π_pdf(reshape(nodes, I, S, 1), ps.dist.π_μ, ps.dist.π_σ)
     π_nodes =
@@ -89,8 +89,10 @@ function (gq::GaussLegendreQuadrature)(
         dropdims(π_nodes, dims = 3)
 
     for i in 1:ebm.depth
-        @reset ebm.fcns_qp[i].basis_function.S = ebm.N_quad
+        @reset ebm.fcns_qp[i].basis_function.S = S
     end
+
+    @reset ebm.s_size = S
 
     # Energy function of each component
     nodes, st_lyrnorm_new = ebm(ps, st_kan, st_lyrnorm, nodes)

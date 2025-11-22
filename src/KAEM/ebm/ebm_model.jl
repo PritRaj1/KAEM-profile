@@ -90,7 +90,7 @@ function init_EbmModel(conf::ConfParse; rng::AbstractRNG = Random.default_rng())
     functions = []
     layernorms = Vector{Lux.LayerNorm}(undef, 0)
 
-    outer_dim = mixture_model ? sample_size : P * sample_size
+    outer_dim = mixture_model ? Q * sample_size : P * sample_size
     s_size = sample_size
 
     for i in eachindex(widths[1:(end - 1)])
@@ -189,7 +189,7 @@ function (ebm::EbmModel)(
 
     st_lyrnorm_new = st_lyrnorm
     mid_size = ebm.bool_config.mixture_model ? ebm.p_size : ebm.q_size
-    outer_dim = ebm.bool_config.mixture_model ? ebm.s_size : ebm.p_size * ebm.s_size
+    outer_dim = ebm.bool_config.mixture_model ? ebm.q_size * ebm.s_size : ebm.p_size * ebm.s_size
 
     for i in 1:ebm.depth
         z, st_layer_new =
