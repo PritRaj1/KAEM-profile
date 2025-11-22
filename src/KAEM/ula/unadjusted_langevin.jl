@@ -213,8 +213,15 @@ function (sampler::ULA_sampler)(
         swap = sum(log_u_swap[:, i] .* mask1) < log_swap_ratio
         @reset st_lux.gen = st_gen
 
-        z[:, :, :, t] .= swap .* z_t1 .+ (1 .- swap) .* z_t
-        z[:, :, :, t1] .= (1 .- swap) .* z_t1 .+ swap .* z_t
+        z = (
+            (swap .* z_t1 .+ (1 .- swap) .* z_t) .+ # Swap or not
+                reshape(mask1, 1, 1, 1, num_temps) .* z # Index of t
+        )
+        z = (
+            ((1 .- swap) .* z_t1 .+ swap .* z_t) .+ # Swap or not
+                reshape(mask2, 1, 1, 1, num_temps) .* z # Index of t1
+        )
+
         return reshape(z, Q, P, S * num_temps)
     end
 
@@ -235,7 +242,7 @@ function (sampler::ULA_sampler)(
         )
 
         @. z_flat += η * ∇z + sqrt_2η * ξ
-        z_flat .= ifelse(i % RE_freq == 0, RE_func(z_flat, i), z_flat)
+        z_flat = ifelse(i % RE_freq == 0, RE_func(z_flat, i), z_flat)
     end
 
     z = reshape(z_flat, Q, P, S, num_temps)
