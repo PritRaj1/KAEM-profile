@@ -24,9 +24,10 @@ function unadjusted_logpos(
         zero_vector,
     )
 
-    log_posterior = 0.0f0
+    lp = 0.0f0
+    ll = zeros(Float32, 0)
     @trace for t in 1:num_temps
-        lp = sum(
+        lp += sum(
             first(
                 model.log_prior(
                     z[:, :, :, t],
@@ -39,25 +40,27 @@ function unadjusted_logpos(
             )
         )
 
-        ll = temps[t] * sum(
-            first(
-                log_likelihood_MALA(
-                    z[:, :, :, t],
-                    x,
-                    model.lkhood,
-                    ps.gen,
-                    st_kan.gen,
-                    st_lux.gen,
-                    zero_vector;
-                    ε = model.ε,
-                )
-            )
+        ll = vcat(
+            ll, [
+                sum(
+                    first(
+                        log_likelihood_MALA(
+                            z[:, :, :, t],
+                            x,
+                            model.lkhood,
+                            ps.gen,
+                            st_kan.gen,
+                            st_lux.gen,
+                            zero_vector;
+                            ε = model.ε,
+                        )
+                    )
+                ),
+            ]
         )
-
-        log_posterior += lp + ll
     end
 
-    return log_posterior
+    return lp + sum(temps .* ll)
 end
 
 function unadjusted_logprior(
@@ -103,7 +106,7 @@ function unadjusted_grad(
         log_dist,
     )
 
-    zero_vector = zeros(Float32, model.lkhood.x_shape..., size(x)[end])
+    zero_vector = zeros(Float32, model.lkhood.x_shape..., model.batch_size)
 
     return first(
         Enzyme.gradient(
