@@ -20,6 +20,7 @@ struct SEQ_Generator <: Lux.AbstractLuxLayer
     seq_length::Int
     d_model::Int
     bool_config::BoolConfig
+    s_size::Int
 end
 
 function init_SEQ_Generator(
@@ -82,6 +83,8 @@ function init_SEQ_Generator(
     push!(Φ_functions, Lux.Dense(d_model => first(x_shape)))
     depth = 3
 
+    s_size = parse(Int, retrieve(conf, "TRAINING", "batch_size"))
+
     return SEQ_Generator(
         depth,
         Tuple(Φ_functions),
@@ -90,6 +93,7 @@ function init_SEQ_Generator(
         sequence_length,
         d_model,
         BoolConfig(true, false),
+        s_size
     )
 end
 
