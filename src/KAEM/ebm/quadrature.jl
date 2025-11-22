@@ -2,7 +2,7 @@ module Quadrature
 
 export GaussLegendreQuadrature, get_gausslegendre
 
-using LinearAlgebra, Random, ComponentArrays, FastGaussQuadrature
+using LinearAlgebra, Random, ComponentArrays, FastGaussQuadrature, Accessors
 
 using ..Utils
 
@@ -83,10 +83,14 @@ function (gq::GaussLegendreQuadrature)(
     I, O = first(ebm.fcns_qp).in_dim, first(ebm.fcns_qp).out_dim
     Q, P, S = ebm.q_size, ebm.p_size, ebm.s_size
 
-    π_nodes = ebm.π_pdf(reshape(nodes, I, :, 1), ps.dist.π_μ, ps.dist.π_σ)
+    π_nodes = ebm.π_pdf(reshape(nodes, I, S, 1), ps.dist.π_μ, ps.dist.π_σ)
     π_nodes =
         ebm.prior_type == "learnable_gaussian" ? dropdims(π_nodes, dims = 3)' :
         dropdims(π_nodes, dims = 3)
+
+    for i in 1:ebm.depth
+        @reset ebm.fcns_qp[i].basis_function.S = ebm.N_quad
+    end
 
     # Energy function of each component
     nodes, st_lyrnorm_new = ebm(ps, st_kan, st_lyrnorm, nodes)
