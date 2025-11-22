@@ -24,10 +24,9 @@ function unadjusted_logpos(
         zero_vector,
     )
 
-    lp = 0.0f0
-    ll = zero(temps)
+    logpos = 0.0f0
     @trace for t in 1:num_temps
-        lp += sum(
+        logpos += sum(
             first(
                 model.log_prior(
                     z[:, :, :, t],
@@ -40,7 +39,9 @@ function unadjusted_logpos(
             )
         )
 
-        ll[t] = sum(
+        mask = (1:num_temps .== t) |> Lux.f32
+        temp = sum(temps .* mask)
+        logpos += temp * sum(
             first(
                 log_likelihood_MALA(
                     z[:, :, :, t],
@@ -56,7 +57,7 @@ function unadjusted_logpos(
         )
     end
 
-    return lp + sum(temps .* ll)
+    return logpos
 end
 
 function unadjusted_logprior(
