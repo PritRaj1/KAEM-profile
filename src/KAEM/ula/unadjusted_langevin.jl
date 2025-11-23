@@ -2,6 +2,7 @@ module ULA_sampling
 
 export initialize_ULA_sampler, ULA_sampler
 
+using Reactant: @trace
 using LinearAlgebra,
     Random,
     Lux,
@@ -26,17 +27,149 @@ using .LogLikelihoods: log_likelihood_MALA
     "ebm" => (p, b, rng) -> randn(rng, Float32, p, 1, b),
 )
 
-struct ULA_sampler{T}
-    prior_sampling_bool::Bool
-    N::Int
-    η::T
-    sqrt_2η::T
-    model::KAEM{T}
+struct ULA_sampler
+    prior_sampling_bool
+    N
+    η
+    sqrt_2η
+    model
+    Q
+    P
+    S
+    num_temps
+    thermo_bool
+    log_dist
+    xchange_func
+end
+
+struct ReplicaXchange
     Q::Int
     P::Int
     S::Int
     num_temps::Int
-    thermo_bool::Bool
+end
+
+function (r::ReplicaXchange)(
+        i,
+        z_i,
+        x,
+        temps,
+        model,
+        lkhood_copy,
+        ps,
+        st_kan,
+        st_lux,
+        log_u_swap,
+        ll_noise,
+        mask_swap_1,
+        mask_swap_2,
+    )
+    Q, P, S, num_temps = r.Q, r.P, r.S, r.num_temps
+    z = reshape(z_i, Q, P, S, num_temps)
+
+    mask1 = mask_swap_1[:, i]
+    mask2 = mask_swap_2[:, i]
+    mask1_expanded = reshape(mask1, 1, 1, 1, num_temps)
+    mask2_expanded = reshape(mask2, 1, 1, 1, num_temps)
+
+    # Randomly pick two adjacent temperatures to swap
+    z_t = dropdims(sum(z .* reshape(mask1, 1, 1, 1, num_temps); dims = 4); dims = 4)
+    z_t1 = dropdims(sum(z .* reshape(mask2, 1, 1, 1, num_temps); dims = 4); dims = 4)
+
+    noise_1 =
+        (
+        model.lkhood.SEQ ?
+            dropdims(
+                sum(
+                    ll_noise[:, :, :, 1, :, i] .* mask1_expanded
+                    ; dims = 4
+                ); dims = 4
+            ) :
+            dropdims(
+                sum(
+                    ll_noise[:, :, :, :, 1, :, i] .* reshape(mask1, 1, 1, 1, 1, num_temps)
+                    ; dims = 5
+                ); dims = 5
+            )
+    )
+    noise_2 =
+        (
+        model.lkhood.SEQ ?
+            dropdims(
+                sum(
+                    ll_noise[:, :, :, 2, :, i] .* mask2_expanded
+                    ; dims = 4
+                ); dims = 4
+            ) :
+            dropdims(
+                sum(
+                    ll_noise[:, :, :, :, 2, :, i] .* reshape(mask2, 1, 1, 1, 1, num_temps)
+                    ; dims = 5
+                ); dims = 5
+            )
+    )
+
+    ll_t = first(
+        log_likelihood_MALA(
+            z_t,
+            x,
+            lkhood_copy,
+            ps.gen,
+            st_kan.gen,
+            st_lux.gen,
+            noise_1;
+            ε = model.ε,
+        )
+    )
+    ll_t1 = first(
+        log_likelihood_MALA(
+            z_t1,
+            x,
+            lkhood_copy,
+            ps.gen,
+            st_kan.gen,
+            st_lux.gen,
+            noise_2;
+            ε = model.ε,
+        )
+    )
+
+    # Global exchange criterion
+    temps_t = sum(temps .* mask1)
+    temps_t1 = sum(temps .* mask2)
+    log_swap_ratio = (temps_t1 - temps_t) .* (sum(ll_t) - sum(ll_t1))
+    swap = sum(log_u_swap[:, i] .* mask1) < log_swap_ratio
+
+    z = (
+        (swap .* z_t1 .+ (1 .- swap) .* z_t) .+ # Swap or not
+            mask1_expanded .* z # Index of t
+    )
+    z = (
+        ((1 .- swap) .* z_t1 .+ swap .* z_t) .+ # Swap or not
+            mask2_expanded .* z # Index of t1
+    )
+
+    return reshape(z, Q, P, S * num_temps)
+end
+
+struct NoExchange end
+
+function (r::NoExchange)(
+        i,
+        z_i,
+        x,
+        temps,
+        model,
+        lkhood_copy,
+        ps,
+        st_kan,
+        st_lux,
+        log_u_swap,
+        ll_noise,
+        mask_swap_1,
+        mask_swap_2,
+    )
+    return z_i
 end
 
 function initialize_ULA_sampler(
@@ -48,9 +181,76 @@ function initialize_ULA_sampler(
 
     Q, S = model.prior.q_size, model.batch_size
     P = model.prior.bool_config.mixture_model ? 1 : model.prior.p_size
-    thermo_bool = model.N_t > 1
-    num_temps = (thermo_bool && !prior_sampling_bool) ? model.N_t : 1
-    return ULA_sampler(prior_sampling_bool, N, η, sqrt(2 * η), model, Q, P, S, num_temps, thermo_bool)
+    num_temps = (model.N_t > 1 && !prior_sampling_bool) ? model.N_t : 1
+    thermo_bool = num_temps > 1
+    log_dist = prior_sampling_bool ? unadjusted_logprior : unadjusted_logpos
+    xchange_func = thermo_bool ? ReplicaXchange(Q, P, S, num_temps) : NoExchange()
+
+    return ULA_sampler(
+        prior_sampling_bool,
+        N,
+        η,
+        sqrt(2 * η),
+        model,
+        Q,
+        P,
+        S,
+        num_temps,
+        thermo_bool,
+        log_dist,
+        xchange_func,
+    )
+end
+
+function step(
+        i,
+        z_i,
+        x,
+        x_t,
+        temps,
+        temps_gpu,
+        η,
+        sqrt_2η,
+        sampler,
+        model,
+        lkhood_copy,
+        ps,
+        st_kan,
+        st_lux,
+        noise,
+        log_u_swap,
+        ll_noise,
+        mask_swap_1,
+        mask_swap_2,
+    )
+    ξ = noise[:, :, :, i]
+    ∇z =
+        unadjusted_grad(
+        z_i,
+        x_t,
+        temps_gpu,
+        model,
+        ps,
+        st_kan,
+        st_lux,
+        sampler.log_dist,
+    )
+    new_z = z_i .+ η .* ∇z .+ sqrt_2η .* ξ
+    return sampler.xchange_func(
+        i,
+        new_z,
+        x,
+        temps,
+        model,
+        lkhood_copy,
+        ps,
+        st_kan,
+        st_lux,
+        log_u_swap,
+        ll_noise,
+        mask_swap_1,
+        mask_swap_2,
+    )
 end
 
 function (sampler::ULA_sampler)(
@@ -90,6 +290,7 @@ function (sampler::ULA_sampler)(
     seq = model.lkhood.SEQ
     Q, P, S, num_temps = sampler.Q, sampler.P, sampler.S, sampler.num_temps
     thermo_bool = sampler.thermo_bool
+    prior_sampling_bool = sampler.prior_sampling_bool
 
     # Initialize from prior
     z_flat = begin
@@ -128,7 +329,6 @@ function (sampler::ULA_sampler)(
     @reset model.lkhood.generator.s_size = S * num_temps
 
     temps_gpu = repeat(temps, S)
-    log_dist = sampler.prior_sampling_bool ? unadjusted_logprior : unadjusted_logpos
 
     N_steps = sampler.N
     x_t = (
@@ -146,119 +346,33 @@ function (sampler::ULA_sampler)(
     mask_swap_1 = Lux.f32(1:num_temps .== swap_replica_idxs') .* 1.0f0
     mask_swap_2 = Lux.f32(1:num_temps .== swap_replica_idxs_plus') .* 1.0f0
 
-    function replica_exchange_step(z_i, i)
-        z = reshape(z_i, Q, P, S, num_temps)
-
-        mask1 = mask_swap_1[:, i]
-        mask2 = mask_swap_2[:, i]
-        mask1_expanded = reshape(mask1, 1, 1, 1, num_temps)
-        mask2_expanded = reshape(mask2, 1, 1, 1, num_temps)
-
-        # Randomly pick two adjacent temperatures to swap
-        z_t = dropdims(sum(z .* reshape(mask1, 1, 1, 1, num_temps); dims = 4); dims = 4)
-        z_t1 = dropdims(sum(z .* reshape(mask2, 1, 1, 1, num_temps); dims = 4); dims = 4)
-
-        noise_1 =
-            (
-            model.lkhood.SEQ ?
-                dropdims(
-                    sum(
-                        ll_noise[:, :, :, 1, :, i] .* mask1_expanded
-                        ; dims = 4
-                    ); dims = 4
-                ) :
-                dropdims(
-                    sum(
-                        ll_noise[:, :, :, :, 1, :, i] .* reshape(mask1, 1, 1, 1, 1, num_temps)
-                        ; dims = 5
-                    ); dims = 5
-                )
-        )
-        noise_2 =
-            (
-            model.lkhood.SEQ ?
-                dropdims(
-                    sum(
-                        ll_noise[:, :, :, 2, :, i] .* mask2_expanded
-                        ; dims = 4
-                    ); dims = 4
-                ) :
-                dropdims(
-                    sum(
-                        ll_noise[:, :, :, :, 2, :, i] .* reshape(mask2, 1, 1, 1, 1, num_temps)
-                        ; dims = 5
-                    ); dims = 5
-                )
-        )
-
-        ll_t = first(
-            log_likelihood_MALA(
-                z_t,
-                x,
-                lkhood_copy,
-                ps.gen,
-                st_kan.gen,
-                st_lux.gen,
-                noise_1;
-                ε = model.ε,
-            )
-        )
-        ll_t1 = first(
-            log_likelihood_MALA(
-                z_t1,
-                x,
-                lkhood_copy,
-                ps.gen,
-                st_kan.gen,
-                st_lux.gen,
-                noise_2;
-                ε = model.ε,
-            )
-        )
-
-        # Global exchange criterion
-        temps_t = sum(temps .* mask1)
-        temps_t1 = sum(temps .* mask2)
-        log_swap_ratio = (temps_t1 - temps_t) .* (sum(ll_t) - sum(ll_t1))
-        swap = sum(log_u_swap[:, i] .* mask1) < log_swap_ratio
-
-        z = (
-            (swap .* z_t1 .+ (1 .- swap) .* z_t) .+ # Swap or not
-                mask1_expanded .* z # Index of t
-        )
-        z = (
-            ((1 .- swap) .* z_t1 .+ swap .* z_t) .+ # Swap or not
-                mask2_expanded .* z # Index of t1
-        )
-
-        return reshape(z, Q, P, S * num_temps)
-    end
-
-    RE_func = isnothing(swap_replica_idxs) ? (z_i, i) -> z_i : replica_exchange_step
-
-    for i in 1:N_steps
-        ξ = noise[:, :, :, i]
-        ∇z =
-            unadjusted_grad(
+    @trace for i in 1:N_steps
+        z_flat = step(
+            i,
             z_flat,
+            x,
             x_t,
+            temps,
             temps_gpu,
+            η,
+            sqrt_2η,
+            sampler,
             model,
+            lkhood_copy,
             ps,
             st_kan,
             st_lux,
-            log_dist,
-        )
-
-        z_flat = RE_func(
-            z_flat .+ η .* ∇z .+ sqrt_2η .* ξ,
-            i
+            noise,
+            log_u_swap,
+            ll_noise,
+            mask_swap_1,
+            mask_swap_2,
         )
     end
 
     z = reshape(z_flat, Q, P, S, num_temps)
 
-    if sampler.prior_sampling_bool
+    if prior_sampling_bool
         st_lux = st_lux.ebm
         z = dropdims(z; dims = 4)
     end
