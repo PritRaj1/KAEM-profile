@@ -8,6 +8,7 @@ using ..Utils
 using ..KAEM_model
 using ..KAEM_model.LogPriorFCNs
 using ..KAEM_model.InverseTransformSampling
+using ..KAEM_model.PopulationXchange
 
 include("loss_fcns/langevin_mle.jl")
 include("loss_fcns/importance_sampling.jl")
@@ -118,6 +119,11 @@ function setup_training(
     )
 
     if model.N_t > 1
+
+        Q, S = model.prior.q_size, model.batch_size
+        P = model.prior.bool_config.mixture_model ? 1 : model.prior.p_size
+        @reset model.xchange_func = ReplicaXchange(Q, P, S, model.N_t)
+
         @reset model.loss_fcn = begin
 
             wrapped = (p, sk, sl, xi, ti, r, sri) ->

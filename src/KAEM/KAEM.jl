@@ -26,6 +26,9 @@ using .GeneratorModel
 include("ebm/log_prior_fcns.jl")
 using .LogPriorFCNs
 
+include("ula/population_xchange.jl")
+using .PopulationXchange
+
 struct KAEM{T <: Float32} <: Lux.AbstractLuxLayer
     prior::EbmModel
     lkhood::GenModel
@@ -40,6 +43,7 @@ struct KAEM{T <: Float32} <: Lux.AbstractLuxLayer
     N_t::Int
     sample_prior::Function
     posterior_sampler::Any
+    xchange_func::Any
     loss_fcn::Any
     ε::T
     file_loc::AbstractString
@@ -155,6 +159,7 @@ function init_KAEM(
         N_t,
         sample_prior,
         nothing,
+        NoExchange(),
         nothing,
         eps,
         file_loc,
