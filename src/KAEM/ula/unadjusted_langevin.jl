@@ -210,7 +210,8 @@ function (sampler::ULA_sampler)(
     mask_swap_1 = Lux.f32(1:num_temps .== swap_replica_idxs') .* 1.0f0
     mask_swap_2 = Lux.f32(1:num_temps .== swap_replica_idxs_plus') .* 1.0f0
 
-    @trace for i in 1:N_steps
+    i = 1
+    @trace while i <= N_steps
         z_flat = step(
             i,
             z_flat,
@@ -232,6 +233,7 @@ function (sampler::ULA_sampler)(
             mask_swap_1,
             mask_swap_2,
         )
+        i += 1
     end
 
     z = reshape(z_flat, Q, P, S, num_temps)
