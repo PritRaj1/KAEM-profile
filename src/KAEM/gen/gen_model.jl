@@ -2,10 +2,8 @@ module GeneratorModel
 
 export GenModel, init_GenModel, generator, importance_resampler
 
-using CUDA
 using ConfParser,
-    Random, Lux, LuxCUDA, Statistics, LinearAlgebra, ComponentArrays, Accessors
-using NNlib: sigmoid_fast, tanh_fast, relu, gelu, sigmoid, tanh
+    Random, Lux, Statistics, LinearAlgebra, ComponentArrays, Accessors
 
 using ..Utils
 using ..UnivariateFunctions
@@ -19,19 +17,10 @@ using .KAN_Model
 using .CNN_Model
 using .Transformer_Model
 
-struct σ_conf{T <: half_quant}
+struct σ_conf{T <: Float32}
     noise::T
     llhood::T
 end
-
-const output_activation_mapping =
-    Dict("tanh" => tanh_fast, "sigmoid" => sigmoid_fast, "none" => identity)
-
-const resampler_map = Dict(
-    "residual" => residual_resampler,
-    "systematic" => systematic_resampler,
-    "stratified" => stratified_resampler,
-)
 
 const gen_model_map = Dict(
     "KAN" => init_KAN_Generator,
@@ -39,12 +28,12 @@ const gen_model_map = Dict(
     "SEQ" => init_SEQ_Generator,
 )
 
-struct GenModel{T <: half_quant} <: Lux.AbstractLuxLayer
+struct GenModel{T <: Float32} <: Lux.AbstractLuxLayer
     generator::Any
     σ::σ_conf{T}
-    output_activation::Function
+    output_activation::AbstractActivation
     x_shape::Tuple{Vararg{Int}}
-    resample_z::Function
+    resample_z::AbstractResampler
     CNN::Bool
     SEQ::Bool
     perceptual_scale::T
@@ -58,28 +47,24 @@ function init_GenModel(
     CNN = parse(Bool, retrieve(conf, "CNN", "use_cnn_lkhood"))
     sequence_length = parse(Int, retrieve(conf, "SEQ", "sequence_length"))
 
-    noise_var = parse(half_quant, retrieve(conf, "GeneratorModel", "generator_noise"))
-    gen_var = parse(half_quant, retrieve(conf, "GeneratorModel", "generator_variance"))
+    noise_var = parse(Float32, retrieve(conf, "GeneratorModel", "generator_noise"))
+    gen_var = parse(Float32, retrieve(conf, "GeneratorModel", "generator_variance"))
     ESS_threshold =
-        parse(full_quant, retrieve(conf, "TRAINING", "resampling_threshold_factor"))
+        parse(Float32, retrieve(conf, "TRAINING", "resampling_threshold_factor"))
     output_act = retrieve(conf, "GeneratorModel", "output_activation")
-    resampler = retrieve(conf, "GeneratorModel", "resampler")
     verbose = parse(Bool, retrieve(conf, "TRAINING", "verbose"))
-    resampler = get(resampler_map, resampler, systematic_resampler)
+
+
+    resample_fcn = get(
+        resampler_map,
+        retrieve(conf, "GeneratorModel", "resampler"),
+        SystematicResampler(ESS_threshold, verbose)
+    )(ESS_threshold, verbose)
     batchnorm_bool = false
 
-    resample_fcn =
-        (weights, rng) -> importance_resampler(
-        weights;
-        rng = rng,
-        ESS_threshold = ESS_threshold,
-        resampler = resampler,
-        verbose = verbose,
-    )
-
     output_activation =
-        sequence_length > 1 ? (x -> softmax(x, dims = 1)) :
-        get(output_activation_mapping, output_act, identity)
+        sequence_length > 1 ? activation_mapping["sequence"] :
+        get(activation_mapping, output_act, activation_mapping["identity"])
 
     gen_type = "KAN"
 
@@ -92,7 +77,7 @@ function init_GenModel(
     generator_initializer = get(gen_model_map, gen_type, init_KAN_Generator)
     generator = generator_initializer(conf, x_shape, rng)
     perceptual_scale =
-        parse(half_quant, retrieve(conf, "GeneratorModel", "perceptual_scale"))
+        parse(Float32, retrieve(conf, "GeneratorModel", "perceptual_scale"))
 
     return GenModel(
         generator,
@@ -106,12 +91,12 @@ function init_GenModel(
     )
 end
 
-function Lux.initialparameters(rng::AbstractRNG, lkhood::GenModel{T}) where {T <: half_quant}
+function Lux.initialparameters(rng::AbstractRNG, lkhood::GenModel{T})::NamedTuple where {T <: Float32}
     fcn_ps = NamedTuple(
         symbol_map[i] => Lux.initialparameters(rng, lkhood.generator.Φ_fcns[i]) for
             i in 1:lkhood.generator.depth
     )
-    layernorm_ps = (a = [zero(T)], b = [zero(T)])
+    layernorm_ps = (a = [0.0f0], b = [0.0f0])
     if lkhood.generator.bool_config.layernorm && length(lkhood.generator.layernorms) > 0
         layernorm_ps = NamedTuple(
             symbol_map[i] => Lux.initialparameters(rng, lkhood.generator.layernorms[i])
@@ -119,7 +104,7 @@ function Lux.initialparameters(rng::AbstractRNG, lkhood::GenModel{T}) where {T <
         )
     end
 
-    batchnorm_ps = (a = [zero(T)], b = [zero(T)])
+    batchnorm_ps = (a = [0.0f0], b = [0.0f0])
     if lkhood.generator.bool_config.batchnorm && length(lkhood.generator.batchnorms) > 0
         batchnorm_ps = NamedTuple(
             symbol_map[i] => Lux.initialparameters(rng, lkhood.generator.batchnorms[i])
@@ -127,7 +112,7 @@ function Lux.initialparameters(rng::AbstractRNG, lkhood::GenModel{T}) where {T <
         )
     end
 
-    attention_ps = (a = [zero(T)], b = [zero(T)])
+    attention_ps = (a = [0.0f0], b = [0.0f0])
     if lkhood.SEQ
         attention_ps = (
             Q = Lux.initialparameters(rng, lkhood.generator.attention[1]),
@@ -144,41 +129,41 @@ function Lux.initialparameters(rng::AbstractRNG, lkhood::GenModel{T}) where {T <
     )
 end
 
-function Lux.initialstates(rng::AbstractRNG, lkhood::GenModel{T}) where {T <: half_quant}
+function Lux.initialstates(rng::AbstractRNG, lkhood::GenModel{T})::Tuple{NamedTuple, NamedTuple} where {T <: Float32}
     fcn_st = NamedTuple(
-        symbol_map[i] => Lux.initialstates(rng, lkhood.generator.Φ_fcns[i]) |> hq for
+        symbol_map[i] => Lux.initialstates(rng, lkhood.generator.Φ_fcns[i]) |> Lux.f32 for
             i in 1:lkhood.generator.depth
     )
 
-    st_lyrnorm = (a = [zero(T)], b = [zero(T)])
+    st_lyrnorm = (a = [0.0f0], b = [0.0f0])
     if lkhood.generator.bool_config.layernorm && length(lkhood.generator.layernorms) > 0
         st_lyrnorm = NamedTuple(
             symbol_map[i] =>
-                Lux.initialstates(rng, lkhood.generator.layernorms[i]) |> hq for
+                Lux.initialstates(rng, lkhood.generator.layernorms[i]) |> Lux.f32 for
                 i in 1:length(lkhood.generator.layernorms)
         )
     end
 
-    batchnorm_st = (a = [zero(T)], b = [zero(T)])
+    batchnorm_st = (a = [0.0f0], b = [0.0f0])
     if lkhood.generator.bool_config.batchnorm && length(lkhood.generator.batchnorms) > 0
         batchnorm_st = NamedTuple(
             symbol_map[i] =>
-                Lux.initialstates(rng, lkhood.generator.batchnorms[i]) |> hq for
+                Lux.initialstates(rng, lkhood.generator.batchnorms[i]) |> Lux.f32 for
                 i in 1:length(lkhood.generator.batchnorms)
         )
     end
 
-    attention_st = (a = [zero(T)], b = [zero(T)])
+    attention_st = (a = [0.0f0], b = [0.0f0])
     if lkhood.SEQ
         attention_st = (
-            Q = Lux.initialstates(rng, lkhood.generator.attention[1]) |> hq,
-            K = Lux.initialstates(rng, lkhood.generator.attention[2]) |> hq,
-            V = Lux.initialstates(rng, lkhood.generator.attention[3]) |> hq,
+            Q = Lux.initialstates(rng, lkhood.generator.attention[1]) |> Lux.f32,
+            K = Lux.initialstates(rng, lkhood.generator.attention[2]) |> Lux.f32,
+            V = Lux.initialstates(rng, lkhood.generator.attention[3]) |> Lux.f32,
         )
     end
 
     if lkhood.CNN || lkhood.SEQ
-        return (a = [one(T)], b = [one(T)]),
+        return (a = [1.0f0], b = [1.0f0]),
             (
                 fcn = fcn_st,
                 layernorm = st_lyrnorm,

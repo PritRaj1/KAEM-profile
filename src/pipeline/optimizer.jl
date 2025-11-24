@@ -2,13 +2,10 @@ module optimization
 
 export opt, create_opt
 
-include("../utils.jl")
-using .Utils: full_quant
-
-using Lux, OptimizationOptimJL, LineSearches, OptimizationOptimisers, ConfParser
+using Lux, ConfParser, Optimisers
 
 struct opt
-    init_optimizer::Function
+    rule
 end
 
 function create_opt(conf::ConfParse)
@@ -22,66 +19,22 @@ function create_opt(conf::ConfParse)
         opt: opt object, which initializes the optimizer when called
     """
 
-    LR = parse(full_quant, retrieve(conf, "OPTIMIZER", "learning_rate"))
-    m = parse(Int, retrieve(conf, "OPTIMIZER", "l-bfgs_memory"))
-    c_1 = parse(full_quant, retrieve(conf, "LINE_SEARCH", "c_1"))
-    c_2 = parse(full_quant, retrieve(conf, "LINE_SEARCH", "c_2"))
-    ρ = parse(full_quant, retrieve(conf, "LINE_SEARCH", "rho"))
-    ls_type = retrieve(conf, "LINE_SEARCH", "type")
+    LR = parse(Float32, retrieve(conf, "OPTIMIZER", "learning_rate"))
+    β = parse.(Float32, retrieve(conf, "OPTIMIZER", "betas")) |> Tuple
+    decay = parse(Float32, retrieve(conf, "OPTIMIZER", "decay"))
+    ρ = parse(Float32, retrieve(conf, "OPTIMIZER", "ρ"))
+    ε = parse(Float32, retrieve(conf, "OPTIMIZER", "ε"))
+
     opt_type = retrieve(conf, "OPTIMIZER", "type")
 
-    linesearch = Dict(
-        "strongwolfe" =>
-            LineSearches.StrongWolfe{full_quant}(c_1 = c_1, c_2 = c_2, ρ = ρ),
-        "backtrack" => LineSearches.BackTracking{full_quant}(
-            c_1 = c_1,
-            ρ_hi = ρ,
-            ρ_lo = full_quant(0.1),
-            maxstep = Inf32,
-        ),
-        "hagerzhang" => LineSearches.HagerZhang{full_quant}(),
-        "morethuente" => LineSearches.MoreThuente{full_quant}(
-            f_tol = zero(full_quant),
-            gtol = zero(full_quant),
-            x_tol = zero(full_quant),
-        ),
-    )[ls_type]
-
-    linesearch = (a...) -> linesearch(a...)
-
-    optimiser_map = Dict(
-        "bfgs" => BFGS(
-            alphaguess = LineSearches.InitialHagerZhang{full_quant}(α0 = LR),
-            linesearch = linesearch,
-        ),
-        "l-bfgs" => LBFGS(
-            alphaguess = LineSearches.InitialHagerZhang{full_quant}(α0 = LR),
-            m = m,
-            linesearch = linesearch,
-        ),
-        "cg" => ConjugateGradient(
-            alphaguess = LineSearches.InitialHagerZhang{full_quant}(α0 = LR),
-            linesearch = linesearch,
-        ),
-        "gd" => GradientDescent(
-            alphaguess = LineSearches.InitialHagerZhang{full_quant}(α0 = LR),
-            linesearch = linesearch,
-        ),
-        "newton" => Newton(
-            alphaguess = LineSearches.InitialHagerZhang{full_quant}(α0 = LR),
-            linesearch = linesearch,
-        ),
-        "interior-point" => IPNewton(linesearch = linesearch),
-        "neldermead" => NelderMead(),
-        "adam" => ADAM(LR),
-        "adamw" => ADAMW(LR),
-        "sgd" => Descent(LR),
-        "rms" => RMSProp(LR, 9.0f-1, full_quant(1.0e-8)),
+    opt_mapping = Dict(
+        "adam" => () -> Optimisers.Adam(LR, β, ε),
+        "adamw" => () -> Optimisers.AdamW(LR, β, decay, ε),
+        "sgd" => () -> Optimisers.Descent(LR),
+        "rmsprop" => () -> Optimisers.RMSProp(LR, ρ, ε)
     )
 
-    init_fcn = () -> optimiser_map[opt_type]
-
-    return opt(init_fcn)
+    return opt(get(opt_mapping, opt_type, () -> Optimisers.Adam(LR, β, ε)))
 end
 
 end

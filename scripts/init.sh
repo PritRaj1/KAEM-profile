@@ -122,15 +122,12 @@ else:
 
     julia --project=. -e "
 using Pkg
-using CUDA
 using Lux
 using Flux
 using Distributions
 using Plots
-using cuDNN
 using NNlib
 println(\"✓ All Julia imports successful!\")
-println(\"✓ CUDA available: \", CUDA.functional())
     "
     
     echo -e "${GREEN}✓ Setup completed successfully!${NC}"

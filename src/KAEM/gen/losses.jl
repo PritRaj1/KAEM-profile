@@ -4,8 +4,8 @@ export IS_loss, MALA_loss
 
 using ..Utils
 
-using CUDA, KernelAbstractions, Tullio, Statistics
-using NNlib: conv
+using Statistics, Lux
+using NNlib: conv, batched_mul
 
 perceptual_loss = parse(Bool, get(ENV, "PERCEPTUAL", "false"))
 feature_extractor = nothing
@@ -13,86 +13,91 @@ style_lyrs = [2, 5, 9, 12]
 content_lyrs = [9]
 if perceptual_loss
     using Metalhead: VGG
-    feature_extractor = VGG(16; pretrain = true).layers[1][1:12] |> hq |> pu # Conv layers only, (rest is classifier)
+    feature_extractor = VGG(16; pretrain = true).layers[1][1:12] |> Lux.f32 |> pu # Conv layers only, (rest is classifier)
 end
 
 
 ## Fcns for model with Importance Sampling ##
 function cross_entropy_IS(
-        x::AbstractArray{T, 3},
-        x̂::AbstractArray{T, 4},
-        ε::T,
-        scale::T,
-    )::AbstractArray{T, 2} where {T <: half_quant}
-    x̂ = x̂ .+ ε
-    @tullio ll[b, s] := log(x̂[d, t, s, b]) * x[d, t, b]
-    return ll ./ size(x̂, 1) ./ scale
+        x,
+        x̂,
+        ε,
+        scale,
+    )
+    ll =
+        dropdims(sum(log.(x̂ .+ ε) .* x, dims = (1, 2)), dims = (1, 2))
+    return ll' ./ Float32(D) ./ scale
 end
 
 function l2_IS(
-        x::AbstractArray{T, 4},
-        x̂::AbstractArray{T, 5},
-        ε::T,
-        scale::T,
-    )::AbstractArray{T, 2} where {T <: half_quant}
-    @tullio ll[b, s] := - (x[w, h, c, b] - x̂[w, h, c, s, b])^2
-    return ll ./ scale
+        x,
+        x̂,
+        ε,
+        scale,
+    )
+    W, H, C, S, B = size(x̂)
+    ll =
+        -dropdims(
+        sum((x .- x̂) .^ 2, dims = (1, 2, 3)),
+        dims = (1, 2, 3),
+    )
+    return ll' ./ scale
 end
 
 function l2_IS_PCA(
-        x::AbstractArray{T, 2},
-        x̂::AbstractArray{T, 3},
-        ε::T,
-        scale::T,
-    )::AbstractArray{T, 2} where {T <: half_quant}
-    @tullio ll[b, s] := - (x[d, b] - x̂[d, s, b])^2
-    return ll ./ scale
+        x,
+        x̂,
+        ε,
+        scale,
+    )
+    D, S, B = size(x̂)
+    ll = -dropdims(sum((x .- x̂) .^ 2, dims = 1), dims = 1)
+    return ll' ./ scale
 end
 
 function IS_loss(
-        x::AbstractArray{T},
-        x̂::AbstractArray{T},
-        ε::T,
-        scale::T,
-        B::Int,
-        S::Int,
-        SEQ::Bool,
-    )::AbstractArray{T, 2} where {T <: half_quant}
-    loss_fcn = (SEQ ? cross_entropy_IS : (ndims(x) == 2 ? l2_IS_PCA : l2_IS))
+        x,
+        x̂,
+        ε,
+        scale,
+        B,
+        S,
+        SEQ,
+    )
+    loss_fcn = (SEQ ? cross_entropy_IS : (ndims(x) == 3 ? l2_IS_PCA : l2_IS))
     return loss_fcn(x, x̂, ε, scale)
 end
 
 ## Fcns for model with Langevin methods ##
 function cross_entropy_MALA(
-        x::AbstractArray{T, 3},
-        x̂::AbstractArray{T, 3},
-        ε::T,
-        scale::T,
-    )::AbstractArray{T, 1} where {T <: half_quant}
-    x̂ = x̂ .+ ε
-    @tullio ll[b] := log(x̂[d, t, b]) * x[d, t, b]
-    return ll ./ size(x, 1) ./ scale
+        x,
+        x̂,
+        ε,
+        scale,
+    )
+    ll = dropdims(sum(log.(x̂ .+ ε) .* x, dims = (1, 2)), dims = (1, 2))
+    return ll ./ Float32(size(x, 1)) ./ scale
 end
 
 function l2_PCA(
-        x::AbstractArray{T, 2},
-        x̂::AbstractArray{T, 2},
-        ε::T,
-        scale::T,
-        perceptual_scale::T,
-    )::AbstractArray{T, 1} where {T <: half_quant}
-    @tullio ll[b] := - (x[d, b] - x̂[d, b])^2
+        x,
+        x̂,
+        ε,
+        scale,
+        perceptual_scale,
+    )
+    ll = -dropdims(sum((x .- x̂) .^ 2, dims = 1), dims = 1)
     return ll ./ scale
 end
 
 function l2_MALA(
-        x::AbstractArray{T, 4},
-        x̂::AbstractArray{T, 4},
-        ε::T,
-        scale::T,
-        perceptual_scale::T,
-    )::AbstractArray{T, 1} where {T <: half_quant}
-    @tullio ll[b] := - (x[w, h, c, b] - x̂[w, h, c, b])^2
+        x,
+        x̂,
+        ε,
+        scale,
+        perceptual_scale,
+    )
+    ll = -dropdims(sum((x .- x̂) .^ 2, dims = (1, 2, 3)), dims = (1, 2, 3))
     return ll ./ scale
 end
 
@@ -110,18 +115,18 @@ const SSIM_KERNEL =
     0.03600077212843083,
     0.007598758135239185,
     0.00102838008447911,
-] .|> half_quant
-const C₁ = 0.01^2 |> half_quant
-const C₂ = 0.03^2 |> half_quant
+] .|> Float32
+const C₁ = 0.01^2 |> Float32
+const C₂ = 0.03^2 |> Float32
 const kernel = repeat(reshape(SSIM_KERNEL * SSIM_KERNEL', 11, 11, 1, 1), 1, 1, 3, 1) |> pu
 
 function ssim_MALA(
-        x::AbstractArray{T, 4},
-        x̂::AbstractArray{T, 4},
-        ε::T,
-        scale::T,
-        perceptual_scale::T,
-    )::AbstractArray{T, 1} where {T <: half_quant}
+        x,
+        x̂,
+        ε,
+        scale,
+        perceptual_scale,
+    )
     μx = conv(x, kernel)
     μy = conv(x̂, kernel)
     μx² = μx .^ 2
@@ -136,26 +141,27 @@ function ssim_MALA(
 end
 
 function gramm_loss(
-        x::AbstractArray{T, 4},
-        x̂::AbstractArray{T, 4},
-        scale::T,
-    )::AbstractArray{T, 1} where {T <: half_quant}
+        x,
+        x̂,
+        scale,
+    )
     H, W, C, B = size(x)
     real = reshape(x, H * W, C, B)
     fake = reshape(x̂, H * W, C, B)
-    @tullio G_real[c1, c2, b] := real[p, c1, b] * real[p, c2, b]
-    @tullio G_fake[c1, c2, b] := fake[p, c1, b] * fake[p, c2, b]
-    @tullio ll[b] := - (G_real[c1, c2, b] - G_fake[c1, c2, b])^2
-    return ll ./ scale
+    real_perm = permutedims(real, (2, 1, 3))
+    fake_perm = permutedims(fake, (2, 1, 3))
+    G_real = batched_mul(real_perm, real)
+    G_fake = batched_mul(fake_perm, fake)
+    return -dropdims(sum((G_real .- G_fake) .^ 2, dims = (1, 2)), dims = (1, 2)) ./ scale
 end
 
 function feature_loss(
-        x::AbstractArray{T, 4},
-        x̂::AbstractArray{T, 4},
-        ε::T,
-        scale::T,
-        perceptual_scale::T,
-    )::AbstractArray{T, 1} where {T <: half_quant}
+        x,
+        x̂,
+        ε,
+        scale,
+        perceptual_scale,
+    )
     loss = l2_MALA(x, x̂, ε, scale, perceptual_scale)
     real_features, fake_features = x, x̂
     for (idx, layer) in enumerate(feature_extractor)
@@ -176,14 +182,14 @@ function feature_loss(
 end
 
 function MALA_loss(
-        x::AbstractArray{T},
-        x̂::AbstractArray{T},
-        ε::T,
-        scale::T,
-        B::Int,
-        SEQ::Bool,
-        perceptual_scale::T,
-    )::AbstractArray{T, 1} where {T <: half_quant}
+        x,
+        x̂,
+        ε,
+        scale,
+        B,
+        SEQ,
+        perceptual_scale,
+    )
     loss_fcn = (
         SEQ ? cross_entropy_MALA :
             (ndims(x) == 2 ? l2_PCA : (perceptual_loss ? feature_loss : l2_MALA))

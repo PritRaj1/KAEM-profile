@@ -3,48 +3,30 @@ module MixtureChoice
 export choose_component
 
 using NNlib: softmax
-using Flux: onehotbatch
-using CUDA, LinearAlgebra, Random, ParallelStencil
+using LinearAlgebra, Random, Lux
 
 using ..Utils
 
-@static if CUDA.has_cuda() && parse(Bool, get(ENV, "GPU", "false"))
-    @init_parallel_stencil(CUDA, full_quant, 3)
-else
-    @init_parallel_stencil(Threads, full_quant, 3)
-end
-
-@parallel_indices (q, b) function mask_kernel!(
-        mask::AbstractArray{U, 3},
-        α::AbstractArray{U, 2},
-        rand_vals::AbstractArray{U, 2},
-        p_size::Int,
-    )::Nothing where {U <: full_quant}
-    idx = p_size
-    val = rand_vals[q, b]
-
-    # Potential thread divergence on GPU
-    for j in 1:p_size
-        if α[q, j] >= val
-            idx = j
-            break
-        end
-    end
-
-    # One-hot vector for this (q, b)
-    for k in 1:p_size
-        mask[q, k, b] = (idx == k) ? one(U) : zero(U)
-    end
-    return nothing
+function mask_kernel(
+        α,
+        rand_vals,
+        Q,
+        P
+    )
+    """One-hot mask for chosen index"""
+    indices = sum(1 .+ (α .< rand_vals); dims = 2)
+    p_range = reshape(1:P, 1, P, 1) |> pu
+    mask = indices .== p_range |> Lux.f32
+    return mask
 end
 
 function choose_component(
-        α::AbstractArray{U, 2},
-        num_samples::Int,
-        q_size::Int,
-        p_size::Int;
-        rng::AbstractRNG = Random.default_rng(),
-    )::AbstractArray{U, 3} where {U <: full_quant}
+        α,
+        num_samples,
+        q_size,
+        p_size;
+        rng = Random.default_rng(),
+    )
     """
     Creates a one-hot mask for mixture model, q, to select one component, p.
 
@@ -57,12 +39,9 @@ function choose_component(
     Returns:
         chosen_components: The one-hot mask for each mixture model, (num_samples, q, p).    
     """
-    rand_vals = @rand(q_size, num_samples)
+    rand_vals = rand(rng, Float32, q_size, 1, num_samples)
     α = cumsum(softmax(α; dims = 2); dims = 2)
-
-    mask = @zeros(q_size, p_size, num_samples)
-    @parallel (1:q_size, 1:num_samples) mask_kernel!(mask, α, rand_vals, p_size)
-    return mask
+    return mask_kernel(α, rand_vals, q_size, p_size)
 end
 
 end

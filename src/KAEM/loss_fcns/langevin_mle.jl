@@ -1,45 +1,43 @@
 module LangevinMLE
 
-export LangevinLoss, initialize_langevin_loss
+export langevin_loss
 
-using CUDA, ComponentArrays, Random, Zygote
-using Statistics, Lux, LuxCUDA
+using ComponentArrays, Random, Enzyme, Statistics, Lux
 
 using ..Utils
-using ..T_KAM_model
+using ..KAEM_model
 
 include("../gen/loglikelihoods.jl")
 using .LogLikelihoods: log_likelihood_MALA
 
 function sample_langevin(
-        ps::ComponentArray{T},
-        st_kan::ComponentArray{T},
-        st_lux::NamedTuple,
-        model::T_KAM{T, full_quant},
-        x::AbstractArray{T};
-        rng::AbstractRNG = Random.default_rng(),
-    )::Tuple{AbstractArray{T, 3}, NamedTuple, AbstractArray{T}} where {T <: half_quant}
-    z, st_lux, = model.posterior_sampler(model, ps, st_kan, st_lux, x; rng = rng)
-    z = z[:, :, :, 1]
-    noise = randn(rng, T, model.lkhood.x_shape..., size(z)[end]) |> pu
-    return z, st_lux, noise
+        ps,
+        st_kan,
+        st_lux,
+        model,
+        x;
+        rng = Random.default_rng(),
+    )
+    z, st_lux, = model.posterior_sampler(ps, st_kan, st_lux, x; rng = rng)
+    noise = randn(rng, Float32, model.lkhood.x_shape..., model.batch_size)
+    return view(z, :, :, :, 1), st_lux, noise
 end
 
 function marginal_llhood(
-        ps::ComponentArray{T},
-        z_posterior::AbstractArray{T, 3},
-        z_prior::AbstractArray{T, 3},
-        x::AbstractArray{T},
-        model::T_KAM{T, full_quant},
-        st_kan::ComponentArray{T},
-        st_lux_ebm::NamedTuple,
-        st_lux_gen::NamedTuple,
-        noise::AbstractArray{T}
-    )::Tuple{T, NamedTuple, NamedTuple} where {T <: half_quant}
+        ps,
+        z_posterior,
+        z_prior,
+        x,
+        model,
+        st_kan,
+        st_lux_ebm,
+        st_lux_gen,
+        noise
+    )
 
-    logprior_pos, st_lux_ebm =
+    logprior_pos, st_ebm =
         model.log_prior(z_posterior, model.prior, ps.ebm, st_kan.ebm, st_lux_ebm)
-    logllhood, st_lux_gen = log_likelihood_MALA(
+    logllhood, st_gen = log_likelihood_MALA(
         z_posterior,
         x,
         model.lkhood,
@@ -50,25 +48,25 @@ function marginal_llhood(
         ε = model.ε,
     )
 
-    logprior, st_lux_ebm =
-        model.log_prior(z_prior, model.prior, ps.ebm, st_kan.ebm, st_lux_ebm)
-    ex_prior = model.prior.bool_config.contrastive_div ? mean(logprior) : zero(T)
-    return -(mean(logprior_pos) + mean(logllhood) - ex_prior) * model.loss_scaling.reduced,
-        st_lux_ebm,
-        st_lux_gen
+    logprior, st_ebm =
+        model.log_prior(z_prior, model.prior, ps.ebm, st_kan.ebm, st_ebm)
+    ex_prior = model.prior.bool_config.contrastive_div ? mean(logprior) : 0.0f0
+    return -(mean(logprior_pos) + mean(logllhood) - ex_prior),
+        st_ebm,
+        st_gen
 end
 
 function closure(
-        ps::ComponentArray{T},
-        z_posterior::AbstractArray{T, 3},
-        z_prior::AbstractArray{T, 3},
-        x::AbstractArray{T},
-        model::T_KAM{T, full_quant},
-        st_kan::ComponentArray{T},
-        st_lux_ebm::NamedTuple,
-        st_lux_gen::NamedTuple,
-        noise::AbstractArray{T}
-    )::T where {T <: half_quant}
+        ps,
+        z_posterior,
+        z_prior,
+        x,
+        model,
+        st_kan,
+        st_lux_ebm,
+        st_lux_gen,
+        noise
+    )
     return first(
         marginal_llhood(
             ps,
@@ -85,20 +83,52 @@ function closure(
 end
 
 function grad_langevin_llhood(
-        ps::ComponentArray{T},
-        z_posterior::AbstractArray{T, 3},
-        z_prior::AbstractArray{T, 3},
-        x::AbstractArray{T},
-        model::T_KAM{T, full_quant},
-        st_kan::ComponentArray{T},
-        st_lux_ebm::NamedTuple,
-        st_lux_gen::NamedTuple,
-        noise::AbstractArray{T}
-    )::AbstractArray{T} where {T <: half_quant}
+        ps,
+        z_posterior,
+        z_prior,
+        x,
+        model,
+        st_kan,
+        st_lux_ebm,
+        st_lux_gen,
+        noise
+    )
+    return first(
+        Enzyme.gradient(
+            Enzyme.Reverse,
+            Enzyme.Const(closure),
+            ps,
+            Enzyme.Const(z_posterior),
+            Enzyme.Const(z_prior),
+            Enzyme.Const(x),
+            Enzyme.Const(model),
+            Enzyme.Const(st_kan),
+            Enzyme.Const(st_lux_ebm),
+            Enzyme.Const(st_lux_gen),
+            Enzyme.Const(noise)
+        )
+    )
+end
 
-    f =
-        p -> closure(
-        p,
+
+function langevin_loss(
+        ps,
+        st_kan,
+        st_lux,
+        model,
+        x,
+        train_idx,
+        rng,
+        swap_replica_idxs,
+    )
+    z_posterior, st_new, noise =
+        sample_langevin(ps, st_kan, Lux.trainmode(st_lux), model, x; rng = rng)
+    st_lux_ebm, st_lux_gen = st_new.ebm, st_new.gen
+    z_prior, st_lux_ebm =
+        model.sample_prior(model, ps, st_kan, st_lux, rng)
+
+    ∇ = grad_langevin_llhood(
+        ps,
         z_posterior,
         z_prior,
         x,
@@ -109,42 +139,6 @@ function grad_langevin_llhood(
         noise,
     )
 
-    return CUDA.@fastmath first(Zygote.gradient(f, ps))
-end
-
-struct LangevinLoss end
-
-function (l::LangevinLoss)(
-        ps::ComponentArray{T},
-        ∇::ComponentArray{T},
-        st_kan::ComponentArray{T},
-        st_lux::NamedTuple,
-        model::T_KAM{T, full_quant},
-        x::AbstractArray{T};
-        train_idx::Int = 1,
-        rng::AbstractRNG = Random.default_rng(),
-    )::Tuple{T, AbstractArray{T}, NamedTuple, NamedTuple} where {T <: half_quant}
-    z_posterior, st_new, noise =
-        sample_langevin(ps, st_kan, Lux.testmode(st_lux), model, x; rng = rng)
-    st_lux_ebm, st_lux_gen = st_new.ebm, st_new.gen
-    z_prior, st_lux_ebm =
-        model.sample_prior(model, size(x)[end], ps, st_kan, Lux.testmode(st_lux), rng)
-
-    ∇ .= grad_langevin_llhood(
-        ps,
-        z_posterior,
-        z_prior,
-        x,
-        model,
-        st_kan,
-        Lux.trainmode(st_lux_ebm),
-        Lux.trainmode(st_lux_gen),
-        noise,
-    )
-
-    all(iszero.(∇)) && error("All zero Langevin grad")
-    any(isnan.(∇)) && error("NaN in Langevin grad")
-
     loss, st_lux_ebm, st_lux_gen = marginal_llhood(
         ps,
         z_posterior,
@@ -152,8 +146,8 @@ function (l::LangevinLoss)(
         x,
         model,
         st_kan,
-        Lux.trainmode(st_lux_ebm),
-        Lux.trainmode(st_lux_gen),
+        st_lux_ebm,
+        st_lux_gen,
         noise,
     )
     return loss, ∇, st_lux_ebm, st_lux_gen

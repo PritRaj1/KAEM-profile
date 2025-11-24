@@ -3,51 +3,53 @@ module LogPriorFCNs
 export LogPriorULA, LogPriorMix, LogPriorUnivariate
 
 using NNlib: logsoftmax, softmax
-using CUDA, Lux, LuxCUDA, LinearAlgebra, Accessors, Random, ComponentArrays
-using KernelAbstractions, Tullio
+using LinearAlgebra, Accessors, Random, ComponentArrays
 
 using ..Utils
 using ..EBM_Model
 
-function log_norm(norm::AbstractArray{T, 3}, ε::T)::AbstractArray{T, 2} where {T <: half_quant}
-    return dropdims(log.(sum(norm, dims = 3) .+ ε), dims = 3)
+function log_norm(norm, ε)
+    norm = sum(norm; dims = 3)
+    log_norm = @. log(norm + ε)
+    return dropdims(log_norm, dims = 3)
 end
 
 function log_mix_pdf(
-        f::AbstractArray{T, 3},
-        α::AbstractArray{T, 2},
-        π_0::AbstractArray{T, 3},
-        Z::AbstractArray{T, 2},
-        ε::T,
-        Q::Int,
-        P::Int,
-        S::Int,
-    )::AbstractArray{T, 1} where {T <: half_quant}
-    @tullio lp[q, s] := exp(f[q, p, s]) * π_0[q, 1, s] * α[q, p] / Z[q, p]
+        f,
+        α,
+        π_0,
+        Z,
+        ε,
+        Q,
+        P,
+        S,
+    )
+    exp_f = @. exp(f) * π_0 * α / Z
+    lp = dropdims(sum(exp_f; dims = 2); dims = 2)
     return log.(dropdims(prod(lp; dims = 1) .+ ε; dims = 1))
 end
 
-struct LogPriorULA{T <: half_quant} <: AbstractLogPrior
+struct LogPriorULA{T <: Float32} <: AbstractLogPrior
     ε::T
 end
 
-struct LogPriorUnivariate{T <: half_quant} <: AbstractLogPrior
+struct LogPriorUnivariate{T <: Float32} <: AbstractLogPrior
     ε::T
     normalize::Bool
 end
 
-struct LogPriorMix{T <: half_quant} <: AbstractLogPrior
+struct LogPriorMix{T <: Float32} <: AbstractLogPrior
     ε::T
     normalize::Bool
 end
 
 function (lp::LogPriorULA)(
-        z::AbstractArray{T, 3},
-        ebm::EbmModel{T},
-        ps::ComponentArray{T},
-        st_kan::ComponentArray{T},
-        st_lyrnorm::NamedTuple,
-    )::Tuple{AbstractArray{T, 1}, NamedTuple} where {T <: half_quant}
+        z,
+        ebm,
+        ps,
+        st_kan,
+        st_lyrnorm,
+    )
     log_π0 = dropdims(
         sum(ebm.π_pdf(z, ps.dist.π_μ, ps.dist.π_σ; log_bool = true); dims = 1),
         dims = (1, 2),
@@ -57,13 +59,13 @@ function (lp::LogPriorULA)(
 end
 
 function (lp::LogPriorUnivariate)(
-        z::AbstractArray{T, 3},
+        z,
         ebm,
-        ps::ComponentArray{T},
-        st_kan::ComponentArray{T},
-        st_lyrnorm::NamedTuple;
-        ula::Bool = false,
-    )::Tuple{AbstractArray{T, 1}, NamedTuple} where {T <: half_quant}
+        ps,
+        st_kan,
+        st_lyrnorm;
+        ula = false,
+    )
     """
     The log-probability of the ebm-prior.
 
@@ -82,40 +84,41 @@ function (lp::LogPriorUnivariate)(
         The unnormalized log-probability of the ebm-prior.
         The updated states of the ebm-prior.
     """
-    Q, P, S = size(z)
+    Q, P, S = ebm.q_size, ebm.p_size, ebm.s_size
     log_π0 = ebm.π_pdf(z, ps.dist.π_μ, ps.dist.π_σ; log_bool = true)
 
     log_π0 =
         lp.normalize && !ula ?
         log_π0 .- log_norm(first(ebm.quad(ebm, ps, st_kan, st_lyrnorm)), lp.ε) : log_π0
 
-    f, st_lyrnorm_new = ebm(ps, st_kan, st_lyrnorm, reshape(z, P, Q * S))
-    f = reshape(f, Q, Q, P, S)
-    I_q = Array{T}(I, Q, Q) |> pu
+    f_diag, st_lyrnorm_new = similar(z), st_lyrnorm
+    for i in 1:Q
+        f, st_lyrnorm_new = ebm(ps, st_kan, st_lyrnorm_new, view(z, i, :, :))
+        f_diag[i, :, :] = selectdim(f, 1, i)
+    end
 
-    f_diag = dropdims(sum(f .* I_q; dims = 2); dims = 2)
     log_p = dropdims(sum(f_diag .+ log_π0; dims = (1, 2)); dims = (1, 2))
     return log_p, st_lyrnorm_new
 end
 
 function dotprod_attn(
-        Q::AbstractArray{T, 2},
-        K::AbstractArray{T, 2},
-        z::AbstractArray{T, 3},
-    )::AbstractArray{T, 2} where {T <: half_quant}
-    scale = sqrt(T(size(z)[end]))
-    @tullio QK[q, p] := (Q[q, p] * z[q, 1, b]) * (K[q, p] * z[q, 1, b])
-    return QK ./ scale
+        Q,
+        K,
+        z,
+        s_size,
+    )
+    scale = sqrt(Float32(s_size))
+    return dropdims(sum(Q .* z .* K .* z; dims = 3); dims = 3) ./ scale
 end
 
 function (lp::LogPriorMix)(
-        z::AbstractArray{T, 3},
-        ebm::EbmModel{T},
-        ps::ComponentArray{T},
-        st_kan::ComponentArray{T},
-        st_lyrnorm::NamedTuple;
-        ula::Bool = false,
-    )::Tuple{AbstractArray{T, 1}, NamedTuple} where {T <: half_quant}
+        z,
+        ebm,
+        ps,
+        st_kan,
+        st_lyrnorm;
+        ula = false,
+    )
     """
     The log-probability of the mixture ebm-prior.
 
@@ -134,14 +137,13 @@ function (lp::LogPriorMix)(
         The unnormalized log-probability of the mixture ebm-prior.
         The updated states of the mixture ebm-prior.
     """
-
+    Q, P, S = ebm.q_size, ebm.p_size, ebm.s_size
     alpha =
         ebm.bool_config.use_attention_kernel ?
-        dotprod_attn(ps.attention.Q, ps.attention.K, z) :
-        (ebm.bool_config.train_props ? ps.dist.α : pu(ones(T, ebm.q_size, ebm.p_size)))
+        dotprod_attn(ps.attention.Q, ps.attention.K, z, S) :
+        (ebm.bool_config.train_props ? ps.dist.α : zero(ps.dist.α) .+ 1.0f0)
 
     alpha = softmax(alpha; dims = 2)
-    Q, P, S = size(alpha)..., size(z)[end]
     π_0 = ebm.π_pdf(z, ps.dist.π_μ, ps.dist.π_σ; log_bool = false)
 
     # Energy functions of each component, q -> p
@@ -149,10 +151,10 @@ function (lp::LogPriorMix)(
     Z =
         lp.normalize && !ula ?
         dropdims(sum(first(ebm.quad(ebm, ps, st_kan, st_lyrnorm)), dims = 3), dims = 3) :
-        ones(T, Q, P) |> pu
+        ones(Float32, Q, P) |> pu
 
-    reg = ebm.λ > 0 ? ebm.λ * sum(abs.(alpha)) : zero(T)
-    log_p = log_mix_pdf(f, alpha, π_0, Z, lp.ε, Q, P, S)
+    reg = ebm.λ > 0 ? ebm.λ * sum(abs.(alpha)) : 0.0f0
+    log_p = log_mix_pdf(f, alpha, π_0, Z, lp.ε, Q, P, :)
     return log_p .+ reg, st_lyrnorm
 end
 

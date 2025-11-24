@@ -2,29 +2,26 @@ module ModelGridUpdating
 
 export update_model_grid
 
-using CUDA, Accessors, ComponentArrays, Lux, NNlib, LinearAlgebra, Random, LuxCUDA
+using Accessors, ComponentArrays, Lux, NNlib, LinearAlgebra, Random
 
 using ..Utils
-using ..T_KAM_model
-using ..T_KAM_model.UnivariateFunctions
+using ..KAEM_model
+using ..KAEM_model.UnivariateFunctions
+using ..KAEM_model.EBM_Model
 
 include("kan/grid_updating.jl")
 using .GridUpdating
 
 function update_model_grid(
-        model::T_KAM{T, U},
-        x::AbstractArray{T},
-        ps::ComponentArray{T},
-        st_kan::ComponentArray{T},
-        st_lux::NamedTuple;
-        train_idx::Int = 1,
-        rng::AbstractRNG = Random.default_rng(),
-    )::Tuple{
-        Any,
-        ComponentArray{T},
-        ComponentArray{T},
-        NamedTuple,
-    } where {T <: half_quant, U <: full_quant}
+        model,
+        x,
+        ps,
+        st_kan,
+        st_lux,
+        train_idx,
+        swap_replica_idxs,
+        rng,
+    )
     """
     Update the grid of the likelihood model using samples from the prior.
 
@@ -48,16 +45,16 @@ function update_model_grid(
     if model.update_prior_grid
 
         if model.N_t > 1
-            temps = collect(T, [(k / model.N_t)^model.p[train_idx] for k in 1:model.N_t])
+            temps = collect(Float32, [(k / model.N_t)^model.p[train_idx] for k in 1:model.N_t])
             z = first(
                 model.posterior_sampler(
-                    model,
                     ps,
                     st_kan,
                     st_lux,
                     x;
                     temps = temps,
                     rng = rng,
+                    swap_replica_idxs = swap_replica_idxs
                 ),
             )[
                 :,
@@ -66,36 +63,35 @@ function update_model_grid(
                 end,
             ]
         elseif model.prior.bool_config.ula || model.MALA
-            z = first(model.posterior_sampler(model, ps, st_kan, st_lux, x; rng = rng))[
+            z = first(model.posterior_sampler(ps, st_kan, st_lux, x; rng = rng))[
                 :,
                 :,
                 :,
                 1,
             ]
         else
-            # z = first(
-            #     model.sample_prior(
-            #         model,
-            #         model.grid_updates_samples,
-            #         ps,
-            #         st_kan,
-            #         st_lux,
-            #         rng,
-            #     ),
-            # )
-            z = first(model.posterior_sampler(model, ps, st_kan, st_lux, x; rng = rng))[
-                :,
-                :,
-                :,
-                1,
-            ] # For domain updating: use ULA to explore beyond prior init domain.
+            z = first(
+                model.sample_prior(
+                    model,
+                    ps,
+                    st_kan,
+                    st_lux,
+                    rng,
+                )
+            )
+            # z = first(model.posterior_sampler(ps, st_kan, st_lux, x; rng = rng))[
+            #     :,
+            #     :,
+            #     :,
+            #     1,
+            # ] # For domain updating: use ULA to explore beyond prior init domain.
         end
 
         # Must update domain for inverse transform sampling
         if (model.MALA || model.N_t > 1 || model.prior.bool_config.ula)
             min_z, max_z = minimum(z), maximum(z)
-            new_domain = (min_z * T(0.9), max_z * T(1.1))
-            @reset model.prior.fcns_qp[1].grid_range = new_domain
+            st_kan.ebm[:a].min = [min_z * 0.9f0]
+            st_kan.ebm[:a].max = [max_z * 1.1f0]
         end
 
         if !(
@@ -106,14 +102,22 @@ function update_model_grid(
                 (model.prior.bool_config.ula || model.prior.bool_config.mixture_model) ?
                     reverse(size(z)[1:2]) : size(z)[1:2]
             )
-            z = reshape(z, P, Q, :)
-            B = size(z, 3)
+            B = model.batch_size
             z = reshape(z, P, Q * B)
 
-            for i in 1:model.prior.depth
-                if model.prior.bool_config.layernorm && i != 1
+            mid_size = model.prior.bool_config.mixture_model ? model.prior.p_size : model.prior.q_size
+            outer_dim = model.prior.bool_config.mixture_model ? (Q * Q * B) : (Q * P * B)
+
+            prior_copy = model.prior
+
+            for i in 1:prior_copy.depth
+                @reset prior_copy.fcns_qp[i].basis_function.S = i == 1 ? Q * B : outer_dim
+            end
+
+            for i in 1:prior_copy.depth
+                if prior_copy.bool_config.layernorm && i != 1
                     z, st_ebm = Lux.apply(
-                        model.prior.layernorms[i - 1],
+                        prior_copy.layernorms[i - 1],
                         z,
                         ps.ebm.layernorm[symbol_map[i]],
                         st_lux.ebm[symbol_map[i]],
@@ -122,41 +126,44 @@ function update_model_grid(
                 end
 
                 new_grid, new_coef = update_fcn_grid(
-                    model.prior.fcns_qp[i],
+                    prior_copy.fcns_qp[i],
                     ps.ebm.fcn[symbol_map[i]],
                     st_kan.ebm[symbol_map[i]],
                     z,
                 )
-                @reset ps.ebm.fcn[symbol_map[i]].coef = new_coef
-                @reset st_kan.ebm[symbol_map[i]].grid = new_grid
+                ps.ebm.fcn[symbol_map[i]].coef = new_coef
+                st_kan.ebm[symbol_map[i]].grid = new_grid
 
-                if model.prior.fcns_qp[i].spline_string == "RBF"
-                    @reset model.prior.fcns_qp[i].basis_function.scale =
-                        (maximum(new_grid) - minimum(new_grid)) / (size(new_grid, 2) - 1) |>
-                        T
+                if prior_copy.fcns_qp[i].spline_string == "RBF"
+                    scale = (maximum(new_grid) - minimum(new_grid)) / (size(new_grid, 2) - 1) |> Lux.f32
+                    st_kan.ebm[symbol_map[i]].scale = [scale]
                 end
 
                 z = Lux.apply(
-                    model.prior.fcns_qp[i],
+                    prior_copy.fcns_qp[i],
                     z,
                     ps.ebm.fcn[symbol_map[i]],
                     st_kan.ebm[symbol_map[i]],
                 )
                 z =
-                    i == 1 ? reshape(z, size(z, 2), :) :
+                    (i == 1 && !prior_copy.bool_config.ula) ? reshape(z, mid_size, outer_dim) :
                     dropdims(sum(z, dims = 1); dims = 1)
             end
         end
     end
 
+    new_nodes, new_weights = get_gausslegendre(model.prior, st_kan.ebm)
+    st_kan.quad.nodes = new_nodes
+    st_kan.quad.weights = new_weights
+
     # Only update if KAN-type generator requires
     (!model.update_llhood_grid || model.lkhood.CNN || model.lkhood.SEQ) &&
-        return model, T.(ps), st_kan, st_lux
+        return ps, st_kan, st_lux
 
     if model.N_t > 1
-        temps = collect(T, [(k / model.N_t)^model.p[train_idx] for k in 1:model.N_t])
+        temps = collect(Float32, [(k / model.N_t)^model.p[train_idx] for k in 1:model.N_t])
         z = first(
-            model.posterior_sampler(model, ps, st_kan, st_lux, x; temps = temps, rng = rng),
+            model.posterior_sampler(ps, st_kan, st_lux, x; temps = temps, rng = rng, swap_replica_idxs = swap_replica_idxs),
         )[
             :,
             :,
@@ -164,22 +171,22 @@ function update_model_grid(
             end,
         ]
     elseif model.prior.bool_config.ula || model.MALA
-        z = first(model.posterior_sampler(model, ps, st_kan, st_lux, x; rng = rng))[
+        z = first(model.posterior_sampler(ps, st_kan, st_lux, x; rng = rng))[
             :,
             :,
             :,
             1,
         ]
     else
-        # z = first(
-        #     model.sample_prior(model, model.grid_updates_samples, ps, st_kan, st_lux, rng),
-        # )
-        z = first(model.posterior_sampler(model, ps, st_kan, st_lux, x; rng = rng))[
-            :,
-            :,
-            :,
-            1,
-        ] # For domain updating: use ULA to explore beyond prior init domain.
+        z = first(
+            model.sample_prior(model, ps, st_kan, st_lux, rng)
+        )
+        # z = first(model.posterior_sampler(ps, st_kan, st_lux, x; rng = rng))[
+        #     :,
+        #     :,
+        #     :,
+        #     1,
+        # ] # For domain updating: use ULA to explore beyond prior init domain.
     end
 
     z = dropdims(sum(z; dims = 2); dims = 2)
@@ -205,12 +212,12 @@ function update_model_grid(
                 st_kan.gen[symbol_map[i]],
                 z,
             )
-            @reset ps.gen.fcn[symbol_map[i]].coef = new_coef
-            @reset st_kan.gen[symbol_map[i]].grid = new_grid
+            ps.gen.fcn[symbol_map[i]].coef = new_coef
+            st_kan.gen[symbol_map[i]].grid = new_grid
 
             if model.lkhood.generator.Φ_fcns[i].spline_string == "RBF"
-                @reset model.lkhood.generator.Φ_fcns[i].basis_function.scale =
-                    (maximum(new_grid) - minimum(new_grid)) / (size(new_grid, 2) - 1) |> T
+                scale = (maximum(new_grid) - minimum(new_grid)) / (size(new_grid, 2) - 1) |> Lux.f32
+                st_kan.gen[symbol_map[i]].scale = [scale]
             end
         end
 
@@ -223,7 +230,7 @@ function update_model_grid(
         z = dropdims(sum(z, dims = 1); dims = 1)
     end
 
-    return model, T.(ps), st_kan, st_lux
+    return ps, st_kan, st_lux
 end
 
 end

@@ -2,8 +2,7 @@ module CNN_Model
 
 export CNN_Generator, init_CNN_Generator
 
-using CUDA, Lux, LuxCUDA, ComponentArrays, Accessors, Random, ConfParser
-using ChainRules.ChainRulesCore: @ignore_derivatives
+using Lux, ComponentArrays, Accessors, Random, ConfParser
 
 using ..Utils
 
@@ -15,15 +14,17 @@ end
 
 struct CNN_Generator <: Lux.AbstractLuxLayer
     depth::Int
-    Φ_fcns::Vector{Lux.ConvTranspose}
-    batchnorms::Vector{Lux.BatchNorm}
+    Φ_fcns::Tuple{Vararg{Lux.ConvTranspose}}
+    batchnorms::Tuple{Vararg{Lux.BatchNorm}}
     bool_config::BoolConfig
+    in_channels::Int
+    s_size::Int
 end
 
 function upsample_to_match(
-        input_tensor::AbstractArray{T, 4},
-        target_tensor::AbstractArray{T, 4},
-    )::AbstractArray{T, 4} where {T <: half_quant}
+        input_tensor,
+        target_tensor,
+    )
     input_h, input_w = size(input_tensor, 1), size(input_tensor, 2)
     target_h, target_w = size(target_tensor, 1), size(target_tensor, 2)
     h_factor = div(target_h, input_h)
@@ -34,70 +35,73 @@ end
 
 function forward_with_latent_concat(
         gen::CNN_Generator,
-        z::AbstractArray{T, 4},
-        ps::ComponentArray{T},
-        st_lux::NamedTuple,
-    )::Tuple{AbstractArray{T, 4}, NamedTuple} where {T <: half_quant}
+        z,
+        ps,
+        st_lux,
+    )
 
     original_z = z
-    current_z = z .* one(T)
+    current_z = z .* 1.0f0
+    st_lux_new = st_lux
 
     for i in 1:(gen.depth)
         if i > 1
-            upsampled_z = upsample_to_match(original_z .* one(T), current_z .* one(T))
+            upsampled_z = upsample_to_match(original_z .* 1.0f0, current_z .* 1.0f0)
             current_z = cat(current_z, upsampled_z, dims = 3)
         end
 
-        current_z, st_new = Lux.apply(
+        current_z, st_layer_new = Lux.apply(
             gen.Φ_fcns[i],
             current_z,
-            ps.fcn[symbol_map[i]],
-            st_lux.fcn[symbol_map[i]],
+            @view(ps.fcn[symbol_map[i]]),
+            st_lux_new.fcn[symbol_map[i]],
         )
-        @ignore_derivatives @reset st_lux.fcn[symbol_map[i]] = st_new
+        @reset st_lux_new.fcn[symbol_map[i]] = st_layer_new
 
-        current_z, st_new =
+        current_z, st_layer_new =
             (gen.bool_config.batchnorm && i < gen.depth) ?
             Lux.apply(
                 gen.batchnorms[i],
                 current_z,
-                ps.batchnorm[symbol_map[i]],
-                st_lux.batchnorm[symbol_map[i]],
+                @view(ps.batchnorm[symbol_map[i]]),
+                st_lux_new.batchnorm[symbol_map[i]],
             ) : (current_z, nothing)
-        (gen.bool_config.batchnorm && i < gen.depth) &&
-            @ignore_derivatives @reset st_lux.batchnorm[symbol_map[i]] = st_new
+        if gen.bool_config.batchnorm && i < gen.depth
+            @reset st_lux_new.batchnorm[symbol_map[i]] = st_layer_new
+        end
     end
 
-    return current_z, st_lux
+    return current_z, st_lux_new
 end
 
 function forward(
         gen::CNN_Generator,
-        z::AbstractArray{T, 4},
-        ps::ComponentArray{T},
-        st_lux::NamedTuple,
-        current_layer::Int = 1,
-        skip_input::Union{AbstractArray{T, 4}, Nothing} = nothing,
-    )::Tuple{AbstractArray{T, 4}, NamedTuple} where {T <: half_quant}
+        z,
+        ps,
+        st_lux,
+        current_layer = 1,
+        skip_input = nothing,
+    )
+    st_lux_new = st_lux
     for i in 1:(gen.depth)
-        z, st_new =
-            Lux.apply(gen.Φ_fcns[i], z, ps.fcn[symbol_map[i]], st_lux.fcn[symbol_map[i]])
-        @ignore_derivatives @reset st_lux.fcn[symbol_map[i]] = st_new
+        z, st_layer_new =
+            Lux.apply(gen.Φ_fcns[i], z, @view(ps.fcn[symbol_map[i]]), st_lux_new.fcn[symbol_map[i]])
+        @reset st_lux_new.fcn[symbol_map[i]] = st_layer_new
 
-        z, st_new =
+        z, st_layer_new =
             (gen.bool_config.batchnorm && i < gen.depth) ?
             Lux.apply(
                 gen.batchnorms[i],
                 z,
-                ps.batchnorm[symbol_map[i]],
-                st_lux.batchnorm[symbol_map[i]],
+                @view(ps.batchnorm[symbol_map[i]]),
+                st_lux_new.batchnorm[symbol_map[i]],
             ) : (z, nothing)
-        (gen.bool_config.batchnorm && i < gen.depth) &&
-            (gen.bool_config.batchnorm && i < gen.depth) &&
-            @ignore_derivatives @reset st_lux.batchnorm[symbol_map[i]] = st_new
+        if gen.bool_config.batchnorm && i < gen.depth
+            @reset st_lux_new.batchnorm[symbol_map[i]] = st_layer_new
+        end
     end
 
-    return z, st_lux
+    return z, st_lux_new
 end
 
 function init_CNN_Generator(
@@ -141,9 +145,11 @@ function init_CNN_Generator(
     strides = parse.(Int, retrieve(conf, "CNN", "strides"))
     k_size = parse.(Int, retrieve(conf, "CNN", "kernel_sizes"))
     paddings = parse.(Int, retrieve(conf, "CNN", "paddings"))
-    act = activation_mapping[retrieve(conf, "CNN", "activation")]
+    act = lux_activation_mapping[retrieve(conf, "CNN", "activation")]
     batchnorm_bool = parse(Bool, retrieve(conf, "CNN", "batchnorm"))
     skip_bool = parse(Bool, retrieve(conf, "CNN", "latent_concat")) # Residual connection
+
+    s_size = parse(Int, retrieve(conf, "TRAINING", "batch_size"))
 
     Φ_functions = Vector{Lux.ConvTranspose}(undef, 0)
     batchnorms = Vector{Lux.BatchNorm}(undef, 0)
@@ -169,7 +175,7 @@ function init_CNN_Generator(
         )
 
         if batchnorm_bool
-            push!(batchnorms_temp, Lux.BatchNorm(hidden_c[i + 1], act))
+            push!(batchnorms, Lux.BatchNorm(hidden_c[i + 1], act))
         end
 
         prev_c = (i == 1 && skip_bool) ? hidden_c[1] : prev_c
@@ -189,18 +195,20 @@ function init_CNN_Generator(
 
     return CNN_Generator(
         depth,
-        Φ_functions,
-        batchnorms,
+        Tuple(Φ_functions),
+        Tuple(batchnorms),
         BoolConfig(false, batchnorm_bool, skip_bool),
+        first(widths),
+        s_size,
     )
 end
 
 function (gen::CNN_Generator)(
-        ps::ComponentArray{T},
-        st_kan::ComponentArray{T},
-        st_lux::NamedTuple,
-        z::AbstractArray{T, 3},
-    )::Tuple{AbstractArray{T, 4}, NamedTuple} where {T <: half_quant}
+        ps,
+        st_kan,
+        st_lux,
+        z,
+    )
     """
     Generate data from the CNN likelihood model.
 
@@ -214,7 +222,7 @@ function (gen::CNN_Generator)(
     Returns:
         The generated data.
     """
-    z = reshape(sum(z, dims = 2), 1, 1, first(size(z)), last(size(z)))
+    z = reshape(sum(z, dims = 2), 1, 1, gen.in_channels, gen.s_size)
     gen.bool_config.skip_bool && return forward_with_latent_concat(gen, z, ps, st_lux)
     return forward(gen, z, ps, st_lux)
 end

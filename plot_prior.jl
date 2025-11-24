@@ -1,7 +1,5 @@
 using JLD2,
-    CUDA,
     Lux,
-    LuxCUDA,
     ComponentArrays,
     ConfParser,
     LaTeXStrings,
@@ -16,7 +14,7 @@ include("src/utils.jl")
 using .Utils
 
 include("src/KAEM/KAEM.jl")
-using .T_KAM_model
+using .KAEM_model
 
 include("src/pipeline/trainer.jl")
 using .trainer
@@ -47,9 +45,9 @@ for fcn_type in ["RBF", "FFT"]
 
             saved_data = load(file)
 
-            ps = saved_data["params"] .|> half_quant |> pu
-            st_kan = saved_data["kan_state"] |> hq |> pu
-            st_lux = saved_data["lux_state"] |> hq |> pu
+            ps = saved_data["params"] .|> Float32 |> pu
+            st_kan = saved_data["kan_state"] |> pu
+            st_lux = saved_data["lux_state"] |> pu
 
             rng = Random.MersenneTwister(1)
             t = init_trainer(rng, conf, dataset_name; file_loc = "garbage/")
@@ -67,8 +65,8 @@ for fcn_type in ["RBF", "FFT"]
             )
 
             if no_grid
-                a = fill(half_quant(first(prior.prior_domain)), size(a)) |> pu
-                b = fill(half_quant(last(prior.prior_domain)), size(b)) |> pu
+                a = fill(Float32(first(st_kan[:a].min)), size(a)) |> pu
+                b = fill(Float32(last(st_kan[:a].max)), size(b)) |> pu
             end
 
             z = (a + b) ./ 2 .+ (b - a) ./ 2 .* pu(prior.nodes)

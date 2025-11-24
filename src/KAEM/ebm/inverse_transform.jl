@@ -2,158 +2,85 @@ module InverseTransformSampling
 
 export sample_univariate, sample_mixture
 
-using CUDA, LinearAlgebra, Random, Lux, LuxCUDA, ComponentArrays, ParallelStencil
+using LinearAlgebra, Random, ComponentArrays, Lux
 
 using ..Utils
 
 include("mixture_selection.jl")
 using .MixtureChoice: choose_component
 
-@static if CUDA.has_cuda() && parse(Bool, get(ENV, "GPU", "false"))
-    @init_parallel_stencil(CUDA, full_quant, 3)
-else
-    @init_parallel_stencil(Threads, full_quant, 3)
-end
 
-@parallel_indices (q, p, b) function interp_kernel!(
-        z::AbstractArray{U, 3},
-        cdf::AbstractArray{U, 3},
-        grid::AbstractArray{U, 2},
-        rand_vals::AbstractArray{U, 3},
-        grid_size::Int,
-    )::Nothing where {U <: full_quant}
-    rv = rand_vals[q, p, b]
-    idx = 1
+function interpolate_kernel(cdf, grid, rand_vals, Q, P, G, S; mix_bool = false)
+    grid_idxs = reshape(1:G, 1, 1, G, 1) |> pu
 
-    # Manual searchsortedfirst over cdf[q, p, :] - potential thread divergence on GPU
-    for j in 1:(grid_size + 1)
-        if cdf[q, p, j] >= rv
-            idx = j
-            break
-        end
-        idx = j
-    end
+    # First index, i, such that cdf[i] >= rand_vals
+    indices = sum(1 .+ (cdf .< reshape(rand_vals, Q, P, 1, S)); dims = 3)
+    first_bool = indices .== 1 |> Lux.f32
+    mask2 = indices .== grid_idxs |> Lux.f32
+    mask1 = mask2 .- 1.0f0
 
-    # Edge case 1: Random value is smaller than first CDF value
-    if idx == 1
-        z[q, p, b] = grid[p, 1]
+    z1 = dropdims((first_bool .* grid[:, :, 1]) .+ (1.0f0 .- first_bool) .* sum(mask1 .* grid; dims = 3); dims = 3)
+    z2 = dropdims(sum(mask2 .* grid; dims = 3); dims = 3)
 
-        # Edge case 2: Random value is larger than last CDF value
-    elseif idx > grid_size
-        z[q, p, b] = grid[p, grid_size]
+    c1 = dropdims((first_bool .* 0.0f0) .+ (1.0f0 .- first_bool) .* sum(mask1 .* cdf; dims = 3); dims = 3)
+    c2 = dropdims(sum(mask2 .* cdf; dims = 3); dims = 3)
+    rv = mix_bool ? dropdims(rand_vals; dims = 3) : rand_vals
+    length = c2 - c1
 
-        # Interpolate into interval
-    else
-        z1, z2 = grid[p, idx - 1], grid[p, idx]
-        cd1, cd2 = cdf[q, p, idx - 1], cdf[q, p, idx]
-
-        # Handle exact match without instability
-        length = cd2 - cd1
-        if length == 0
-            z[q, p, b] = z1
-        else
-            z[q, p, b] = z1 + (z2 - z1) * ((rv - cd1) / length)
-        end
-    end
-    return nothing
+    return ifelse.(
+        length .== 0,
+        z1,
+        z1 .+ (z2 .- z1) .* ((rv .- c1) ./ length)
+    )
 end
 
 function sample_univariate(
-        ebm::Lux.AbstractLuxLayer,
-        num_samples::Int,
-        ps::ComponentArray{T},
-        st_kan::ComponentArray{T},
-        st_lyrnorm::NamedTuple;
-        rng::AbstractRNG = Random.default_rng(),
-    )::Tuple{AbstractArray{T, 3}, NamedTuple} where {T <: half_quant}
-
-    cdf, grid, st_lyrnorm_new = ebm.quad(ebm, ps, st_kan, st_lyrnorm)
-    grid_size = size(grid, 2)
-    grid = full_quant.(grid)
-
-    cdf = cat(
-        pu(zeros(full_quant, ebm.q_size, ebm.p_size, 1)), # Add 0 to start of CDF
-        cumsum(full_quant.(cdf); dims = 3), # Cumulative trapezium = CDF
-        dims = 3,
+        ebm,
+        ps,
+        st_kan,
+        st_lyrnorm,
+        st_quad;
+        rng = Random.default_rng(),
     )
 
-    rand_vals = pu(rand(rng, full_quant, 1, ebm.p_size, num_samples)) .* cdf[:, :, end]
-    z = @zeros(ebm.q_size, ebm.p_size, num_samples)
-    @parallel (1:ebm.q_size, 1:ebm.p_size, 1:num_samples) interp_kernel!(
-        z,
+    cdf, grid, st_lyrnorm_new = ebm.quad(ebm, ps, st_kan, st_lyrnorm, st_quad)
+    cdf = cumsum(cdf; dims = 3) # Cumulative trapezium = CDF
+
+    rand_vals = rand(rng, Float32, 1, ebm.p_size, ebm.s_size) .* cdf[:, :, end]
+    z = interpolate_kernel(
         cdf,
-        grid,
+        reshape(grid, 1, :, ebm.N_quad),
         rand_vals,
-        grid_size,
+        ebm.q_size,
+        ebm.p_size,
+        ebm.N_quad,
+        ebm.s_size
     )
-    return T.(z), st_lyrnorm_new
+    return z, st_lyrnorm_new
 end
 
-@parallel_indices (q, b) function interp_kernel_mixture!(
-        z::AbstractArray{U, 3},
-        cdf::AbstractArray{U, 3},
-        grid::AbstractArray{U, 2},
-        rand_vals::AbstractArray{U, 2},
-        grid_size::Int,
-    )::Nothing where {U <: full_quant}
-    rv = rand_vals[q, b]
-    idx = 1
-
-    # Manual searchsortedfirst over cdf[q, b, :] - potential thread divergence on GPU
-    for j in 1:(grid_size + 1)
-        if cdf[q, b, j] >= rv
-            idx = j
-            break
-        end
-        idx = j
-    end
-
-    # Edge case 1: Random value is smaller than first CDF value
-    if idx == 1
-        z[q, 1, b] = grid[q, 1]
-
-        # Edge case 2: Random value is larger than last CDF value
-    elseif idx > grid_size
-        z[q, 1, b] = grid[q, grid_size]
-
-        # Interpolate into interval
-    else
-        z1, z2 = grid[q, idx - 1], grid[q, idx]
-        cd1, cd2 = cdf[q, b, idx - 1], cdf[q, b, idx]
-
-        # Handle exact match without instability
-        length = cd2 - cd1
-        if length == 0
-            z[q, 1, b] = z1
-        else
-            z[q, 1, b] = z1 + (z2 - z1) * ((rv - cd1) / length)
-        end
-    end
-    return nothing
-end
-
-@parallel_indices (q, p, b) function dotprod_attn_kernel!(
-        QK::AbstractArray{U, 2},
-        Q::AbstractArray{U, 2},
-        K::AbstractArray{U, 2},
-        z::AbstractArray{U, 2},
-        scale::U,
-        min_z::U,
-        max_z::U,
-    )::Nothing where {U <: full_quant}
-    z_mapped = z[q, b] * (max_z - min_z) + min_z
-    QK[q, p] = ((Q[q, p] * z_mapped) * (K[q, p] * z_mapped)) / scale
-    return nothing
+function dotprod_attn(
+        Q,
+        K,
+        z,
+        scale,
+        min_z,
+        max_z,
+        q_size,
+        s_size
+    )
+    z = reshape(z, q_size, 1, s_size) .* ((max_z - min_z) + min_z)
+    return dropdims(sum((Q .* z) .* (K .* z); dims = 3); dims = 3) ./ scale
 end
 
 function sample_mixture(
-        ebm::Lux.AbstractLuxLayer,
-        num_samples::Int,
-        ps::ComponentArray{T},
-        st_kan::ComponentArray{T},
-        st_lyrnorm::NamedTuple;
-        rng::AbstractRNG = Random.default_rng(),
-    )::Tuple{AbstractArray{T, 3}, NamedTuple} where {T <: half_quant}
+        ebm,
+        ps,
+        st_kan,
+        st_lyrnorm,
+        st_quad;
+        rng = Random.default_rng(),
+    )
     """
     Component-wise inverse transform sampling for the ebm-prior.
     p = components of model
@@ -167,44 +94,39 @@ function sample_mixture(
     Returns:
         z: The samples from the ebm-prior, (num_samples, q). 
     """
-    alpha = full_quant.(ps.dist.α)
+    alpha = @view(ps.dist.α[:, :])
     if ebm.bool_config.use_attention_kernel
-        z = @rand(ebm.q_size, num_samples)
-        alpha = @zeros(ebm.q_size, ebm.p_size)
-        scale = sqrt(full_quant(num_samples))
-        min_z, max_z = full_quant.(ebm.prior_domain)
-        @parallel (1:ebm.q_size, 1:ebm.p_size, 1:num_samples) dotprod_attn_kernel!(
-            alpha,
-            full_quant.(ps.attention.Q),
-            full_quant.(ps.attention.K),
+        z = rand(rng, Float32, ebm.q_size, ebm.s_size)
+        scale = sqrt(Float32(ebm.s_size))
+        alpha = dotprod_attn(
+            ps.attention.Q,
+            ps.attention.K,
             z,
             scale,
-            min_z,
-            max_z,
+            st_kan[:a].min,
+            st_kan[:a].max,
+            ebm.q_size,
+            ebm.s_size
         )
     end
-    mask = choose_component(alpha, num_samples, ebm.q_size, ebm.p_size; rng = rng)
+    mask = choose_component(alpha, ebm.s_size, ebm.q_size, ebm.p_size; rng = rng)
     cdf, grid, st_lyrnorm_new =
-        ebm.quad(ebm, ps, st_kan, st_lyrnorm; component_mask = T.(mask))
-    grid_size = size(grid, 2)
+        ebm.quad(ebm, ps, st_kan, st_lyrnorm, st_quad; component_mask = mask, mix_bool = true)
+    cdf = cumsum(cdf; dims = 3) # Cumulative trapezium = CDF
+    cdf = reshape(cdf, ebm.q_size, 1, :, ebm.s_size)
 
-    cdf = cat(
-        pu(zeros(full_quant, ebm.q_size, num_samples, 1)), # Add 0 to start of CDF
-        cumsum(full_quant.(cdf); dims = 3), # Cumulative trapezium = CDF
-        dims = 3,
-    )
-
-    rand_vals = pu(rand(rng, full_quant, ebm.q_size, num_samples)) .* cdf[:, :, end]
-
-    z = @zeros(ebm.q_size, 1, num_samples)
-    @parallel (1:ebm.q_size, 1:num_samples) interp_kernel_mixture!(
-        z,
+    rand_vals = rand(rng, Float32, ebm.q_size, 1, 1, ebm.s_size) .* cdf[:, :, end:end, :]
+    z = interpolate_kernel(
         cdf,
-        full_quant.(grid),
+        reshape(grid, :, 1, ebm.N_quad),
         rand_vals,
-        grid_size,
+        ebm.q_size,
+        1, # Single component chosen already
+        ebm.N_quad,
+        ebm.s_size;
+        mix_bool = true
     )
-    return T.(z), st_lyrnorm_new
+    return z, st_lyrnorm_new
 end
 
 end

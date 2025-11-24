@@ -2,8 +2,7 @@ module KAN_Model
 
 export KAN_Generator, init_KAN_Generator
 
-using CUDA, Lux, LuxCUDA, ComponentArrays, Accessors, Random, ConfParser
-using ChainRules.ChainRulesCore: @ignore_derivatives
+using Lux, ComponentArrays, Accessors, Random, ConfParser
 
 using ..Utils
 using ..UnivariateFunctions
@@ -13,12 +12,13 @@ struct BoolConfig <: AbstractBoolConfig
     batchnorm::Bool
 end
 
-struct KAN_Generator{T <: half_quant, U <: full_quant} <: Lux.AbstractLuxLayer
+struct KAN_Generator{T <: Float32, A <: AbstractActivation} <: Lux.AbstractLuxLayer
     depth::Int
-    Φ_fcns::Vector{univariate_function{T, U}}
-    layernorms::Vector{Lux.LayerNorm}
+    Φ_fcns::Tuple{Vararg{univariate_function{T, A}}}
+    layernorms::Tuple{Vararg{Lux.LayerNorm}}
     bool_config::BoolConfig
     x_shape::Tuple
+    s_size::Int
 end
 
 function init_KAN_Generator(
@@ -61,15 +61,18 @@ function init_KAN_Generator(
     spline_function = retrieve(conf, "GeneratorModel", "spline_function")
     grid_size = parse(Int, retrieve(conf, "GeneratorModel", "grid_size"))
     grid_update_ratio =
-        parse(half_quant, retrieve(conf, "GeneratorModel", "grid_update_ratio"))
-    grid_range = parse.(half_quant, retrieve(conf, "GeneratorModel", "grid_range"))
-    ε_scale = parse(half_quant, retrieve(conf, "GeneratorModel", "ε_scale"))
-    μ_scale = parse(full_quant, retrieve(conf, "GeneratorModel", "μ_scale"))
-    σ_base = parse(full_quant, retrieve(conf, "GeneratorModel", "σ_base"))
-    σ_spline = parse(full_quant, retrieve(conf, "GeneratorModel", "σ_spline"))
-    init_τ = parse(full_quant, retrieve(conf, "GeneratorModel", "init_τ"))
+        parse(Float32, retrieve(conf, "GeneratorModel", "grid_update_ratio"))
+    grid_range = parse.(Float32, retrieve(conf, "GeneratorModel", "grid_range"))
+    ε_scale = parse(Float32, retrieve(conf, "GeneratorModel", "ε_scale"))
+    μ_scale = parse(Float32, retrieve(conf, "GeneratorModel", "μ_scale"))
+    σ_base = parse(Float32, retrieve(conf, "GeneratorModel", "σ_base"))
+    σ_spline = parse(Float32, retrieve(conf, "GeneratorModel", "σ_spline"))
+    init_τ = parse(Float32, retrieve(conf, "GeneratorModel", "init_τ"))
     τ_trainable = parse(Bool, retrieve(conf, "GeneratorModel", "τ_trainable"))
     τ_trainable = spline_function == "B-spline" ? false : τ_trainable
+    eps = parse(Float32, retrieve(conf, "TRAINING", "eps"))
+
+    s_size = parse(Int, retrieve(conf, "TRAINING", "batch_size"))
 
     depth = length(widths) - 1
 
@@ -88,17 +91,20 @@ function init_KAN_Generator(
         σ_spline = σ_spline,
         init_τ = init_τ,
         τ_trainable = τ_trainable,
+        ε_ridge = eps,
+        sample_size = s_size,
     )
-    Φ_functions = Vector{univariate_function{half_quant, full_quant}}(undef, 0)
+    # Let Julia infer the concrete activation type from the elements we push
+    Φ_functions = []
     layernorms = Vector{Lux.LayerNorm}(undef, 0)
 
     for i in eachindex(widths[1:(end - 1)])
         base_scale = (
-            μ_scale * (one(full_quant) / √(full_quant(widths[i]))) .+
+            μ_scale * (1.0f0 / √(Float32(widths[i]))) .+
                 σ_base .* (
-                randn(rng, full_quant, widths[i], widths[i + 1]) .* full_quant(2) .-
-                    one(full_quant)
-            ) .* (one(full_quant) / √(full_quant(widths[i])))
+                randn(rng, Float32, widths[i], widths[i + 1]) .* 2.0f0 .-
+                    1.0f0
+            ) .* (1.0f0 / √(Float32(widths[i])))
         )
         push!(Φ_functions, initialize_function(widths[i], widths[i + 1], base_scale))
 
@@ -107,21 +113,24 @@ function init_KAN_Generator(
         end
     end
 
-    return KAN_Generator(
+    A = length(Φ_functions) > 0 ? typeof(Φ_functions[1].base_activation) : AbstractActivation
+
+    return KAN_Generator{Float32, A}(
         depth,
-        Φ_functions,
-        layernorms,
+        Tuple(Φ_functions),
+        Tuple(layernorms),
         BoolConfig(layernorm_bool, false),
         x_shape,
+        s_size,
     )
 end
 
-function (gen::KAN_Generator{T, U})(
-        ps::ComponentArray{T},
-        st_kan::ComponentArray{T},
-        st_lyrnorm::NamedTuple,
-        z::AbstractArray{T, 3},
-    )::Tuple{AbstractArray{T}, NamedTuple} where {T <: half_quant, U <: full_quant}
+function (gen::KAN_Generator)(
+        ps,
+        st_kan,
+        st_lyrnorm,
+        z,
+    )
     """
     Generate data from the KAN likelihood model.
 
@@ -135,27 +144,28 @@ function (gen::KAN_Generator{T, U})(
     Returns:
         The generated data.
     """
-    num_samples = size(z)[end]
     z = dropdims(sum(z, dims = 2), dims = 2)
 
     # KAN functions
+    st_lyrnorm_new = st_lyrnorm
     for i in 1:gen.depth
-        z, st_lyrnorm_new =
+        z, st_layer_new =
             gen.bool_config.layernorm ?
             Lux.apply(
                 gen.layernorms[i],
                 z,
-                ps.layernorm[symbol_map[i]],
-                st_lyrnorm[symbol_map[i]],
+                @view(ps.layernorm[symbol_map[i]]),
+                st_lyrnorm_new[symbol_map[i]],
             ) : (z, nothing)
-        gen.bool_config.layernorm &&
-            @ignore_derivatives @reset st_lyrnorm[symbol_map[i]] = st_lyrnorm_new
+        if gen.bool_config.layernorm
+            @reset st_lyrnorm_new[symbol_map[i]] = st_layer_new
+        end
 
-        z = Lux.apply(gen.Φ_fcns[i], z, ps.fcn[symbol_map[i]], st_kan[symbol_map[i]])
+        z = Lux.apply(gen.Φ_fcns[i], z, @view(ps.fcn[symbol_map[i]]), @view(st_kan[symbol_map[i]]))
         z = dropdims(sum(z, dims = 1); dims = 1)
     end
 
-    return reshape(z, gen.x_shape..., num_samples), st_lyrnorm
+    return reshape(z, gen.x_shape..., gen.s_size), st_lyrnorm_new
 end
 
 end

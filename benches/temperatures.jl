@@ -1,8 +1,6 @@
-using BenchmarkTools, ConfParser, Lux, Random, CUDA, ComponentArrays, CSV, DataFrames
+using BenchmarkTools, ConfParser, Lux, Random, ComponentArrays, CSV, DataFrames, Reactant
 
 ENV["GPU"] = true
-ENV["FULL_QUANT"] = "FP32"
-ENV["HALF_QUANT"] = "FP32"
 
 include("../src/pipeline/data_utils.jl")
 using .DataUtils: get_vision_dataset
@@ -11,7 +9,7 @@ include("../src/utils.jl")
 using .Utils
 
 include("../src/KAEM/KAEM.jl")
-using .T_KAM_model
+using .KAEM_model
 
 include("../src/KAEM/model_setup.jl")
 using .ModelSetup
@@ -38,13 +36,13 @@ dataset, img_size = get_vision_dataset(
 function setup_model(N_t)
     commit!(conf, "THERMODYNAMIC_INTEGRATION", "num_temps", "$(N_t)")
 
-    model = init_T_KAM(dataset, conf, img_size; rng = rng)
+    model = init_KAEM(dataset, conf, img_size; rng = rng)
     x_test, loader_state = iterate(model.train_loader)
     x_test = pu(x_test)
-    model, ps, st_kan, st_lux = prep_model(model, x_test; rng = rng)
-    ∇ = zero(half_quant.(ps))
+    model, ps, st_kan, st_lux = prep_model(model, x_test; rng = rng, MLIR = false)
+    swap_replica_idxs = rand(1:(model.N_t - 1), model.posterior_sampler.N)
 
-    return model, half_quant.(ps), ∇, st_kan, st_lux, x_test
+    return model, ps, st_kan, st_lux, x_test, swap_replica_idxs
 end
 
 results = DataFrame(
@@ -56,19 +54,43 @@ results = DataFrame(
     gc_percent = Float64[],
 )
 
-function benchmark_temps(params, ∇, st_kan, st_lux, model, x_test)
-    return model.loss_fcn(params, ∇, st_kan, st_lux, model, x_test)
+function benchmark_temps(params, st_kan, st_lux, model, x_test, swap)
+    return model.loss_fcn(
+        params,
+        st_kan,
+        st_lux,
+        x_test,
+        1,
+        rng,
+        swap
+    )
 end
 
-for N_t in [2, 4, 6, 8, 10, 12]
+for N_t in [2, 4, 6, 8, 10]
     println("Benchmarking N_t = $N_t...")
 
-    model, ps, ∇, st_kan, st_lux, x_test = setup_model(N_t)
+    model, ps, st_kan, st_lux, x_test, swap = setup_model(N_t)
 
-    CUDA.reclaim()
-    GC.gc()
-
-    b = @benchmark benchmark_temps($ps, $∇, $st_kan, $st_lux, $model, $x_test)
+    b = @benchmark begin
+        result = f(
+            $ps,
+            $st_kan,
+            $st_lux,
+            $model,
+            $x_test,
+            $swap
+        )
+        Reactant.synchronize(result)
+    end setup = (
+        f = Reactant.@compile sync = true benchmark_temps(
+            $ps,
+            $st_kan,
+            $st_lux,
+            $model,
+            $x_test,
+            $swap
+        )
+    )
 
     push!(
         results,

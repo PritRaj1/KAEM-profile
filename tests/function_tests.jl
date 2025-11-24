@@ -1,8 +1,6 @@
-using Test, Random, LinearAlgebra, Lux, ComponentArrays
+using Test, Random, LinearAlgebra, Lux, ComponentArrays, Reactant
 
-ENV["GPU"] = false
-ENV["FULL_QUANT"] = "FP32"
-ENV["HALF_QUANT"] = "FP32"
+ENV["GPU"] = true
 
 include("../src/utils.jl")
 using .Utils
@@ -15,29 +13,32 @@ using .GridUpdating: update_fcn_grid
 
 function test_fwd()
     Random.seed!(42)
-    x = rand(half_quant, 5, 3) |> pu
-    f = init_function(5, 2)
+    x = rand(Float32, 5, 3)
+    f = init_function(5, 2; sample_size = 3)
 
     Random.seed!(42)
     ps, st = Lux.setup(Random.GLOBAL_RNG, f)
-    ps = ps |> ComponentArray |> pu
-    st = st |> ComponentArray |> pu
+    ps = ps |> ComponentArray
+    st = st |> ComponentArray
 
-    y = f(x, ps, st)
+    compiled_f = Reactant.@compile f(x, ps, st)
+    y = compiled_f(x, ps, st)
     return @test size(y) == (5, 2, 3)
 end
 
 function test_grid_update()
     Random.seed!(42)
-    x = rand(half_quant, 5, 3) |> pu
-    f = init_function(5, 2)
+    x = rand(Float32, 5, 3)
+    f = init_function(5, 2; sample_size = 3)
     ps, st = Lux.setup(Random.GLOBAL_RNG, f)
-    ps = ps |> ComponentArray |> pu
-    st = st |> ComponentArray |> pu
+    ps = ps |> ComponentArray
+    st = st |> ComponentArray
 
-    y = f(x, ps, st)
-    grid, coef = update_fcn_grid(f, ps, st, x)
-    return @test size(grid) == (5, 12)
+    compiled_f = Reactant.@compile f(x, ps, st)
+    y = compiled_f(x, ps, st)
+    compiled_update = Reactant.@compile update_fcn_grid(f, ps, st, x)
+    grid, coef = compiled_update(f, ps, st, x)
+    return @test !all(st.grid .== Array(grid))
 end
 
 @testset "Univariate Funtion Tests" begin

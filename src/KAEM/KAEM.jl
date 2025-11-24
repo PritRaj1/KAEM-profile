@@ -1,11 +1,11 @@
-module T_KAM_model
+module KAEM_model
 
-export T_KAM, init_T_KAM
+export KAEM, init_KAEM, generate_new
 
-using CUDA
-using ConfParser, Random, Lux, Accessors, ComponentArrays, Statistics, LuxCUDA
+using ConfParser, Random, Lux, Accessors, ComponentArrays, Statistics
 using Flux: DataLoader
 using MultivariateStats: PCA, transform, fit
+using MLDataDevices: cpu_device
 
 using ..Utils
 
@@ -26,12 +26,10 @@ using .GeneratorModel
 include("ebm/log_prior_fcns.jl")
 using .LogPriorFCNs
 
-struct LossScaler{T <: half_quant, U <: full_quant}
-    reduced::T
-    full::U
-end
+include("ula/population_xchange.jl")
+using .PopulationXchange
 
-struct T_KAM{T <: half_quant, U <: full_quant} <: Lux.AbstractLuxLayer
+struct KAEM{T <: Float32} <: Lux.AbstractLuxLayer
     prior::EbmModel
     lkhood::GenModel
     train_loader::DataLoader
@@ -39,18 +37,16 @@ struct T_KAM{T <: half_quant, U <: full_quant} <: Lux.AbstractLuxLayer
     update_prior_grid::Bool
     update_llhood_grid::Bool
     grid_update_decay::T
-    grid_updates_samples::Int
-    IS_samples::Int
+    batch_size::Int
     verbose::Bool
-    p::AbstractArray{U}
+    p::AbstractArray{T}
     N_t::Int
     sample_prior::Function
     posterior_sampler::Any
+    xchange_func::Any
     loss_fcn::Any
-    loss_scaling::LossScaler{T, U}
     ε::T
     file_loc::AbstractString
-    max_samples::Int
     MALA::Bool
     conf::ConfParse
     log_prior::AbstractLogPrior
@@ -59,20 +55,19 @@ struct T_KAM{T <: half_quant, U <: full_quant} <: Lux.AbstractLuxLayer
     original_data_size::Tuple
 end
 
-function init_T_KAM(
-        dataset::AbstractArray{full_quant},
+function init_KAEM(
+        dataset::AbstractArray{Float32},
         conf::ConfParse,
         x_shape::Tuple;
         file_loc::AbstractString = "logs/",
         rng::AbstractRNG = Random.default_rng(),
-    )::T_KAM{half_quant, full_quant}
+    )::KAEM{Float32}
 
     batch_size = parse(Int, retrieve(conf, "TRAINING", "batch_size"))
-    IS_samples = parse(Int, retrieve(conf, "TRAINING", "importance_sample_size"))
     N_train = parse(Int, retrieve(conf, "TRAINING", "N_train"))
     N_test = parse(Int, retrieve(conf, "TRAINING", "N_test"))
     verbose = parse(Bool, retrieve(conf, "TRAINING", "verbose"))
-    eps = parse(half_quant, retrieve(conf, "TRAINING", "eps"))
+    eps = parse(Float32, retrieve(conf, "TRAINING", "eps"))
     update_prior_grid = parse(Bool, retrieve(conf, "GRID_UPDATING", "update_prior_grid"))
     update_llhood_grid = parse(Bool, retrieve(conf, "GRID_UPDATING", "update_llhood_grid"))
     cnn = parse(Bool, retrieve(conf, "CNN", "use_cnn_lkhood"))
@@ -89,12 +84,12 @@ function init_T_KAM(
 
     M = nothing
     if !cnn && !seq && use_pca
-        train_data = reshape(cpu_device()(train_data), :, size(train_data)[end])
-        test_data = reshape(cpu_device()(test_data), :, size(test_data)[end])
+        train_data = reshape(train_data, :, size(train_data)[end])
+        test_data = reshape(test_data, :, size(test_data)[end])
         M = fit(PCA, train_data; maxoutdim = pca_components)
 
-        train_data = transform(M, train_data) |> pu
-        test_data = transform(M, test_data) |> pu
+        train_data = transform(M, train_data)
+        test_data = transform(M, test_data)
         x_shape = (size(train_data, 1),)
 
         println("PCA model: num components = $pca_components")
@@ -102,13 +97,12 @@ function init_T_KAM(
 
 
     train_loader = DataLoader(
-        train_data .|> half_quant,
+        train_data .|> Float32,
         batchsize = batch_size,
         shuffle = true,
         rng = rng,
     )
     test_loader = DataLoader(test_data, batchsize = batch_size, shuffle = false)
-    loss_scaling = parse(full_quant, retrieve(conf, "MIXED_PRECISION", "loss_scaling"))
     out_dim = (
         cnn ? size(dataset, 3) :
             (seq ? size(dataset, 1) : size(dataset, 1) * size(dataset, 2))
@@ -123,38 +117,35 @@ function init_T_KAM(
     lkhood_model = init_GenModel(conf, x_shape; rng = rng)
 
     grid_update_decay =
-        parse(half_quant, retrieve(conf, "GRID_UPDATING", "grid_update_decay"))
-    num_grid_updating_samples =
-        parse(Int, retrieve(conf, "GRID_UPDATING", "num_grid_updating_samples"))
+        parse(Float32, retrieve(conf, "GRID_UPDATING", "grid_update_decay"))
 
-    max_samples = max(IS_samples, batch_size)
-    η_init = parse(full_quant, retrieve(conf, "POST_LANGEVIN", "initial_step_size"))
+    η_init = parse(Float32, retrieve(conf, "POST_LANGEVIN", "initial_step_size"))
     N_t = parse(Int, retrieve(conf, "THERMODYNAMIC_INTEGRATION", "num_temps"))
     num_steps = parse(Int, retrieve(conf, "POST_LANGEVIN", "iters"))
     MALA = parse(Bool, retrieve(conf, "POST_LANGEVIN", "use_langevin"))
-    p = [one(full_quant)]
+    p = [one(Float32)]
 
     N_t = max(N_t, 1)
 
     if N_t > 1
         initial_p =
-            parse(full_quant, retrieve(conf, "THERMODYNAMIC_INTEGRATION", "p_start"))
-        end_p = parse(full_quant, retrieve(conf, "THERMODYNAMIC_INTEGRATION", "p_end"))
+            parse(Float32, retrieve(conf, "THERMODYNAMIC_INTEGRATION", "p_start"))
+        end_p = parse(Float32, retrieve(conf, "THERMODYNAMIC_INTEGRATION", "p_end"))
         num_cycles = parse(Int, retrieve(conf, "THERMODYNAMIC_INTEGRATION", "num_cycles"))
         num_param_updates =
             parse(Int, retrieve(conf, "TRAINING", "N_epochs")) * length(train_loader)
 
         x = range(0, stop = 2 * π * (num_cycles + 0.5), length = num_param_updates + 1)
-        p = initial_p .+ (end_p - initial_p) .* 0.5 .* (1 .- cos.(x)) .|> full_quant
+        p = initial_p .+ (end_p - initial_p) .* 0.5 .* (1 .- cos.(x)) .|> Float32
     end
 
     sample_prior =
         (m, n, p, sk, sl, r) ->
-    sample_univariate(m.prior, n, p.ebm, sk.ebm, sl.ebm; rng = r, ε = m.ε)
+    sample_univariate(m.prior, n, p.ebm, sk.ebm, sl.ebm, sk.quad; rng = r)
 
     verbose && println("Using $(Threads.nthreads()) threads.")
 
-    return T_KAM(
+    return KAEM(
         prior_model,
         lkhood_model,
         train_loader,
@@ -162,18 +153,16 @@ function init_T_KAM(
         update_prior_grid,
         update_llhood_grid,
         grid_update_decay,
-        num_grid_updating_samples,
-        IS_samples,
+        batch_size,
         verbose,
         p,
         N_t,
         sample_prior,
         nothing,
+        NoExchange(),
         nothing,
-        LossScaler(half_quant(loss_scaling), loss_scaling),
         eps,
         file_loc,
-        max_samples,
         MALA,
         conf,
         LogPriorUnivariate(eps, !prior_model.bool_config.contrastive_div),
@@ -195,8 +184,8 @@ end
 
 function Lux.initialparameters(
         rng::AbstractRNG,
-        model::T_KAM{T, U},
-    ) where {T <: half_quant, U <: full_quant}
+        model::KAEM{T},
+    )::ComponentArray where {T <: Float32}
     return ComponentArray(
         ebm = Lux.initialparameters(rng, model.prior),
         gen = Lux.initialparameters(rng, model.lkhood),
@@ -205,22 +194,25 @@ end
 
 function Lux.initialstates(
         rng::AbstractRNG,
-        model::T_KAM{T, U},
-    ) where {T <: half_quant, U <: full_quant}
+        model::KAEM{T},
+    )::Tuple{ComponentArray, NamedTuple} where {T <: Float32}
 
     ebm_kan, ebm_lux = Lux.initialstates(rng, model.prior)
     gen_kan, gen_lux = Lux.initialstates(rng, model.lkhood)
-
-    return ComponentArray(ebm = ebm_kan, gen = gen_kan), (ebm = ebm_lux, gen = gen_lux)
+    n, w = get_gausslegendre(model.prior, ebm_kan)
+    st_quad = (nodes = n, weights = w)
+    return (
+        ComponentArray(ebm = ebm_kan, gen = gen_kan, quad = st_quad),
+        (ebm = ebm_lux, gen = gen_lux),
+    )
 end
 
-function (model::T_KAM{T, U})(
-        ps::ComponentArray{T},
-        st_kan::ComponentArray{T},
-        st_lux::NamedTuple,
-        num_samples::Int;
-        rng::AbstractRNG = Random.default_rng(),
-    )::Tuple{AbstractArray{T}, NamedTuple, NamedTuple} where {T <: half_quant, U <: full_quant}
+function (model::KAEM{T})(
+        ps,
+        st_kan,
+        st_lux,
+        rng,
+    ) where {T <: Float32}
     """
     Inference pass to generate a batch of data from the model.
     This is the same for both the standard and thermodynamic models.
@@ -238,8 +230,7 @@ function (model::T_KAM{T, U})(
         Lux states of the prior.
         Lux states of the likelihood.
     """
-    ps = ps .|> T
-    z, st_ebm = model.sample_prior(model, num_samples, ps, st_kan, st_lux, rng)
+    z, st_ebm = model.sample_prior(model, ps, st_kan, st_lux, rng)
     x̂, st_gen = model.lkhood.generator(ps.gen, st_kan.gen, st_lux.gen, z)
     return model.lkhood.output_activation(x̂), st_ebm, st_gen
 end
