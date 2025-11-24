@@ -14,10 +14,10 @@ export pu,
     AbstractResampler
 
 using Lux, LinearAlgebra, Statistics, Random, Accessors, NNlib, Reactant
-using MLDataDevices: reactant_device
+using MLDataDevices: reactant_device, functional, gpu_device
 
 Reactant.set_default_backend("cpu")
-if parse(Bool, get(ENV, "GPU", "false"))
+if parse(Bool, get(ENV, "GPU", "false")) && functional(gpu_device())
     Reactant.set_default_backend("gpu")
 end
 
