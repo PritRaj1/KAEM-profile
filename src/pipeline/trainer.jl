@@ -4,7 +4,7 @@ export KAEM_trainer, init_trainer, train!
 
 using Flux: onecold, mse
 using Random, ComponentArrays, CSV, HDF5, JLD2, ConfParser, Reactant
-using Optimization, OptimizationOptimJL, Lux, LinearAlgebra, Accessors
+using Lux, LinearAlgebra, Accessors, Optimisers
 using MultivariateStats: reconstruct
 using MLDataDevices: cpu_device
 
@@ -201,9 +201,7 @@ function train!(t::KAEM_trainer; train_idx::Int = 1)
     )
 
     # Gradient for a single batch
-    function grad_fcn(G, u, args...)
-        t.ps = u
-
+    function grad_fcn()
         # Rand like this cannot be compiled with MLIR
         swap_replica_idxs = (
             t.model.N_t > 1 ?
@@ -245,19 +243,17 @@ function train!(t::KAEM_trainer; train_idx::Int = 1)
             t.rng,
             swap_replica_idxs
         )
-        copy!(G, (grads))
         @reset t.st_lux.ebm = st_ebm
         @reset t.st_lux.gen = st_gen
 
         t.model.verbose && println("Iter: $(train_idx), Loss: $(t.loss)")
-        return G
+        return grads
     end
 
     train_loss = 0
 
     # Train and test loss with logging
-    function opt_loss(u, args...)
-        t.ps = u
+    function opt_loss()
         train_loss += t.loss
 
         # After one epoch, calculate test loss and log to CSV
@@ -385,41 +381,17 @@ function train!(t::KAEM_trainer; train_idx::Int = 1)
             iterate(t.model.train_loader, t.train_loader_state)
         t.x = pu(x)
 
-        return t.loss
+        return nothing
     end
 
     start_time = time()
 
-    optf = Optimization.OptimizationFunction(opt_loss; grad = grad_fcn)
-    optprob = Optimization.OptimizationProblem(optf, t.ps)
-
-    # Optimization only stops when maxiters is reached
-    res = Optimization.solve(
-        optprob,
-        t.o.init_optimizer();
-        maxiters = num_param_updates,
-        verbose = true,
-        abstol = -one(Float32),
-        reltol = -one(Float32),
-        x_tol = -one(Float32),
-        x_abstol = -one(Float32),
-        x_reltol = -one(Float32),
-        f_tol = -one(Float32),
-        f_abstol = -one(Float32),
-        f_reltol = -one(Float32),
-        g_tol = -one(Float32),
-        g_abstol = -one(Float32),
-        g_reltol = -one(Float32),
-        outer_x_abstol = -one(Float32),
-        outer_x_reltol = -one(Float32),
-        outer_f_abstol = -one(Float32),
-        outer_f_reltol = -one(Float32),
-        outer_g_abstol = -one(Float32),
-        outer_g_reltol = -one(Float32),
-        successive_f_tol = num_param_updates,
-        allow_f_increases = true,
-        allow_outer_f_increases = true,
-    )
+    opt_state = Optimisers.setup(t.o.rule(), t.ps)
+    while train_idx <= num_param_updates
+        G = grad_fcn()
+        opt_state, t.ps = Optimisers.update!(opt_state, t.ps, G)
+        opt_loss()
+    end
 
     # Generate samples
     num_batches = t.num_generated_samples ÷ t.model.batch_size

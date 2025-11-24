@@ -2,10 +2,10 @@ module optimization
 
 export opt, create_opt
 
-using Lux, OptimizationOptimJL, LineSearches, OptimizationOptimisers, ConfParser
+using Lux, ConfParser, Optimisers
 
 struct opt
-    init_optimizer::Function
+    rule
 end
 
 function create_opt(conf::ConfParse)
@@ -20,65 +20,21 @@ function create_opt(conf::ConfParse)
     """
 
     LR = parse(Float32, retrieve(conf, "OPTIMIZER", "learning_rate"))
-    m = parse(Int, retrieve(conf, "OPTIMIZER", "l-bfgs_memory"))
-    c_1 = parse(Float32, retrieve(conf, "LINE_SEARCH", "c_1"))
-    c_2 = parse(Float32, retrieve(conf, "LINE_SEARCH", "c_2"))
-    ρ = parse(Float32, retrieve(conf, "LINE_SEARCH", "rho"))
-    ls_type = retrieve(conf, "LINE_SEARCH", "type")
+    β = parse.(Float32, retrieve(conf, "OPTIMIZER", "betas")) |> Tuple
+    decay = parse(Float32, retrieve(conf, "OPTIMIZER", "decay"))
+    ρ = parse(Float32, retrieve(conf, "OPTIMIZER", "ρ"))
+    ε = parse(Float32, retrieve(conf, "OPTIMIZER", "ε"))
+
     opt_type = retrieve(conf, "OPTIMIZER", "type")
 
-    linesearch = Dict(
-        "strongwolfe" =>
-            LineSearches.StrongWolfe{Float32}(c_1 = c_1, c_2 = c_2, ρ = ρ),
-        "backtrack" => LineSearches.BackTracking{Float32}(
-            c_1 = c_1,
-            ρ_hi = ρ,
-            ρ_lo = Float32(0.1),
-            maxstep = Inf32,
-        ),
-        "hagerzhang" => LineSearches.HagerZhang{Float32}(),
-        "morethuente" => LineSearches.MoreThuente{Float32}(
-            f_tol = zero(Float32),
-            gtol = zero(Float32),
-            x_tol = zero(Float32),
-        ),
-    )[ls_type]
-
-    linesearch = (a...) -> linesearch(a...)
-
-    optimiser_map = Dict(
-        "bfgs" => BFGS(
-            alphaguess = LineSearches.InitialHagerZhang{Float32}(α0 = LR),
-            linesearch = linesearch,
-        ),
-        "l-bfgs" => LBFGS(
-            alphaguess = LineSearches.InitialHagerZhang{Float32}(α0 = LR),
-            m = m,
-            linesearch = linesearch,
-        ),
-        "cg" => ConjugateGradient(
-            alphaguess = LineSearches.InitialHagerZhang{Float32}(α0 = LR),
-            linesearch = linesearch,
-        ),
-        "gd" => GradientDescent(
-            alphaguess = LineSearches.InitialHagerZhang{Float32}(α0 = LR),
-            linesearch = linesearch,
-        ),
-        "newton" => Newton(
-            alphaguess = LineSearches.InitialHagerZhang{Float32}(α0 = LR),
-            linesearch = linesearch,
-        ),
-        "interior-point" => IPNewton(linesearch = linesearch),
-        "neldermead" => NelderMead(),
-        "adam" => ADAM(LR),
-        "adamw" => ADAMW(LR),
-        "sgd" => Descent(LR),
-        "rms" => RMSProp(LR, 9.0f-1, Float32(1.0e-8)),
+    opt_mapping = Dict(
+        "adam" => () -> Optimisers.Adam(LR, β, ε),
+        "adamw" => () -> Optimisers.AdamW(LR, β, decay, ε),
+        "sgd" => () -> Optimisers.Descent(LR),
+        "rmsprop" => () -> Optimisers.RMSProp(LR, ρ, ε)
     )
 
-    init_fcn = () -> optimiser_map[opt_type]
-
-    return opt(init_fcn)
+    return opt(get(opt_mapping, opt_type, () -> Optimisers.Adam(LR, β, ε)))
 end
 
 end
