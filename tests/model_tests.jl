@@ -51,6 +51,7 @@ function test_grid_update()
         st_kan,
         Lux.testmode(st_lux),
         1,
+        nothing,
         Random.default_rng(),
     )
 

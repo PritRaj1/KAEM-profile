@@ -175,6 +175,13 @@ function train!(t::KAEM_trainer; train_idx::Int = 1)
 
     loss_file = t.model.file_loc * "loss.csv"
 
+    # Rand like this cannot be compiled with MLIR
+    swap_replica_idxs = (
+        t.model.N_t > 1 ?
+            rand(t.rng, 1:(t.model.N_t - 1), t.model.posterior_sampler.N) |> pu :
+            nothing
+    )
+
     grid_compiled = Reactant.@compile update_model_grid(
         t.model,
         t.x,
@@ -182,7 +189,8 @@ function train!(t::KAEM_trainer; train_idx::Int = 1)
         t.st_kan,
         Lux.testmode(t.st_lux),
         train_idx,
-        t.rng
+        swap_replica_idxs,
+        t.rng,
     )
 
     gen_compiled = Reactant.@compile t.model(
@@ -196,6 +204,13 @@ function train!(t::KAEM_trainer; train_idx::Int = 1)
     function grad_fcn(G, u, args...)
         t.ps = u
 
+        # Rand like this cannot be compiled with MLIR
+        swap_replica_idxs = (
+            t.model.N_t > 1 ?
+                rand(t.rng, 1:(t.model.N_t - 1), t.model.posterior_sampler.N) |> pu :
+                nothing
+        )
+
         # Grid updating for likelihood model
         if (
                 train_idx == 1 || (train_idx - t.last_grid_update >= t.grid_update_frequency)
@@ -207,6 +222,7 @@ function train!(t::KAEM_trainer; train_idx::Int = 1)
                 t.st_kan,
                 Lux.testmode(t.st_lux),
                 train_idx,
+                swap_replica_idxs,
                 t.rng,
             )
 
@@ -219,13 +235,6 @@ function train!(t::KAEM_trainer; train_idx::Int = 1)
 
             t.model.verbose && println("Iter: $(train_idx), Grid updated")
         end
-
-        # Rand like this cannot be compiled with MLIR
-        swap_replica_idxs = (
-            t.model.N_t > 1 ?
-                rand(t.rng, 1:(t.model.N_t - 1), t.model.posterior_sampler.N) |> pu :
-                nothing
-        )
 
         t.loss, grads, st_ebm, st_gen = t.model.loss_fcn(
             t.ps,
@@ -292,8 +301,8 @@ function train!(t::KAEM_trainer; train_idx::Int = 1)
 
             (t.checkpoint_every > 0 && epoch % t.checkpoint_every) == 0 && jldsave(
                 t.model.file_loc * "ckpt_epoch_$(epoch).jld2";
-                params = t.ps |> cpu_device(),
-                kan_state = t.st_kan |> cpu_device(),
+                params = Array(t.ps),
+                kan_state = Array(t.st_kan),
                 lux_state = t.st_lux |> cpu_device(),
                 rng = t.rng,
             )
@@ -452,8 +461,8 @@ function train!(t::KAEM_trainer; train_idx::Int = 1)
 
     return t.save_model && jldsave(
         t.model.file_loc * "saved_model.jld2";
-        params = t.ps |> cpu_device(),
-        kan_state = t.st_kan |> cpu_device(),
+        params = Array(t.ps),
+        kan_state = Array(t.st_kan),
         lux_state = t.st_lux |> cpu_device(),
         train_idx = train_idx,
     )

@@ -195,10 +195,10 @@ function (sampler::ULA_sampler)(
     temps_gpu = repeat(temps, S)
 
     N_steps = sampler.N
-    x_t = (
+    x_t = !prior_sampling_bool ? (
         model.lkhood.SEQ ? repeat(x, 1, 1, num_temps) :
             (model.use_pca ? repeat(x, 1, num_temps) : repeat(x, 1, 1, 1, num_temps))
-    )
+    ) : nothing
 
     # Pre-allocate noise
     noise = randn(rng, Float32, Q, P, S * num_temps, N_steps)

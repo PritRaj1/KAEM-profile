@@ -19,6 +19,7 @@ function update_model_grid(
         st_kan,
         st_lux,
         train_idx,
+        swap_replica_idxs,
         rng,
     )
     """
@@ -53,6 +54,7 @@ function update_model_grid(
                     x;
                     temps = temps,
                     rng = rng,
+                    swap_replica_idxs = swap_replica_idxs
                 ),
             )[
                 :,
@@ -105,11 +107,18 @@ function update_model_grid(
             z = reshape(z, P, Q * B)
 
             mid_size = !model.prior.bool_config.mixture_model ? model.prior.q_size : model.prior.p_size
+            outer_dim = (Q * Q * B):(Q * P * B)
 
-            for i in 1:model.prior.depth
-                if model.prior.bool_config.layernorm && i != 1
+            prior_copy = deepcopy(model.prior)
+
+            for i in 1:prior_copy.depth
+                @reset prior_copy.fcns_qp[i].basis_function.S = i == 1 ? Q * B : outer_dim
+            end
+
+            for i in 1:prior_copy.depth
+                if prior_copy.bool_config.layernorm && i != 1
                     z, st_ebm = Lux.apply(
-                        model.prior.layernorms[i - 1],
+                        prior_copy.layernorms[i - 1],
                         z,
                         ps.ebm.layernorm[symbol_map[i]],
                         st_lux.ebm[symbol_map[i]],
@@ -118,7 +127,7 @@ function update_model_grid(
                 end
 
                 new_grid, new_coef = update_fcn_grid(
-                    model.prior.fcns_qp[i],
+                    prior_copy.fcns_qp[i],
                     ps.ebm.fcn[symbol_map[i]],
                     st_kan.ebm[symbol_map[i]],
                     z,
@@ -126,19 +135,19 @@ function update_model_grid(
                 ps.ebm.fcn[symbol_map[i]].coef = new_coef
                 st_kan.ebm[symbol_map[i]].grid = new_grid
 
-                if model.prior.fcns_qp[i].spline_string == "RBF"
+                if prior_copy.fcns_qp[i].spline_string == "RBF"
                     scale = (maximum(new_grid) - minimum(new_grid)) / (size(new_grid, 2) - 1) |> Lux.f32
                     st_kan.ebm[symbol_map[i]].scale = [scale]
                 end
 
                 z = Lux.apply(
-                    model.prior.fcns_qp[i],
+                    prior_copy.fcns_qp[i],
                     z,
                     ps.ebm.fcn[symbol_map[i]],
                     st_kan.ebm[symbol_map[i]],
                 )
                 z =
-                    (i == 1 && !model.prior.bool_config.ula) ? reshape(z, mid_size, :) :
+                    (i == 1 && !prior_copy.bool_config.ula) ? reshape(z, mid_size, :) :
                     dropdims(sum(z, dims = 1); dims = 1)
             end
         end
@@ -155,7 +164,7 @@ function update_model_grid(
     if model.N_t > 1
         temps = collect(Float32, [(k / model.N_t)^model.p[train_idx] for k in 1:model.N_t])
         z = first(
-            model.posterior_sampler(model, ps, st_kan, st_lux, x; temps = temps, rng = rng),
+            model.posterior_sampler(ps, st_kan, st_lux, x; temps = temps, rng = rng, swap_replica_idxs = swap_replica_idxs),
         )[
             :,
             :,
@@ -163,7 +172,7 @@ function update_model_grid(
             end,
         ]
     elseif model.prior.bool_config.ula || model.MALA
-        z = first(model.posterior_sampler(model, ps, st_kan, st_lux, x; rng = rng))[
+        z = first(model.posterior_sampler(ps, st_kan, st_lux, x; rng = rng))[
             :,
             :,
             :,
@@ -173,7 +182,7 @@ function update_model_grid(
         # z = first(
         #     model.sample_prior(model, model.grid_updates_samples, ps, st_kan, st_lux, rng),
         # )
-        z = first(model.posterior_sampler(model, ps, st_kan, st_lux, x; rng = rng))[
+        z = first(model.posterior_sampler(ps, st_kan, st_lux, x; rng = rng))[
             :,
             :,
             :,
