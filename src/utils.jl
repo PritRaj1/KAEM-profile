@@ -14,11 +14,16 @@ export pu,
     AbstractResampler
 
 using Lux, LinearAlgebra, Statistics, Random, Accessors, NNlib, Reactant
-using MLDataDevices: reactant_device, functional, gpu_device
+using MLDataDevices: reactant_device
 
 Reactant.set_default_backend("cpu")
-if parse(Bool, get(ENV, "GPU", "false")) && functional(gpu_device())
-    Reactant.set_default_backend("gpu")
+if parse(Bool, get(ENV, "GPU", "false"))
+    try
+        Reactant.set_default_backend("gpu")
+    catch e
+        println("GPU init error: $e")
+        Reactant.set_default_backend("cpu")
+    end
 end
 
 const pu = reactant_device()
