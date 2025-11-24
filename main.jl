@@ -21,7 +21,6 @@ parse_conf!(conf)
 N_t = parse(Int, retrieve(conf, "THERMODYNAMIC_INTEGRATION", "num_temps"))
 ENV["THERMO"] = (N_t > 1 || use_thermo) ? "true" : "false"
 ENV["GPU"] = retrieve(conf, "TRAINING", "use_gpu")
-ENV["autoMALA"] = retrieve(conf, "POST_LANGEVIN", "use_autoMALA")
 ENV["PERCEPTUAL"] = retrieve(conf, "TRAINING", "use_perceptual_loss")
 
 include("src/pipeline/trainer.jl")

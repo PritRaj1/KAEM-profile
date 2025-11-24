@@ -93,13 +93,8 @@ function init_trainer(
     # Log against ULA and autoMALA
     N_t = parse(Int, retrieve(conf, "THERMODYNAMIC_INTEGRATION", "num_temps"))
     mala =
-        parse(Bool, retrieve(conf, "POST_LANGEVIN", "use_langevin")) ? "autoMALA" :
+        parse(Bool, retrieve(conf, "POST_LANGEVIN", "use_langevin")) ? "ULA" :
         "importance"
-
-    if mala == "autoMALA" && !parse(Bool, retrieve(conf, "POST_LANGEVIN", "use_autoMALA"))
-        mala = "ULA"
-    end
-
 
     model_type =
         N_t > 1 ? "Thermodynamic/$(dataset_name)/$(mala)" :
