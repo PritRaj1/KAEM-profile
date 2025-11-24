@@ -177,7 +177,7 @@ function (sampler::ULA_sampler)(
         end
     end
 
-    lkhood_copy = deepcopy(model.lkhood)
+    lkhood_copy = model.lkhood
 
     for i in 1:model.prior.depth
         @reset model.prior.fcns_qp[i].basis_function.S = S * num_temps

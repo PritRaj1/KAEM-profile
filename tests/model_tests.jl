@@ -55,7 +55,7 @@ function test_grid_update()
         Random.default_rng(),
     )
 
-    ps, st_kan, st_lux = compiled_update(model, x, ps, st_kan, Lux.testmode(st_lux), 1, Random.default_rng())
+    ps, st_kan, st_lux = compiled_update(model, x, ps, st_kan, Lux.testmode(st_lux), 1, nothing, Random.default_rng())
     return @test !any(isnan, Array(ps))
 end
 

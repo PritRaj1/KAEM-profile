@@ -106,10 +106,10 @@ function update_model_grid(
             B = model.batch_size
             z = reshape(z, P, Q * B)
 
-            mid_size = !model.prior.bool_config.mixture_model ? model.prior.q_size : model.prior.p_size
-            outer_dim = (Q * Q * B):(Q * P * B)
+            mid_size = model.prior.bool_config.mixture_model ? model.prior.p_size : model.prior.q_size
+            outer_dim = model.prior.bool_config.mixture_model ? (Q * Q * B) : (Q * P * B)
 
-            prior_copy = deepcopy(model.prior)
+            prior_copy = model.prior
 
             for i in 1:prior_copy.depth
                 @reset prior_copy.fcns_qp[i].basis_function.S = i == 1 ? Q * B : outer_dim
@@ -147,7 +147,7 @@ function update_model_grid(
                     st_kan.ebm[symbol_map[i]],
                 )
                 z =
-                    (i == 1 && !prior_copy.bool_config.ula) ? reshape(z, mid_size, :) :
+                    (i == 1 && !prior_copy.bool_config.ula) ? reshape(z, mid_size, outer_dim) :
                     dropdims(sum(z, dims = 1); dims = 1)
             end
         end
