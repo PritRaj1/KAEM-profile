@@ -73,12 +73,11 @@ function update_model_grid(
             z = first(
                 model.sample_prior(
                     model,
-                    model.grid_updates_samples,
                     ps,
                     st_kan,
                     st_lux,
                     rng,
-                ),
+                )
             )
             # z = first(model.posterior_sampler(ps, st_kan, st_lux, x; rng = rng))[
             #     :,
@@ -180,7 +179,7 @@ function update_model_grid(
         ]
     else
         z = first(
-            model.sample_prior(model, model.grid_updates_samples, ps, st_kan, st_lux, rng),
+            model.sample_prior(model, ps, st_kan, st_lux, rng)
         )
         # z = first(model.posterior_sampler(ps, st_kan, st_lux, x; rng = rng))[
         #     :,
