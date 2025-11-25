@@ -3,6 +3,14 @@ using ConfParser, Random
 dataset = get(ENV, "DATASET", "MNIST")
 use_thermo = get(ENV, "USE_THERMO", "false") == "true"
 
+println("=== XLA Environment Config ===")
+println("XLA_REACTANT_GPU_MEM_FRACTION: ", get(ENV, "XLA_REACTANT_GPU_MEM_FRACTION", "not set"))
+println("XLA_REACTANT_GPU_PREALLOCATE: ", get(ENV, "XLA_REACTANT_GPU_PREALLOCATE", "not set"))
+xla_flags = get(ENV, "XLA_FLAGS", "")
+println("XLA_FLAGS: ", isempty(xla_flags) ? "not set" : xla_flags)
+println("===================================")
+println()
+
 conf = Dict(
     "MNIST" => ConfParse("config/nist_config.ini"),
     "FMNIST" => ConfParse("config/nist_config.ini"),

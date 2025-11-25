@@ -7,6 +7,14 @@ CONDA_ACTIVATE := $(shell if [ -f "$(CONDA_BASE)/etc/profile.d/conda.sh" ]; then
 DATASET ?= MNIST
 MODE ?= thermo
 
+XLA_REACTANT_GPU_MEM_FRACTION ?= 0.6
+XLA_REACTANT_GPU_PREALLOCATE ?= true
+XLA_FLAGS ?=
+
+export XLA_REACTANT_GPU_MEM_FRACTION
+export XLA_REACTANT_GPU_PREALLOCATE
+export XLA_FLAGS
+
 help:
 	@echo "Available targets:"
 	@echo "  install     - Set up conda environment and install dependencies"
