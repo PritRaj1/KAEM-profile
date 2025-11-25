@@ -183,8 +183,8 @@ function curve2coef(
     y = permutedims(y, (3, 2, 1))
 
     A, b = regularize(B, y, J, O, G, S; ε = ε)
-    A, b = forward_elimination(A, b, J, G; ε = ε)
-    coef = dropdims(backward_substitution(A, b, J, G; ε = ε); dims = 2)
+    A, b = forward_elimination(A, b, G)
+    coef = dropdims(backward_substitution(A, b, G); dims = 2)
     return permutedims(coef, (3, 2, 1))
 end
 

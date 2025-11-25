@@ -199,14 +199,14 @@ function train!(t::KAEM_trainer; train_idx::Int = 1)
         grid_sample_idxs,
         t.rng,
     )
-    
+
     gen_compiled = Reactant.@compile t.model(
         t.ps,
         t.st_kan,
         Lux.testmode(t.st_lux),
         t.rng,
     )
-    
+
     # Gradient for a single batch
     function grad_fcn()
         # Rand like this cannot be compiled with MLIR

@@ -111,7 +111,7 @@ function setup_training(
             wrapped
         end
     end
-    
+
     @reset model.posterior_sampler = initialize_ULA_sampler(
         model;
         η = η_init,
@@ -184,9 +184,7 @@ function setup_training(
                 wrapped
             end
         end
-        GC.gc()
-
-            else
+    else
 
         println("Posterior sampler: MLE IS")
     end
