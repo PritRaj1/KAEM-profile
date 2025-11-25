@@ -47,12 +47,14 @@ function forward_acc(
 end
 
 
-function forward_elimination(A, b, G)
-
-    k_mask_all = Lux.f32((1:G) .== (1:G)') .* 1.0f0
-    lower_mask_all = Lux.f32((1:G) .> (1:G)') .* 1.0f0
-    upper_mask_all = Lux.f32((1:G) .>= (1:G)') .* 1.0f0
-
+function forward_elimination(
+        A,
+        b,
+        G,
+        k_mask_all,
+        lower_mask_all,
+        upper_mask_all
+    )
     state = (1, A, b)
     @trace while first(state) < G
         k, A_acc, b_acc = state
@@ -70,7 +72,14 @@ function forward_elimination(A, b, G)
     return A, b
 end
 
-function backward_acc(k, coef, A, b, k_mask_all, upper_mask_all)
+function backward_acc(
+        k,
+        coef,
+        A,
+        b,
+        k_mask_all,
+        upper_mask_all
+    )
     k_mask = k_mask_all[:, k]
     upper_mask = upper_mask_all[:, k]
 
@@ -88,12 +97,14 @@ function backward_acc(k, coef, A, b, k_mask_all, upper_mask_all)
 end
 
 
-function backward_substitution(A, b, G)
+function backward_substitution(
+        A,
+        b,
+        G,
+        k_mask_all,
+        upper_mask_all
+    )
     coef = zero(b)
-
-    k_mask_all = Lux.f32((1:G) .== (1:G)') .* 1.0f0
-    upper_mask_all = Lux.f32((1:G) .> (1:G)') .* 1.0f0
-
     state = (G, coef)
     @trace while first(state) > 0
         k, coef_acc = state

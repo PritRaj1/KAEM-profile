@@ -37,6 +37,16 @@ struct B_spline_basis <: AbstractBasis
     O::Int
     G::Int
     S::Int
+    k_mask
+    lower_mask
+    upper_mask
+end
+
+function B_spline_basis(degree::Int, I::Int, O::Int, G::Int, S::Int)
+    k_mask = Float32.((1:G) .== (1:G)') .* 1.0f0
+    lower_mask = Float32.((1:G) .> (1:G)') .* 1.0f0
+    upper_mask = Float32.((1:G) .>= (1:G)') .* 1.0f0
+    return B_spline_basis(degree, I, O, G, S, k_mask, lower_mask, upper_mask)
 end
 
 struct RBF_basis <: AbstractBasis
@@ -44,6 +54,16 @@ struct RBF_basis <: AbstractBasis
     O::Int
     G::Int
     S::Int
+    k_mask
+    lower_mask
+    upper_mask
+end
+
+function RBF_basis(I::Int, O::Int, G::Int, S::Int)
+    k_mask = Float32.((1:G) .== (1:G)') .* 1.0f0
+    lower_mask = Float32.((1:G) .> (1:G)') .* 1.0f0
+    upper_mask = Float32.((1:G) .>= (1:G)') .* 1.0f0
+    return RBF_basis(I, O, G, S, k_mask, lower_mask, upper_mask)
 end
 
 struct RSWAF_basis <: AbstractBasis
@@ -51,6 +71,16 @@ struct RSWAF_basis <: AbstractBasis
     O::Int
     G::Int
     S::Int
+    k_mask
+    lower_mask
+    upper_mask
+end
+
+function RSWAF_basis(I::Int, O::Int, G::Int, S::Int)
+    k_mask = Float32.((1:G) .== (1:G)') .* 1.0f0
+    lower_mask = Float32.((1:G) .> (1:G)') .* 1.0f0
+    upper_mask = Float32.((1:G) .>= (1:G)') .* 1.0f0
+    return RSWAF_basis(I, O, G, S, k_mask, lower_mask, upper_mask)
 end
 
 struct Cheby_basis <: AbstractBasis
@@ -60,11 +90,18 @@ struct Cheby_basis <: AbstractBasis
     O::Int
     G::Int
     S::Int
+    k_mask
+    lower_mask
+    upper_mask
 end
 
 function Cheby_basis(degree::Int, I::Int, O::Int, S::Int)
     lin = collect(Float32, 0:degree)'
-    return Cheby_basis(degree, lin, I, O, degree + 1, S)
+    G = degree + 1
+    k_mask = Float32.((1:G) .== (1:G)') .* 1.0f0
+    lower_mask = Float32.((1:G) .> (1:G)') .* 1.0f0
+    upper_mask = Float32.((1:G) .>= (1:G)') .* 1.0f0
+    return Cheby_basis(degree, lin, I, O, G, S, k_mask, lower_mask, upper_mask)
 end
 
 function (b::B_spline_basis)(
@@ -182,9 +219,9 @@ function curve2coef(
     B = permutedims(B, (2, 3, 1))
     y = permutedims(y, (3, 2, 1))
 
-    A, b = regularize(B, y, J, O, G, S; ε = ε)
-    A, b = forward_elimination(A, b, G)
-    coef = dropdims(backward_substitution(A, b, G); dims = 2)
+    A, b_vec = regularize(B, y, J, O, G, S; ε = ε)
+    A, b_vec = forward_elimination(A, b_vec, G, b.k_mask, b.lower_mask, b.upper_mask)
+    coef = dropdims(backward_substitution(A, b_vec, G, b.k_mask, b.lower_mask); dims = 2)
     return permutedims(coef, (3, 2, 1))
 end
 
