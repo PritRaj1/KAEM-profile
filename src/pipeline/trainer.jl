@@ -192,6 +192,7 @@ function train!(t::KAEM_trainer; train_idx::Int = 1)
         swap_replica_idxs,
         t.rng,
     )
+    GC.gc()
 
     gen_compiled = Reactant.@compile t.model(
         t.ps,
@@ -199,6 +200,7 @@ function train!(t::KAEM_trainer; train_idx::Int = 1)
         Lux.testmode(t.st_lux),
         t.rng,
     )
+    GC.gc()
 
     # Gradient for a single batch
     function grad_fcn()

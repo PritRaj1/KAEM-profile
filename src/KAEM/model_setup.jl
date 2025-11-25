@@ -111,6 +111,7 @@ function setup_training(
             wrapped
         end
     end
+    GC.gc()
 
     @reset model.posterior_sampler = initialize_ULA_sampler(
         model;
@@ -152,6 +153,8 @@ function setup_training(
                 wrapped
             end
         end
+        GC.gc()
+
         println("Posterior sampler: Thermo ULA")
 
     elseif model.MALA || model.prior.bool_config.ula
@@ -183,6 +186,8 @@ function setup_training(
                 wrapped
             end
         end
+        GC.gc()
+
         println("Posterior sampler: MLE ULA")
     else
 
