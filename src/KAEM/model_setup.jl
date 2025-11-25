@@ -111,8 +111,7 @@ function setup_training(
             wrapped
         end
     end
-    GC.gc()
-
+    
     @reset model.posterior_sampler = initialize_ULA_sampler(
         model;
         η = η_init,
@@ -154,7 +153,6 @@ function setup_training(
             end
         end
         GC.gc()
-
         println("Posterior sampler: Thermo ULA")
 
     elseif model.MALA || model.prior.bool_config.ula
@@ -188,8 +186,7 @@ function setup_training(
         end
         GC.gc()
 
-        println("Posterior sampler: MLE ULA")
-    else
+            else
 
         println("Posterior sampler: MLE IS")
     end
