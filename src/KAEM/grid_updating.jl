@@ -20,6 +20,7 @@ function update_model_grid(
         st_lux,
         train_idx,
         swap_replica_idxs,
+        grid_sample_idxs,
         rng,
     )
     """
@@ -98,26 +99,22 @@ function update_model_grid(
                 model.prior.fcns_qp[1].spline_string == "FFT" ||
                     model.prior.fcns_qp[1].spline_string == "Cheby"
             )
-            Q, P = (
-                (model.prior.bool_config.ula || model.prior.bool_config.mixture_model) ?
-                    reverse(size(z)[1:2]) : size(z)[1:2]
-            )
-            B = model.batch_size
-            z = reshape(z, P, Q * B)
+            Q, P, B = model.prior.q_size, model.prior.p_size, model.batch_size
 
-            mid_size = model.prior.bool_config.mixture_model ? model.prior.p_size : model.prior.q_size
-            outer_dim = model.prior.bool_config.mixture_model ? (Q * Q * B) : (Q * P * B)
-
-            prior_copy = model.prior
-
-            for i in 1:prior_copy.depth
-                @reset prior_copy.fcns_qp[i].basis_function.S = i == 1 ? Q * B : outer_dim
+            # Randomly sample components if univariate to reduce computation
+            if !isnothing(grid_sample_idxs)
+                mask = Lux.f32(1:Q .== grid_sample_idxs') .* 1.0f0
+                z = dropdims(sum(z .* reshape(mask, Q, 1, B); dims = 1); dims = 1)
             end
+            z = !isnothing(grid_sample_idxs) ? z : reshape(z, Q, B)
 
-            for i in 1:prior_copy.depth
-                if prior_copy.bool_config.layernorm && i != 1
+            mid_size = model.prior.bool_config.mixture_model ? P : Q
+            outer_dim = model.prior.bool_config.mixture_model ? Q * B : P * B
+
+            for i in 1:model.prior.depth
+                if model.prior.bool_config.layernorm && i != 1
                     z, st_ebm = Lux.apply(
-                        prior_copy.layernorms[i - 1],
+                        model.prior.layernorms[i - 1],
                         z,
                         ps.ebm.layernorm[symbol_map[i]],
                         st_lux.ebm[symbol_map[i]],
@@ -126,7 +123,7 @@ function update_model_grid(
                 end
 
                 new_grid, new_coef = update_fcn_grid(
-                    prior_copy.fcns_qp[i],
+                    model.prior.fcns_qp[i],
                     ps.ebm.fcn[symbol_map[i]],
                     st_kan.ebm[symbol_map[i]],
                     z,
@@ -134,19 +131,21 @@ function update_model_grid(
                 ps.ebm.fcn[symbol_map[i]].coef = new_coef
                 st_kan.ebm[symbol_map[i]].grid = new_grid
 
-                if prior_copy.fcns_qp[i].spline_string == "RBF"
-                    scale = (maximum(new_grid) - minimum(new_grid)) / (size(new_grid, 2) - 1) |> Lux.f32
+                if model.prior.fcns_qp[i].spline_string == "RBF"
+                    scale = (maximum(new_grid) - minimum(new_grid)) /
+                        (size(new_grid, 2) - 1) |> Lux.f32
+
                     st_kan.ebm[symbol_map[i]].scale = [scale]
                 end
 
                 z = Lux.apply(
-                    prior_copy.fcns_qp[i],
+                    model.prior.fcns_qp[i],
                     z,
                     ps.ebm.fcn[symbol_map[i]],
                     st_kan.ebm[symbol_map[i]],
                 )
                 z =
-                    (i == 1 && !prior_copy.bool_config.ula) ? reshape(z, mid_size, outer_dim) :
+                    (i == 1 && !model.prior.bool_config.ula) ? reshape(z, mid_size, outer_dim) :
                     dropdims(sum(z, dims = 1); dims = 1)
             end
         end
@@ -163,7 +162,15 @@ function update_model_grid(
     if model.N_t > 1
         temps = collect(Float32, [(k / model.N_t)^model.p[train_idx] for k in 1:model.N_t])
         z = first(
-            model.posterior_sampler(ps, st_kan, st_lux, x; temps = temps, rng = rng, swap_replica_idxs = swap_replica_idxs),
+            model.posterior_sampler(
+                ps,
+                st_kan,
+                st_lux,
+                x;
+                temps = temps,
+                rng = rng,
+                swap_replica_idxs = swap_replica_idxs
+            ),
         )[
             :,
             :,
@@ -216,7 +223,9 @@ function update_model_grid(
             st_kan.gen[symbol_map[i]].grid = new_grid
 
             if model.lkhood.generator.Φ_fcns[i].spline_string == "RBF"
-                scale = (maximum(new_grid) - minimum(new_grid)) / (size(new_grid, 2) - 1) |> Lux.f32
+                scale = (maximum(new_grid) - minimum(new_grid)) /
+                    (size(new_grid, 2) - 1) |> Lux.f32
+
                 st_kan.gen[symbol_map[i]].scale = [scale]
             end
         end

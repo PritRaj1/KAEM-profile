@@ -44,6 +44,11 @@ function test_grid_update()
     model, ps, st_kan, st_lux = prep_model(model, x_test)
 
     x = first(model.train_loader) |> pu
+    grid_sample_idxs = (
+        !model.prior.bool_config.ula && !model.prior.bool_config.mixture_model ?
+            rand(1:model.prior.q_size, model.batch_size) :
+            nothing
+    )
     compiled_update = Reactant.@compile update_model_grid(
         model,
         x,
@@ -52,10 +57,21 @@ function test_grid_update()
         Lux.testmode(st_lux),
         1,
         nothing,
+        grid_sample_idxs,
         Random.default_rng(),
     )
 
-    ps, st_kan, st_lux = compiled_update(model, x, ps, st_kan, Lux.testmode(st_lux), 1, nothing, Random.default_rng())
+    ps, st_kan, st_lux = compiled_update(
+        model,
+        x,
+        ps,
+        st_kan,
+        Lux.testmode(st_lux),
+        1,
+        nothing,
+        grid_sample_idxs,
+        Random.default_rng()
+    )
     return @test !any(isnan, Array(ps))
 end
 

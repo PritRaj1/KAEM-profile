@@ -182,6 +182,12 @@ function train!(t::KAEM_trainer; train_idx::Int = 1)
             nothing
     )
 
+    grid_sample_idxs = (
+        !t.model.prior.bool_config.ula && !t.model.prior.bool_config.mixture_model ?
+            rand(t.rng, 1:t.model.prior.q_size, t.model.batch_size) :
+            nothing
+    )
+
     grid_compiled = Reactant.@compile update_model_grid(
         t.model,
         t.x,
@@ -190,6 +196,7 @@ function train!(t::KAEM_trainer; train_idx::Int = 1)
         Lux.testmode(t.st_lux),
         train_idx,
         swap_replica_idxs,
+        grid_sample_idxs,
         t.rng,
     )
     GC.gc()
@@ -211,6 +218,12 @@ function train!(t::KAEM_trainer; train_idx::Int = 1)
                 nothing
         )
 
+        grid_sample_idxs = (
+            !t.model.prior.bool_config.ula && !t.model.prior.bool_config.mixture_model ?
+                rand(t.rng, 1:t.model.prior.q_size, t.model.batch_size) :
+                nothing
+        )
+
         # Grid updating for likelihood model
         if (
                 train_idx == 1 || (train_idx - t.last_grid_update >= t.grid_update_frequency)
@@ -223,6 +236,7 @@ function train!(t::KAEM_trainer; train_idx::Int = 1)
                 Lux.testmode(t.st_lux),
                 train_idx,
                 swap_replica_idxs,
+                grid_sample_idxs,
                 t.rng,
             )
 
