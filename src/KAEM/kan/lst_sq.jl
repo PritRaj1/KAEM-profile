@@ -27,18 +27,20 @@ function forward_acc(
         lower_mask_all,
         upper_mask_all
     )
-    k_mask = k_mask_all[:, k]
-    lower_mask = lower_mask_all[:, k]
-    upper_mask = upper_mask_all[:, k]
+    k_mask = copy(k_mask_all[:, k])
+    k_mask_transposed = copy(k_mask_all[k:k, :])
+    lower_mask = copy(lower_mask_all[:, k])
+    upper_mask = copy(upper_mask_all[:, k])
+    upper_mask_transposed = copy(upper_mask_all[k:k, :])
 
-    pivot = sum(A .* k_mask .* k_mask', dims = (1, 2))
+    pivot = sum(A .* (k_mask * k_mask_transposed), dims = (1, 2))
     pivot_row = sum(A .* k_mask; dims = 1)
-    pivot_col = sum(A .* k_mask'; dims = 2)
+    pivot_col = sum(A .* k_mask_transposed; dims = 2)
 
     factors = pivot_col .* lower_mask ./ pivot
 
     # Rank-1 update
-    elimination_mask = lower_mask .* upper_mask'
+    elimination_mask = lower_mask * upper_mask_transposed
     A = A .- (factors .* pivot_row) .* elimination_mask
 
     pivot_b = sum(b .* k_mask; dims = 1)
@@ -80,10 +82,11 @@ function backward_acc(
         k_mask_all,
         upper_mask_all
     )
-    k_mask = k_mask_all[:, k]
-    upper_mask = upper_mask_all[:, k]
+    k_mask = copy(k_mask_all[:, k])
+    k_mask_transposed = copy(k_mask_all[k:k, :])
+    upper_mask = copy(upper_mask_all[:, k])
 
-    diag_elem = sum(A .* k_mask .* k_mask'; dims = (1, 2))
+    diag_elem = sum(A .* (k_mask * k_mask_transposed); dims = (1, 2))
     rhs_elem = sum(b .* k_mask; dims = 1)
 
     upper_row = sum(A .* k_mask; dims = 1)

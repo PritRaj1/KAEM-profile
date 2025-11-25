@@ -43,9 +43,9 @@ struct B_spline_basis <: AbstractBasis
 end
 
 function B_spline_basis(degree::Int, I::Int, O::Int, G::Int, S::Int)
-    k_mask = Float32.((1:G) .== (1:G)') .* 1.0f0
-    lower_mask = Float32.((1:G) .> (1:G)') .* 1.0f0
-    upper_mask = Float32.((1:G) .>= (1:G)') .* 1.0f0
+    k_mask = Float32.((1:G) .== (1:G)') |> pu
+    lower_mask = Float32.((1:G) .> (1:G)') |> pu
+    upper_mask = Float32.((1:G) .>= (1:G)') |> pu
     return B_spline_basis(degree, I, O, G, S, k_mask, lower_mask, upper_mask)
 end
 
@@ -60,9 +60,9 @@ struct RBF_basis <: AbstractBasis
 end
 
 function RBF_basis(I::Int, O::Int, G::Int, S::Int)
-    k_mask = Float32.((1:G) .== (1:G)') .* 1.0f0
-    lower_mask = Float32.((1:G) .> (1:G)') .* 1.0f0
-    upper_mask = Float32.((1:G) .>= (1:G)') .* 1.0f0
+    k_mask = Float32.((1:G) .== (1:G)') |> pu
+    lower_mask = Float32.((1:G) .> (1:G)') |> pu
+    upper_mask = Float32.((1:G) .>= (1:G)') |> pu
     return RBF_basis(I, O, G, S, k_mask, lower_mask, upper_mask)
 end
 
@@ -77,9 +77,9 @@ struct RSWAF_basis <: AbstractBasis
 end
 
 function RSWAF_basis(I::Int, O::Int, G::Int, S::Int)
-    k_mask = Float32.((1:G) .== (1:G)') .* 1.0f0
-    lower_mask = Float32.((1:G) .> (1:G)') .* 1.0f0
-    upper_mask = Float32.((1:G) .>= (1:G)') .* 1.0f0
+    k_mask = Float32.((1:G) .== (1:G)') |> pu
+    lower_mask = Float32.((1:G) .> (1:G)') |> pu
+    upper_mask = Float32.((1:G) .>= (1:G)') |> pu
     return RSWAF_basis(I, O, G, S, k_mask, lower_mask, upper_mask)
 end
 
@@ -98,9 +98,9 @@ end
 function Cheby_basis(degree::Int, I::Int, O::Int, S::Int)
     lin = collect(Float32, 0:degree)'
     G = degree + 1
-    k_mask = Float32.((1:G) .== (1:G)') .* 1.0f0
-    lower_mask = Float32.((1:G) .> (1:G)') .* 1.0f0
-    upper_mask = Float32.((1:G) .>= (1:G)') .* 1.0f0
+    k_mask = Float32.((1:G) .== (1:G)') |> pu
+    lower_mask = Float32.((1:G) .> (1:G)') |> pu
+    upper_mask = Float32.((1:G) .>= (1:G)') |> pu
     return Cheby_basis(degree, lin, I, O, G, S, k_mask, lower_mask, upper_mask)
 end
 
@@ -216,8 +216,8 @@ function curve2coef(
     J, O, G = b.I, b.O, b.G
     S = init ? size(x, 2) : b.S
     B = b(x, grid, σ, scale; init = init)
-    B = permutedims(B, (2, 3, 1))
-    y = permutedims(y, (3, 2, 1))
+    B = reshape(B, G, S, J)
+    y = reshape(y, S, O, J)
 
     A, b_vec = regularize(B, y, J, O, G, S; ε = ε)
     A, b_vec = forward_elimination(A, b_vec, G, b.k_mask, b.lower_mask, b.upper_mask)
