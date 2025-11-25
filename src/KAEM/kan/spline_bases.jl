@@ -219,9 +219,13 @@ function curve2coef(
     B = reshape(B, G, S, J)
     y = reshape(y, S, O, J)
 
+    k_mask = init ? Float32.((1:G) .== (1:G)') : b.k_mask
+    lower_mask = init ? Float32.((1:G) .> (1:G)') : b.lower_mask
+    upper_mask = init ? Float32.((1:G) .>= (1:G)') : b.upper_mask
+
     A, b_vec = regularize(B, y, J, O, G, S; ε = ε)
-    A, b_vec = forward_elimination(A, b_vec, G, b.k_mask, b.lower_mask, b.upper_mask)
-    coef = dropdims(backward_substitution(A, b_vec, G, b.k_mask, b.lower_mask); dims = 2)
+    A, b_vec = forward_elimination(A, b_vec, G, k_mask, lower_mask, upper_mask)
+    coef = dropdims(backward_substitution(A, b_vec, G, k_mask, lower_mask); dims = 2)
     return permutedims(coef, (3, 2, 1))
 end
 
