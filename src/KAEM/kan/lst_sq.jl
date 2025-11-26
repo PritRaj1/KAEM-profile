@@ -71,9 +71,9 @@ function forward_elimination(
         basis,
     )
     G = basis.G
-    k_mask = basis.fe.k_mask_all
-    lower_mask = basis.fe.lower_mask_all
-    upper_mask = basis.fe.upper_mask_all
+    k_mask = basis.fe.k_mask_all .* 1.0f0
+    lower_mask = basis.fe.lower_mask_all .* 1.0f0
+    upper_mask = basis.fe.upper_mask_all .* 1.0f0
 
     state = (1, A, b)
     @trace while first(state) < G
@@ -129,8 +129,8 @@ function backward_substitution(
         basis,
     )
     coef = zero(b)
-    k_mask = basis.bs.k_mask_all
-    upper_mask = basis.bs.upper_mask_all
+    k_mask = basis.bs.k_mask_all .* 1.0f0
+    upper_mask = basis.bs.upper_mask_all .* 1.0f0
 
     state = (basis.G, coef)
     @trace while first(state) > 0

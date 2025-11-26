@@ -42,9 +42,9 @@ struct B_spline_basis <: AbstractBasis
 end
 
 function B_spline_basis(degree::Int, I::Int, O::Int, G::Int, S::Int)
-    k_mask = Lux.f32((1:G) .== (1:G)') .* 1.0f0 |> pu
-    lower_mask = Lux.f32((1:G) .> (1:G)') .* 1.0f0 |> pu
-    upper_mask = Lux.f32((1:G) .>= (1:G)') .* 1.0f0 |> pu
+    k_mask = Lux.f32((1:G) .== (1:G)') .* 1.0f0
+    lower_mask = Lux.f32((1:G) .> (1:G)') .* 1.0f0
+    upper_mask = Lux.f32((1:G) .>= (1:G)') .* 1.0f0
 
     fe = ForwardElim(k_mask, lower_mask, upper_mask)
     bs = BackSub(k_mask, lower_mask)
@@ -61,9 +61,9 @@ struct RBF_basis <: AbstractBasis
 end
 
 function RBF_basis(I::Int, O::Int, G::Int, S::Int)
-    k_mask = Lux.f32((1:G) .== (1:G)') .* 1.0f0 |> pu
-    lower_mask = Lux.f32((1:G) .> (1:G)') .* 1.0f0 |> pu
-    upper_mask = Lux.f32((1:G) .>= (1:G)') .* 1.0f0 |> pu
+    k_mask = Lux.f32((1:G) .== (1:G)') .* 1.0f0
+    lower_mask = Lux.f32((1:G) .> (1:G)') .* 1.0f0
+    upper_mask = Lux.f32((1:G) .>= (1:G)') .* 1.0f0
 
     fe = ForwardElim(k_mask, lower_mask, upper_mask)
     bs = BackSub(k_mask, lower_mask)
@@ -80,9 +80,9 @@ struct RSWAF_basis <: AbstractBasis
 end
 
 function RSWAF_basis(I::Int, O::Int, G::Int, S::Int)
-    k_mask = Lux.f32((1:G) .== (1:G)') .* 1.0f0 |> pu
-    lower_mask = Lux.f32((1:G) .> (1:G)') .* 1.0f0 |> pu
-    upper_mask = Lux.f32((1:G) .>= (1:G)') .* 1.0f0 |> pu
+    k_mask = Lux.f32((1:G) .== (1:G)') .* 1.0f0
+    lower_mask = Lux.f32((1:G) .> (1:G)') .* 1.0f0
+    upper_mask = Lux.f32((1:G) .>= (1:G)') .* 1.0f0
 
     fe = ForwardElim(k_mask, lower_mask, upper_mask)
     bs = BackSub(k_mask, lower_mask)
@@ -103,9 +103,9 @@ end
 function Cheby_basis(degree::Int, I::Int, O::Int, S::Int)
     lin = collect(Float32, 0:degree)'
     G = degree + 1
-    k_mask = Lux.f32((1:G) .== (1:G)') .* 1.0f0 |> pu
-    lower_mask = Lux.f32((1:G) .> (1:G)') .* 1.0f0 |> pu
-    upper_mask = Lux.f32((1:G) .>= (1:G)') .* 1.0f0 |> pu
+    k_mask = Lux.f32((1:G) .== (1:G)') .* 1.0f0
+    lower_mask = Lux.f32((1:G) .> (1:G)') .* 1.0f0
+    upper_mask = Lux.f32((1:G) .>= (1:G)') .* 1.0f0
 
     fe = ForwardElim(k_mask, lower_mask, upper_mask)
     bs = BackSub(k_mask, lower_mask)
