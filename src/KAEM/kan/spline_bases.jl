@@ -37,18 +37,16 @@ struct B_spline_basis <: AbstractBasis
     O
     G
     S
-    fe
-    bs
+    k_mask
+    lower_mask
+    upper_mask
 end
 
 function B_spline_basis(degree::Int, I::Int, O::Int, G::Int, S::Int)
-    k_mask = Lux.f32((1:G) .== (1:G)') .* 1.0f0
-    lower_mask = Lux.f32((1:G) .> (1:G)') .* 1.0f0
-    upper_mask = Lux.f32((1:G) .>= (1:G)') .* 1.0f0
-
-    fe = ForwardElim(k_mask, lower_mask, upper_mask)
-    bs = BackSub(k_mask, lower_mask)
-    return B_spline_basis(degree, I, O, G, S, fe, bs)
+    k_mask = Lux.f32((1:G) .== (1:G)')
+    lower_mask = Lux.f32((1:G) .> (1:G)')
+    upper_mask = Lux.f32((1:G) .>= (1:G)')
+    return B_spline_basis(degree, I, O, G, S, k_mask, lower_mask, upper_mask)
 end
 
 struct RBF_basis <: AbstractBasis
@@ -56,18 +54,16 @@ struct RBF_basis <: AbstractBasis
     O
     G
     S
-    fe
-    bs
+    k_mask
+    lower_mask
+    upper_mask
 end
 
 function RBF_basis(I::Int, O::Int, G::Int, S::Int)
-    k_mask = Lux.f32((1:G) .== (1:G)') .* 1.0f0
-    lower_mask = Lux.f32((1:G) .> (1:G)') .* 1.0f0
-    upper_mask = Lux.f32((1:G) .>= (1:G)') .* 1.0f0
-
-    fe = ForwardElim(k_mask, lower_mask, upper_mask)
-    bs = BackSub(k_mask, lower_mask)
-    return RBF_basis(I, O, G, S, fe, bs)
+    k_mask = Lux.f32((1:G) .== (1:G)')
+    lower_mask = Lux.f32((1:G) .> (1:G)')
+    upper_mask = Lux.f32((1:G) .>= (1:G)')
+    return RBF_basis(I, O, G, S, k_mask, lower_mask, upper_mask)
 end
 
 struct RSWAF_basis <: AbstractBasis
@@ -75,18 +71,16 @@ struct RSWAF_basis <: AbstractBasis
     O
     G
     S
-    fe
-    bs
+    k_mask
+    lower_mask
+    upper_mask
 end
 
 function RSWAF_basis(I::Int, O::Int, G::Int, S::Int)
-    k_mask = Lux.f32((1:G) .== (1:G)') .* 1.0f0
-    lower_mask = Lux.f32((1:G) .> (1:G)') .* 1.0f0
-    upper_mask = Lux.f32((1:G) .>= (1:G)') .* 1.0f0
-
-    fe = ForwardElim(k_mask, lower_mask, upper_mask)
-    bs = BackSub(k_mask, lower_mask)
-    return RSWAF_basis(I, O, G, S, fe, bs)
+    k_mask = Lux.f32((1:G) .== (1:G)')
+    lower_mask = Lux.f32((1:G) .> (1:G)')
+    upper_mask = Lux.f32((1:G) .>= (1:G)')
+    return RSWAF_basis(I, O, G, S, k_mask, lower_mask, upper_mask)
 end
 
 struct Cheby_basis <: AbstractBasis
@@ -96,20 +90,18 @@ struct Cheby_basis <: AbstractBasis
     O
     G
     S
-    fe
-    bs
+    k_mask
+    lower_mask
+    upper_mask
 end
 
 function Cheby_basis(degree::Int, I::Int, O::Int, S::Int)
     lin = collect(Float32, 0:degree)'
     G = degree + 1
-    k_mask = Lux.f32((1:G) .== (1:G)') .* 1.0f0
-    lower_mask = Lux.f32((1:G) .> (1:G)') .* 1.0f0
-    upper_mask = Lux.f32((1:G) .>= (1:G)') .* 1.0f0
-
-    fe = ForwardElim(k_mask, lower_mask, upper_mask)
-    bs = BackSub(k_mask, lower_mask)
-    return Cheby_basis(degree, lin, I, O, G, S, fe, bs)
+    k_mask = Lux.f32((1:G) .== (1:G)')
+    lower_mask = Lux.f32((1:G) .> (1:G)')
+    upper_mask = Lux.f32((1:G) .>= (1:G)')
+    return Cheby_basis(degree, lin, I, O, G, S, k_mask, lower_mask, upper_mask)
 end
 
 function (b::B_spline_basis)(
