@@ -35,19 +35,16 @@ struct ForwardElim
     upper_mask_all
 end
 
-function eliminator(
+function (fe::ForwardElim)(
         k,
         A,
-        b,
-        k_mask_all,
-        lower_mask_all,
-        upper_mask_all
+        b
     )
-    k_mask = k_mask_all[:, k:k]
-    k_mask_transposed = k_mask_all[k:k, :]
-    lower_mask = lower_mask_all[:, k:k]
-    upper_mask = upper_mask_all[:, k:k]
-    upper_mask_transposed = upper_mask_all[k:k, :]
+    k_mask = fe.k_mask_all[:, k:k]
+    k_mask_transposed = fe.k_mask_all[k:k, :]
+    lower_mask = fe.lower_mask_all[:, k:k]
+    upper_mask = fe.upper_mask_all[:, k:k]
+    upper_mask_transposed = fe.upper_mask_all[k:k, :]
 
     pivot = sum(A .* k_mask .* k_mask_transposed, dims = (1, 2))
     pivot_row = sum(A .* k_mask; dims = 1)
@@ -71,20 +68,13 @@ function forward_elimination(
         basis,
     )
     G = basis.G
-    k_mask = basis.fe.k_mask_all .* 1.0f0
-    lower_mask = basis.fe.lower_mask_all .* 1.0f0
-    upper_mask = basis.fe.upper_mask_all .* 1.0f0
-
     state = (1, A, b)
     @trace while first(state) < G
         k, A_acc, b_acc = state
-        A_acc, b_acc = eliminator(
+        A_acc, b_acc = basis.fe(
             k,
             A_acc,
-            b_acc,
-            k_mask,
-            lower_mask,
-            upper_mask
+            b_acc
         )
         state = (k + 1, A_acc, b_acc)
     end
@@ -97,17 +87,15 @@ struct BackSub
     upper_mask_all
 end
 
-function backsubber(
+function (bs::BackSub)(
         k,
         coef,
         A,
-        b,
-        k_mask_all,
-        upper_mask_all
+        b
     )
-    k_mask = k_mask_all[:, k:k]
-    k_mask_transposed = k_mask_all[k:k, :]
-    upper_mask = upper_mask_all[:, k:k]
+    k_mask = bs.k_mask_all[:, k:k]
+    k_mask_transposed = bs.k_mask_all[k:k, :]
+    upper_mask = bs.upper_mask_all[:, k:k]
 
     diag_elem = sum(A .* k_mask .* k_mask_transposed; dims = (1, 2))
     rhs_elem = sum(b .* k_mask; dims = 1)
@@ -129,19 +117,14 @@ function backward_substitution(
         basis,
     )
     coef = zero(b)
-    k_mask = basis.bs.k_mask_all .* 1.0f0
-    upper_mask = basis.bs.upper_mask_all .* 1.0f0
-
     state = (basis.G, coef)
     @trace while first(state) > 0
         k, coef_acc = state
-        coef_acc = backsubber(
+        coef_acc = basis.bs(
             k,
             coef,
             A,
             b,
-            k_mask,
-            upper_mask
         )
         state = (k - 1, coef_acc)
     end
