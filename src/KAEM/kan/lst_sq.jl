@@ -119,7 +119,7 @@ function backward_substitution(
         k, coef_acc = state
         coef_acc = basis.bs(
             k,
-            coef,
+            coef_acc,
             A,
             b,
         )
