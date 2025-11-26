@@ -59,23 +59,23 @@ function forward_elimination(
         basis,
     )
     G = basis.G
-    k_mask_all = basis.k_mask .* 1.0f0
-    lower_mask_all = basis.lower_mask .* 1.0f0
-    upper_mask_all = basis.upper_mask .* 1.0f0
+    k_mask_all = Lux.f32(basis.k_mask) .* 1.0f0
+    lower_mask_all = Lux.f32(basis.lower_mask) .* 1.0f0
+    upper_mask_all = Lux.f32(basis.upper_mask) .* 1.0f0
 
     state = (1, A, b)
     @trace while first(state) < G
         k, A_acc, b_acc = state
-        k_mask = k_mask_all[:, k]
-        lower_mask = lower_mask_all[:, k]
-        upper_mask = upper_mask_all[:, k]
+        k_mask = k_mask_all[:, k:k]
+        lower_mask = lower_mask_all[:, k:k]
+        upper_mask = upper_mask_all[:, k:k]
         A_acc, b_acc = eliminator(
             k,
             A_acc,
             b_acc,
-            reshape(k_mask, G),
-            reshape(lower_mask, G),
-            reshape(upper_mask, G),
+            k_mask,
+            lower_mask,
+            upper_mask,
         )
         state = (k + 1, A_acc, b_acc)
     end
@@ -110,22 +110,22 @@ function backward_substitution(
         b,
         basis,
     )
-    k_mask_all = basis.k_mask .* 1.0f0
-    upper_mask_all = basis.lower_mask .* 1.0f0
     G = basis.G
+    k_mask_all = Lux.f32(basis.k_mask) .* 1.0f0
+    upper_mask_all = Lux.f32(basis.lower_mask) .* 1.0f0
 
     state = (G, zero(b))
     @trace while first(state) > 0
         k, coef_acc = state
-        k_mask = k_mask_all[:, k]
-        upper_mask = upper_mask_all[:, k]
+        k_mask = k_mask_all[:, k:k]
+        upper_mask = upper_mask_all[:, k:k]
         coef_acc = backsubber(
             k,
             coef_acc,
             A,
             b,
-            reshape(k_mask, G),
-            reshape(upper_mask, G),
+            k_mask,
+            upper_mask,
         )
         state = (k - 1, coef_acc)
     end
