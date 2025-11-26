@@ -62,24 +62,22 @@ function forward_elimination(
     )
     G = basis.G
     k_mask_all = basis.k_mask .* 1.0f0
-    k_mask_transposed_all = basis.k_mask_transposed .* 1.0f0
     lower_mask_all = basis.lower_mask .* 1.0f0
     upper_mask_all = basis.upper_mask .* 1.0f0
-    upper_mask_transposed_all = basis.upper_mask_transposed .* 1.0f0
     range = 1:G
 
     state = (1, A, b)
     @trace while first(state) < G
         k, A_acc, b_acc = state
-        A_acc, b_acc = eliminator(
+        A_acc, b_acc = @inbounds eliminator(
             k,
             A_acc,
             b_acc,
-            view(k_mask_all, range, k),
-            view(k_mask_transposed_all, 1:1, range, k),
-            view(lower_mask_all, range, k),
-            view(upper_mask_all, range, k),
-            view(upper_mask_transposed_all, 1:1, range, k),
+            view(k_mask_all, range, k:k),
+            view(k_mask_all, k:k, range),
+            view(lower_mask_all, range, k:k),
+            view(upper_mask_all, range, k:k),
+            view(upper_mask_all, k:k, range),
         )
         state = (k + 1, A_acc, b_acc)
     end
@@ -115,21 +113,20 @@ function backward_substitution(
         basis,
     )
     k_mask_all = basis.k_mask .* 1.0f0
-    k_mask_transposed_all = basis.k_mask_transposed .* 1.0f0
     upper_mask_all = basis.lower_mask .* 1.0f0
     range = 1:basis.G
 
     state = (basis.G, zero(b))
     @trace while first(state) > 0
         k, coef_acc = state
-        coef_acc = backsubber(
+        coef_acc = @inbounds backsubber(
             k,
             coef_acc,
             A,
             b,
-            view(k_mask_all, range, k),
-            view(k_mask_transposed_all, 1:1, range, k),
-            view(upper_mask_all, range, k),
+            view(k_mask_all, range, k:k),
+            view(k_mask_all, k:k, range),
+            view(upper_mask_all, range, k:k),
         )
         state = (k - 1, coef_acc)
     end

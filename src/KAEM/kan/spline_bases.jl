@@ -38,10 +38,8 @@ struct B_spline_basis <: AbstractBasis
     G
     S
     k_mask
-    k_mask_transposed
     lower_mask
     upper_mask
-    upper_mask_transposed
 end
 
 function B_spline_basis(degree::Int, I::Int, O::Int, G::Int, S::Int)
@@ -55,10 +53,8 @@ function B_spline_basis(degree::Int, I::Int, O::Int, G::Int, S::Int)
         G,
         S,
         k_mask,
-        reshape(k_mask, 1, G, G),
         lower_mask,
         upper_mask,
-        reshape(upper_mask, 1, G, G)
     )
 end
 
@@ -68,10 +64,8 @@ struct RBF_basis <: AbstractBasis
     G
     S
     k_mask
-    k_mask_transposed
     lower_mask
     upper_mask
-    upper_mask_transposed
 end
 
 function RBF_basis(I::Int, O::Int, G::Int, S::Int)
@@ -84,10 +78,8 @@ function RBF_basis(I::Int, O::Int, G::Int, S::Int)
         G,
         S,
         k_mask,
-        reshape(k_mask, 1, G, G),
         lower_mask,
         upper_mask,
-        reshape(upper_mask, 1, G, G)
     )
 end
 
@@ -97,10 +89,8 @@ struct RSWAF_basis <: AbstractBasis
     G
     S
     k_mask
-    k_mask_transposed
     lower_mask
     upper_mask
-    upper_mask_transposed
 end
 
 function RSWAF_basis(I::Int, O::Int, G::Int, S::Int)
@@ -113,10 +103,8 @@ function RSWAF_basis(I::Int, O::Int, G::Int, S::Int)
         G,
         S,
         k_mask,
-        reshape(k_mask, 1, G, G),
         lower_mask,
         upper_mask,
-        reshape(upper_mask, 1, G, G)
     )
 end
 
@@ -128,10 +116,8 @@ struct Cheby_basis <: AbstractBasis
     G
     S
     k_mask
-    k_mask_transposed
     lower_mask
     upper_mask
-    upper_mask_transposed
 end
 
 function Cheby_basis(degree::Int, I::Int, O::Int, S::Int)
@@ -148,10 +134,8 @@ function Cheby_basis(degree::Int, I::Int, O::Int, S::Int)
         G,
         S,
         k_mask,
-        reshape(k_mask, 1, G, G),
         lower_mask,
         upper_mask,
-        reshape(upper_mask, 1, G, G)
     )
 end
 
