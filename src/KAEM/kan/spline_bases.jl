@@ -32,11 +32,11 @@ function extend_grid(
 end
 
 struct B_spline_basis <: AbstractBasis
-    degree::Int
-    I::Int
-    O::Int
-    G::Int
-    S::Int
+    degree
+    I
+    O
+    G
+    S
     fe
     bs
 end
@@ -52,10 +52,10 @@ function B_spline_basis(degree::Int, I::Int, O::Int, G::Int, S::Int)
 end
 
 struct RBF_basis <: AbstractBasis
-    I::Int
-    O::Int
-    G::Int
-    S::Int
+    I
+    O
+    G
+    S
     fe
     bs
 end
@@ -71,10 +71,10 @@ function RBF_basis(I::Int, O::Int, G::Int, S::Int)
 end
 
 struct RSWAF_basis <: AbstractBasis
-    I::Int
-    O::Int
-    G::Int
-    S::Int
+    I
+    O
+    G
+    S
     fe
     bs
 end
@@ -90,12 +90,12 @@ function RSWAF_basis(I::Int, O::Int, G::Int, S::Int)
 end
 
 struct Cheby_basis <: AbstractBasis
-    degree::Int
-    lin::AbstractArray{Float32}
-    I::Int
-    O::Int
-    G::Int
-    S::Int
+    degree
+    lin
+    I
+    O
+    G
+    S
     fe
     bs
 end
@@ -238,10 +238,10 @@ end
 
 ## FFT basis functions ###
 struct FFT_basis <: AbstractBasis
-    I::Int
-    O::Int
-    G::Int
-    S::Int
+    I
+    O
+    G
+    S
 end
 
 function (b::FFT_basis)(
