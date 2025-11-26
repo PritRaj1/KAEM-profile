@@ -129,7 +129,7 @@ function Lux.initialparameters(
             scale,
             init = true,
             ε = l.ε_ridge
-        ) |> Array
+        )
     end
 
     if l.spline_string == "Cheby"
