@@ -10,7 +10,7 @@ export extend_grid,
     FFT_basis,
     Cheby_basis
 
-using ComponentArrays, LinearAlgebra, Lux
+using ComponentArrays, LinearAlgebra, Lux, Accessors
 
 using ..Utils
 
