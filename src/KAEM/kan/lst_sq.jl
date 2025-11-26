@@ -1,7 +1,6 @@
 module LstSqSolver
 
 export regularize, forward_elimination, backward_substitution, ForwardElim, BackSub
-using Reactant: @trace
 
 using Lux
 
@@ -62,27 +61,27 @@ function forward_elimination(
     )
     G = basis.G
     k_mask_all = basis.k_mask .* 1.0f0
+    k_mask_transposed_all = basis.k_mask_transposed .* 1.0f0
     lower_mask_all = basis.lower_mask .* 1.0f0
     upper_mask_all = basis.upper_mask .* 1.0f0
-    range = 1:G
+    upper_mask_transposed_all = basis.upper_mask_transposed .* 1.0f0
 
-    state = (1, A, b)
-    @trace while first(state) < G
-        k, A_acc, b_acc = state
-        A_acc, b_acc = @inbounds eliminator(
+    state = (A, b)
+    for k in 1:(G - 1)
+        A_acc, b_acc = state
+        A_acc, b_acc = eliminator(
             k,
             A_acc,
             b_acc,
-            view(k_mask_all, range, k:k),
-            view(k_mask_all, k:k, range),
-            view(lower_mask_all, range, k:k),
-            view(upper_mask_all, range, k:k),
-            view(upper_mask_all, k:k, range),
+            @inbounds(selectdim(k_mask_all, 2, k)),
+            @inbounds(selectdim(k_mask_transposed_all, 3, k)),
+            @inbounds(selectdim(lower_mask_all, 2, k)),
+            @inbounds(selectdim(upper_mask_all, 2, k)),
+            @inbounds(selectdim(upper_mask_transposed_all, 3, k)),
         )
-        state = (k + 1, A_acc, b_acc)
+        state = (A_acc, b_acc)
     end
-    k, A, b = state
-    return A, b
+    return state
 end
 
 function backsubber(
@@ -113,25 +112,24 @@ function backward_substitution(
         basis,
     )
     k_mask_all = basis.k_mask .* 1.0f0
+    k_mask_transposed_all = basis.k_mask_transposed .* 1.0f0
     upper_mask_all = basis.lower_mask .* 1.0f0
-    range = 1:basis.G
+    G = basis.G
 
-    state = (basis.G, zero(b))
-    @trace while first(state) > 0
-        k, coef_acc = state
-        coef_acc = @inbounds backsubber(
+    coef = zero(b)
+    for k in G:-1:1
+        coef = backsubber(
             k,
-            coef_acc,
+            coef,
             A,
             b,
-            view(k_mask_all, range, k:k),
-            view(k_mask_all, k:k, range),
-            view(upper_mask_all, range, k:k),
+            @inbounds(selectdim(k_mask_all, 2, k)),
+            @inbounds(selectdim(k_mask_transposed_all, 3, k)),
+            @inbounds(selectdim(upper_mask_all, 2, k)),
         )
-        state = (k - 1, coef_acc)
     end
 
-    return last(state)
+    return coef
 end
 
 end
