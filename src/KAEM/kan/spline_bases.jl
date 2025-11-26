@@ -37,16 +37,18 @@ struct B_spline_basis <: AbstractBasis
     O::Int
     G::Int
     S::Int
-    k_mask
-    lower_mask
-    upper_mask
+    fe
+    bs
 end
 
 function B_spline_basis(degree::Int, I::Int, O::Int, G::Int, S::Int)
     k_mask = Lux.f32((1:G) .== (1:G)') .* 1.0f0 |> pu
     lower_mask = Lux.f32((1:G) .> (1:G)') .* 1.0f0 |> pu
     upper_mask = Lux.f32((1:G) .>= (1:G)') .* 1.0f0 |> pu
-    return B_spline_basis(degree, I, O, G, S, k_mask, lower_mask, upper_mask)
+
+    fe = ForwardElim(k_mask, lower_mask, upper_mask)
+    bs = BackSub(k_mask, lower_mask)
+    return B_spline_basis(degree, I, O, G, S, fe, bs)
 end
 
 struct RBF_basis <: AbstractBasis
@@ -54,16 +56,18 @@ struct RBF_basis <: AbstractBasis
     O::Int
     G::Int
     S::Int
-    k_mask
-    lower_mask
-    upper_mask
+    fe
+    bs
 end
 
 function RBF_basis(I::Int, O::Int, G::Int, S::Int)
     k_mask = Lux.f32((1:G) .== (1:G)') .* 1.0f0 |> pu
     lower_mask = Lux.f32((1:G) .> (1:G)') .* 1.0f0 |> pu
     upper_mask = Lux.f32((1:G) .>= (1:G)') .* 1.0f0 |> pu
-    return RBF_basis(I, O, G, S, k_mask, lower_mask, upper_mask)
+
+    fe = ForwardElim(k_mask, lower_mask, upper_mask)
+    bs = BackSub(k_mask, lower_mask)
+    return RBF_basis(I, O, G, S, fe, bs)
 end
 
 struct RSWAF_basis <: AbstractBasis
@@ -71,16 +75,18 @@ struct RSWAF_basis <: AbstractBasis
     O::Int
     G::Int
     S::Int
-    k_mask
-    lower_mask
-    upper_mask
+    fe
+    bs
 end
 
 function RSWAF_basis(I::Int, O::Int, G::Int, S::Int)
     k_mask = Lux.f32((1:G) .== (1:G)') .* 1.0f0 |> pu
     lower_mask = Lux.f32((1:G) .> (1:G)') .* 1.0f0 |> pu
     upper_mask = Lux.f32((1:G) .>= (1:G)') .* 1.0f0 |> pu
-    return RSWAF_basis(I, O, G, S, k_mask, lower_mask, upper_mask)
+
+    fe = ForwardElim(k_mask, lower_mask, upper_mask)
+    bs = BackSub(k_mask, lower_mask)
+    return RSWAF_basis(I, O, G, S, fe, bs)
 end
 
 struct Cheby_basis <: AbstractBasis
@@ -90,9 +96,8 @@ struct Cheby_basis <: AbstractBasis
     O::Int
     G::Int
     S::Int
-    k_mask
-    lower_mask
-    upper_mask
+    fe
+    bs
 end
 
 function Cheby_basis(degree::Int, I::Int, O::Int, S::Int)
@@ -101,7 +106,10 @@ function Cheby_basis(degree::Int, I::Int, O::Int, S::Int)
     k_mask = Lux.f32((1:G) .== (1:G)') .* 1.0f0 |> pu
     lower_mask = Lux.f32((1:G) .> (1:G)') .* 1.0f0 |> pu
     upper_mask = Lux.f32((1:G) .>= (1:G)') .* 1.0f0 |> pu
-    return Cheby_basis(degree, lin, I, O, G, S, k_mask, lower_mask, upper_mask)
+
+    fe = ForwardElim(k_mask, lower_mask, upper_mask)
+    bs = BackSub(k_mask, lower_mask)
+    return Cheby_basis(degree, lin, I, O, G, S, fe, bs)
 end
 
 function (b::B_spline_basis)(
@@ -215,11 +223,6 @@ function curve2coef(
     )
     B = b(x, grid, σ, scale; init = init)
 
-    G = b.G
-    k_mask = init ? Float32.((1:G) .== (1:G)') : b.k_mask
-    lower_mask = init ? Float32.((1:G) .> (1:G)') : b.lower_mask
-    upper_mask = init ? Float32.((1:G) .>= (1:G)') : b.upper_mask
-
     A, b_vec = regularize(
         permutedims(B, (2, 3, 1)),
         permutedims(y, (3, 2, 1)),
@@ -264,8 +267,8 @@ function coef2curve_FFT(
     I, O, G, S = b.I, b.O, b.G, b.S
 
     even, odd = b(x_eval, grid, σ)
-    even = reshape(permutedims(even, (1, 3, 2)), I, 1, S, G)
-    odd = reshape(permutedims(odd, (1, 3, 2)), I, 1, S, G)
+    even = reshape(PermutedDimsArray(even, (1, 3, 2)), I, 1, S, G)
+    odd = reshape(PermutedDimsArray(odd, (1, 3, 2)), I, 1, S, G)
     even_coef = reshape(coef[1, :, :, :], I, O, 1, G)
     odd_coef = reshape(coef[2, :, :, :], I, O, 1, G)
 
