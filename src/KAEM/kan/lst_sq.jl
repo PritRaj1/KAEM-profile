@@ -40,20 +40,18 @@ function (fe::ForwardElim)(
         A,
         b
     )
-    k_mask = fe.k_mask_all[:, k:k]
-    k_mask_transposed = fe.k_mask_all[k:k, :]
-    lower_mask = fe.lower_mask_all[:, k:k]
-    upper_mask = fe.upper_mask_all[:, k:k]
-    upper_mask_transposed = fe.upper_mask_all[k:k, :]
+    k_mask = fe.k_mask_all[:, k]
+    lower_mask = fe.lower_mask_all[:, k]
+    upper_mask = fe.upper_mask_all[:, k]
 
-    pivot = sum(A .* k_mask .* k_mask_transposed, dims = (1, 2))
+    pivot = sum(A .* k_mask .* k_mask', dims = (1, 2))
     pivot_row = sum(A .* k_mask; dims = 1)
-    pivot_col = sum(A .* k_mask_transposed; dims = 2)
+    pivot_col = sum(A .* k_mask'; dims = 2)
 
     factors = pivot_col .* lower_mask ./ pivot
 
     # Rank-1 update
-    elimination_mask = lower_mask .* upper_mask_transposed
+    elimination_mask = lower_mask .* upper_mask'
     A = A .- (factors .* pivot_row) .* elimination_mask
 
     pivot_b = sum(b .* k_mask; dims = 1)
@@ -93,11 +91,10 @@ function (bs::BackSub)(
         A,
         b
     )
-    k_mask = bs.k_mask_all[:, k:k]
-    k_mask_transposed = bs.k_mask_all[k:k, :]
-    upper_mask = bs.upper_mask_all[:, k:k]
+    k_mask = bs.k_mask_all[:, k]
+    upper_mask = bs.upper_mask_all[:, k]
 
-    diag_elem = sum(A .* k_mask .* k_mask_transposed; dims = (1, 2))
+    diag_elem = sum(A .* k_mask .* k_mask'; dims = (1, 2))
     rhs_elem = sum(b .* k_mask; dims = 1)
 
     upper_row = sum(A .* k_mask; dims = 1)

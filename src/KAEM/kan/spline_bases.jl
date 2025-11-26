@@ -224,8 +224,8 @@ function curve2coef(
     B = b(x, grid, σ, scale; init = init)
 
     A, b_vec = regularize(
-        permutedims(B, (2, 3, 1)),
-        permutedims(y, (3, 2, 1)),
+        PermutedDimsArray(B, (2, 3, 1)),
+        PermutedDimsArray(y, (3, 2, 1)),
         b;
         ε = ε,
         init = init
