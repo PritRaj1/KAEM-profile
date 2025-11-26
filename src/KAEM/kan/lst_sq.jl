@@ -34,14 +34,16 @@ function eliminator(
         A,
         b,
         k_mask_all,
+        k_mask_transposed_all,
         lower_mask_all,
-        upper_mask_all
+        upper_mask_all,
+        upper_mask_transposed_all
     )
     k_mask = k_mask_all[:, k]
-    k_mask_transposed = k_mask_all[k:k, :]
+    k_mask_transposed = k_mask_transposed_all[:, :, k]
     lower_mask = lower_mask_all[:, k]
     upper_mask = upper_mask_all[:, k]
-    upper_mask_transposed = upper_mask_all[k:k, :]
+    upper_mask_transposed = upper_mask_transposed_all[:, :, k]
 
     pivot = sum(A .* k_mask .* k_mask_transposed, dims = (1, 2))
     pivot_row = sum(A .* k_mask; dims = 1)
@@ -66,8 +68,10 @@ function forward_elimination(
     )
     G = basis.G
     k_mask_all = basis.k_mask .* 1.0f0
+    k_mask_transposed_all = basis.k_mask_transposed .* 1.0f0
     lower_mask_all = basis.lower_mask .* 1.0f0
     upper_mask_all = basis.upper_mask .* 1.0f0
+    upper_mask_transposed_all = basis.upper_mask_transposed .* 1.0f0
 
     state = (1, A, b)
     @trace while first(state) < G
@@ -77,8 +81,10 @@ function forward_elimination(
             A_acc,
             b_acc,
             k_mask_all,
+            k_mask_transposed_all,
             lower_mask_all,
-            upper_mask_all
+            upper_mask_all,
+            upper_mask_transposed_all
         )
         state = (k + 1, A_acc, b_acc)
     end
@@ -92,10 +98,11 @@ function backsubber(
         A,
         b,
         k_mask_all,
+        k_mask_transposed_all,
         upper_mask_all,
     )
     k_mask = k_mask_all[:, k]
-    k_mask_transposed = k_mask_all[k:k, :]
+    k_mask_transposed = k_mask_transposed_all[:, :, k]
     upper_mask = upper_mask_all[:, k]
 
     diag_elem = sum(A .* k_mask .* k_mask_transposed; dims = (1, 2))
@@ -118,6 +125,7 @@ function backward_substitution(
         basis,
     )
     k_mask_all = basis.k_mask .* 1.0f0
+    k_mask_transposed_all = basis.k_mask_transposed .* 1.0f0
     upper_mask_all = basis.lower_mask .* 1.0f0
 
     state = (basis.G, zero(b))
@@ -129,6 +137,7 @@ function backward_substitution(
             A,
             b,
             k_mask_all,
+            k_mask_transposed_all,
             upper_mask_all
         )
         state = (k - 1, coef_acc)

@@ -38,15 +38,28 @@ struct B_spline_basis <: AbstractBasis
     G
     S
     k_mask
+    k_mask_transposed
     lower_mask
     upper_mask
+    upper_mask_transposed
 end
 
 function B_spline_basis(degree::Int, I::Int, O::Int, G::Int, S::Int)
     k_mask = Lux.f32((1:G) .== (1:G)')
     lower_mask = Lux.f32((1:G) .> (1:G)')
     upper_mask = Lux.f32((1:G) .>= (1:G)')
-    return B_spline_basis(degree, I, O, G, S, k_mask, lower_mask, upper_mask)
+    return B_spline_basis(
+        degree,
+        I,
+        O,
+        G,
+        S,
+        k_mask,
+        reshape(k_mask, 1, G, G),
+        lower_mask,
+        upper_mask,
+        reshape(upper_mask, 1, G, G)
+    )
 end
 
 struct RBF_basis <: AbstractBasis
@@ -55,15 +68,27 @@ struct RBF_basis <: AbstractBasis
     G
     S
     k_mask
+    k_mask_transposed
     lower_mask
     upper_mask
+    upper_mask_transposed
 end
 
 function RBF_basis(I::Int, O::Int, G::Int, S::Int)
     k_mask = Lux.f32((1:G) .== (1:G)')
     lower_mask = Lux.f32((1:G) .> (1:G)')
     upper_mask = Lux.f32((1:G) .>= (1:G)')
-    return RBF_basis(I, O, G, S, k_mask, lower_mask, upper_mask)
+    return RBF_basis(
+        I,
+        O,
+        G,
+        S,
+        k_mask,
+        reshape(k_mask, 1, G, G),
+        lower_mask,
+        upper_mask,
+        reshape(upper_mask, 1, G, G)
+    )
 end
 
 struct RSWAF_basis <: AbstractBasis
@@ -72,15 +97,27 @@ struct RSWAF_basis <: AbstractBasis
     G
     S
     k_mask
+    k_mask_transposed
     lower_mask
     upper_mask
+    upper_mask_transposed
 end
 
 function RSWAF_basis(I::Int, O::Int, G::Int, S::Int)
     k_mask = Lux.f32((1:G) .== (1:G)')
     lower_mask = Lux.f32((1:G) .> (1:G)')
     upper_mask = Lux.f32((1:G) .>= (1:G)')
-    return RSWAF_basis(I, O, G, S, k_mask, lower_mask, upper_mask)
+    return RSWAF_basis(
+        I,
+        O,
+        G,
+        S,
+        k_mask,
+        reshape(k_mask, 1, G, G),
+        lower_mask,
+        upper_mask,
+        reshape(upper_mask, 1, G, G)
+    )
 end
 
 struct Cheby_basis <: AbstractBasis
@@ -91,8 +128,10 @@ struct Cheby_basis <: AbstractBasis
     G
     S
     k_mask
+    k_mask_transposed
     lower_mask
     upper_mask
+    upper_mask_transposed
 end
 
 function Cheby_basis(degree::Int, I::Int, O::Int, S::Int)
@@ -101,7 +140,19 @@ function Cheby_basis(degree::Int, I::Int, O::Int, S::Int)
     k_mask = Lux.f32((1:G) .== (1:G)')
     lower_mask = Lux.f32((1:G) .> (1:G)')
     upper_mask = Lux.f32((1:G) .>= (1:G)')
-    return Cheby_basis(degree, lin, I, O, G, S, k_mask, lower_mask, upper_mask)
+    return Cheby_basis(
+        degree,
+        lin,
+        I,
+        O,
+        G,
+        S,
+        k_mask,
+        reshape(k_mask, 1, G, G),
+        lower_mask,
+        upper_mask,
+        reshape(upper_mask, 1, G, G)
+    )
 end
 
 function (b::B_spline_basis)(
