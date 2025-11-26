@@ -26,7 +26,7 @@ function regularize(B_i, y_i, basis; ε = 1.0f-4, init = false)
 
     eye = 1:G .== (1:G)' |> Lux.f32
     A = @. A + ε * eye
-    return A, b
+    return A .* 1.0f0, b .* 1.0f0
 end
 
 
