@@ -37,13 +37,14 @@ function eliminator(
         k_mask_transposed_all,
         lower_mask_all,
         upper_mask_all,
-        upper_mask_transposed_all
+        upper_mask_transposed_all,
+        range,
     )
-    k_mask = k_mask_all[:, k]
-    k_mask_transposed = k_mask_transposed_all[:, :, k]
-    lower_mask = lower_mask_all[:, k]
-    upper_mask = upper_mask_all[:, k]
-    upper_mask_transposed = upper_mask_transposed_all[:, :, k]
+    k_mask = k_mask_all[range, k]
+    k_mask_transposed = k_mask_transposed_all[1:1, range, k]
+    lower_mask = lower_mask_all[range, k]
+    upper_mask = upper_mask_all[range, k]
+    upper_mask_transposed = upper_mask_transposed_all[1:1, range, k]
 
     pivot = sum(A .* k_mask .* k_mask_transposed, dims = (1, 2))
     pivot_row = sum(A .* k_mask; dims = 1)
@@ -72,6 +73,7 @@ function forward_elimination(
     lower_mask_all = basis.lower_mask .* 1.0f0
     upper_mask_all = basis.upper_mask .* 1.0f0
     upper_mask_transposed_all = basis.upper_mask_transposed .* 1.0f0
+    range = 1:G
 
     state = (1, A, b)
     @trace while first(state) < G
@@ -84,7 +86,8 @@ function forward_elimination(
             k_mask_transposed_all,
             lower_mask_all,
             upper_mask_all,
-            upper_mask_transposed_all
+            upper_mask_transposed_all,
+            range
         )
         state = (k + 1, A_acc, b_acc)
     end
@@ -100,10 +103,11 @@ function backsubber(
         k_mask_all,
         k_mask_transposed_all,
         upper_mask_all,
+        range
     )
-    k_mask = k_mask_all[:, k]
-    k_mask_transposed = k_mask_transposed_all[:, :, k]
-    upper_mask = upper_mask_all[:, k]
+    k_mask = k_mask_all[range, k]
+    k_mask_transposed = k_mask_transposed_all[1:1, range, k]
+    upper_mask = upper_mask_all[range, k]
 
     diag_elem = sum(A .* k_mask .* k_mask_transposed; dims = (1, 2))
     rhs_elem = sum(b .* k_mask; dims = 1)
@@ -127,6 +131,7 @@ function backward_substitution(
     k_mask_all = basis.k_mask .* 1.0f0
     k_mask_transposed_all = basis.k_mask_transposed .* 1.0f0
     upper_mask_all = basis.lower_mask .* 1.0f0
+    range = 1:basis.G
 
     state = (basis.G, zero(b))
     @trace while first(state) > 0
@@ -138,7 +143,8 @@ function backward_substitution(
             b,
             k_mask_all,
             k_mask_transposed_all,
-            upper_mask_all
+            upper_mask_all,
+            range
         )
         state = (k - 1, coef_acc)
     end
