@@ -33,19 +33,12 @@ function eliminator(
         k,
         A,
         b,
-        k_mask_all,
-        k_mask_transposed_all,
-        lower_mask_all,
-        upper_mask_all,
-        upper_mask_transposed_all,
-        range,
+        k_mask,
+        k_mask_transposed,
+        lower_mask,
+        upper_mask,
+        upper_mask_transposed,
     )
-    k_mask = k_mask_all[range, k]
-    k_mask_transposed = k_mask_transposed_all[1:1, range, k]
-    lower_mask = lower_mask_all[range, k]
-    upper_mask = upper_mask_all[range, k]
-    upper_mask_transposed = upper_mask_transposed_all[1:1, range, k]
-
     pivot = sum(A .* k_mask .* k_mask_transposed, dims = (1, 2))
     pivot_row = sum(A .* k_mask; dims = 1)
     pivot_col = sum(A .* k_mask_transposed; dims = 2)
@@ -82,12 +75,11 @@ function forward_elimination(
             k,
             A_acc,
             b_acc,
-            k_mask_all,
-            k_mask_transposed_all,
-            lower_mask_all,
-            upper_mask_all,
-            upper_mask_transposed_all,
-            range
+            view(k_mask_all, range, k),
+            view(k_mask_transposed_all, 1:1, range, k),
+            view(lower_mask_all, range, k),
+            view(upper_mask_all, range, k),
+            view(upper_mask_transposed_all, 1:1, range, k),
         )
         state = (k + 1, A_acc, b_acc)
     end
@@ -100,15 +92,10 @@ function backsubber(
         coef,
         A,
         b,
-        k_mask_all,
-        k_mask_transposed_all,
-        upper_mask_all,
-        range
+        k_mask,
+        k_mask_transposed,
+        upper_mask,
     )
-    k_mask = k_mask_all[range, k]
-    k_mask_transposed = k_mask_transposed_all[1:1, range, k]
-    upper_mask = upper_mask_all[range, k]
-
     diag_elem = sum(A .* k_mask .* k_mask_transposed; dims = (1, 2))
     rhs_elem = sum(b .* k_mask; dims = 1)
 
@@ -118,7 +105,6 @@ function backsubber(
 
     new_coef_k = (rhs_elem .- sum_term) ./ diag_elem
     coef = coef .+ new_coef_k .* k_mask
-
     return coef
 end
 
@@ -141,10 +127,9 @@ function backward_substitution(
             coef_acc,
             A,
             b,
-            k_mask_all,
-            k_mask_transposed_all,
-            upper_mask_all,
-            range
+            view(k_mask_all, range, k),
+            view(k_mask_transposed_all, 1:1, range, k),
+            view(upper_mask_all, range, k),
         )
         state = (k - 1, coef_acc)
     end
