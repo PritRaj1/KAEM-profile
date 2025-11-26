@@ -11,6 +11,7 @@ export extend_grid,
     Cheby_basis
 
 using ComponentArrays, LinearAlgebra, Lux
+using Reactant: @allowscalar
 
 using ..Utils
 
@@ -43,9 +44,9 @@ struct B_spline_basis <: AbstractBasis
 end
 
 function B_spline_basis(degree::Int, I::Int, O::Int, G::Int, S::Int)
-    k_mask = Float32.((1:G) .== (1:G)') |> pu
-    lower_mask = Float32.((1:G) .> (1:G)') |> pu
-    upper_mask = Float32.((1:G) .>= (1:G)') |> pu
+    k_mask = Lux.f32((1:G) .== (1:G)') .* 1.0f0 |> pu
+    lower_mask = Lux.f32((1:G) .> (1:G)') .* 1.0f0 |> pu
+    upper_mask = Lux.f32((1:G) .>= (1:G)') .* 1.0f0 |> pu
     return B_spline_basis(degree, I, O, G, S, k_mask, lower_mask, upper_mask)
 end
 
@@ -60,9 +61,9 @@ struct RBF_basis <: AbstractBasis
 end
 
 function RBF_basis(I::Int, O::Int, G::Int, S::Int)
-    k_mask = Float32.((1:G) .== (1:G)') |> pu
-    lower_mask = Float32.((1:G) .> (1:G)') |> pu
-    upper_mask = Float32.((1:G) .>= (1:G)') |> pu
+    k_mask = Lux.f32((1:G) .== (1:G)') .* 1.0f0 |> pu
+    lower_mask = Lux.f32((1:G) .> (1:G)') .* 1.0f0 |> pu
+    upper_mask = Lux.f32((1:G) .>= (1:G)') .* 1.0f0 |> pu
     return RBF_basis(I, O, G, S, k_mask, lower_mask, upper_mask)
 end
 
@@ -77,9 +78,9 @@ struct RSWAF_basis <: AbstractBasis
 end
 
 function RSWAF_basis(I::Int, O::Int, G::Int, S::Int)
-    k_mask = Float32.((1:G) .== (1:G)') |> pu
-    lower_mask = Float32.((1:G) .> (1:G)') |> pu
-    upper_mask = Float32.((1:G) .>= (1:G)') |> pu
+    k_mask = Lux.f32((1:G) .== (1:G)') .* 1.0f0 |> pu
+    lower_mask = Lux.f32((1:G) .> (1:G)') .* 1.0f0 |> pu
+    upper_mask = Lux.f32((1:G) .>= (1:G)') .* 1.0f0 |> pu
     return RSWAF_basis(I, O, G, S, k_mask, lower_mask, upper_mask)
 end
 
@@ -98,9 +99,9 @@ end
 function Cheby_basis(degree::Int, I::Int, O::Int, S::Int)
     lin = collect(Float32, 0:degree)'
     G = degree + 1
-    k_mask = Float32.((1:G) .== (1:G)') |> pu
-    lower_mask = Float32.((1:G) .> (1:G)') |> pu
-    upper_mask = Float32.((1:G) .>= (1:G)') |> pu
+    k_mask = Lux.f32((1:G) .== (1:G)') .* 1.0f0 |> pu
+    lower_mask = Lux.f32((1:G) .> (1:G)') .* 1.0f0 |> pu
+    upper_mask = Lux.f32((1:G) .>= (1:G)') .* 1.0f0 |> pu
     return Cheby_basis(degree, lin, I, O, G, S, k_mask, lower_mask, upper_mask)
 end
 
@@ -213,20 +214,24 @@ function curve2coef(
         init = false,
         ε = 1.0f-4
     )
-    J, O, G = b.I, b.O, b.G
-    S = init ? size(x, 2) : b.S
     B = b(x, grid, σ, scale; init = init)
-    B = reshape(B, G, S, J)
-    y = reshape(y, S, O, J)
 
+    G = b.G
     k_mask = init ? Float32.((1:G) .== (1:G)') : b.k_mask
     lower_mask = init ? Float32.((1:G) .> (1:G)') : b.lower_mask
     upper_mask = init ? Float32.((1:G) .>= (1:G)') : b.upper_mask
 
-    A, b_vec = regularize(B, y, J, O, G, S; ε = ε)
-    A, b_vec = forward_elimination(A, b_vec, G, k_mask, lower_mask, upper_mask)
-    coef = dropdims(backward_substitution(A, b_vec, G, k_mask, lower_mask); dims = 2)
-    return permutedims(coef, (3, 2, 1))
+    A, b_vec = regularize(
+        permutedims(B, (2, 3, 1)),
+        permutedims(y, (3, 2, 1)),
+        b;
+        ε = ε,
+        init = init
+    )
+
+    A, b_vec = forward_elimination(A, b_vec, b)
+    coef = dropdims(backward_substitution(A, b_vec, b); dims = 2)
+    return @allowscalar permutedims(coef, (3, 2, 1))
 end
 
 ## FFT basis functions ###
