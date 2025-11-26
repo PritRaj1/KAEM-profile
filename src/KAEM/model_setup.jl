@@ -85,20 +85,10 @@ function setup_training(
     # Default training criterion
     @reset model.loss_fcn = begin
 
-        wrapped = (p, sk, sl, xi, ti, r, sri) ->
-        importance_loss(
-            p,
-            sk,
-            sl,
-            model,
-            xi,
-            ti,
-            r,
-            sri,
-        )
+        static_loss = ImportanceLoss(model)
 
         if MLIR
-            Reactant.@compile wrapped(
+            Reactant.@compile static_loss(
                 ps,
                 st_kan,
                 st_lux,
@@ -108,7 +98,7 @@ function setup_training(
                 swap_replica_idxs
             )
         else
-            wrapped
+            static_loss
         end
     end
 
@@ -126,20 +116,10 @@ function setup_training(
 
         @reset model.loss_fcn = begin
 
-            wrapped = (p, sk, sl, xi, ti, r, sri) ->
-            thermodynamic_loss(
-                p,
-                sk,
-                sl,
-                model,
-                xi,
-                ti,
-                r,
-                sri,
-            )
+            static_loss = ThermoLoss(model)
 
             if MLIR
-                Reactant.@compile wrapped(
+                Reactant.@compile static_loss(
                     ps,
                     st_kan,
                     st_lux,
@@ -149,29 +129,18 @@ function setup_training(
                     swap_replica_idxs
                 )
             else
-                wrapped
+                static_loss
             end
         end
-        GC.gc()
         println("Posterior sampler: Thermo ULA")
 
     elseif model.MALA || model.prior.bool_config.ula
 
-        wrapped = (p, sk, sl, xi, ti, r, sri) ->
-        langevin_loss(
-            p,
-            sk,
-            sl,
-            model,
-            xi,
-            ti,
-            r,
-            sri,
-        )
+        static_loss = LangevinLoss(model)
 
         @reset model.loss_fcn = begin
             if MLIR
-                Reactant.@compile wrapped(
+                Reactant.@compile static_loss(
                     ps,
                     st_kan,
                     st_lux,
@@ -181,7 +150,7 @@ function setup_training(
                     swap_replica_idxs
                 )
             else
-                wrapped
+                static_loss
             end
         end
     else

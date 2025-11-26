@@ -27,6 +27,7 @@ using .DataUtils: get_vision_dataset, get_text_dataset
 
 mutable struct KAEM_trainer{T <: Float32}
     model::Any
+    grid_updater::Any
     cnn::Bool
     o::opt
     dataset_name::AbstractString
@@ -146,6 +147,7 @@ function init_trainer(
 
     return KAEM_trainer(
         model,
+        GridUpdater(model),
         cnn,
         optimizer,
         dataset_name,
@@ -188,8 +190,7 @@ function train!(t::KAEM_trainer; train_idx::Int = 1)
             nothing
     )
 
-    grid_compiled = Reactant.@compile update_model_grid(
-        t.model,
+    grid_compiled = Reactant.@compile t.grid_updater(
         t.x,
         t.ps,
         t.st_kan,

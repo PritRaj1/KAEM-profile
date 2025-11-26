@@ -1,6 +1,6 @@
 module ThermodynamicIntegration
 
-export thermodynamic_loss
+export ThermoLoss
 
 using ComponentArrays, Random, Enzyme, Statistics, Lux
 
@@ -167,11 +167,14 @@ function grad_thermo_llhood(
     )
 end
 
-function thermodynamic_loss(
+struct ThermoLoss
+    model
+end
+
+function (l::ThermoLoss)(
         ps,
         st_kan,
         st_lux,
-        model,
         x,
         train_idx,
         rng,
@@ -181,7 +184,7 @@ function thermodynamic_loss(
         ps,
         st_kan,
         Lux.trainmode(st_lux),
-        model,
+        l.model,
         x;
         train_idx = train_idx,
         rng = rng,
@@ -189,7 +192,7 @@ function thermodynamic_loss(
     )
     st_lux_ebm, st_lux_gen = st_lux.ebm, st_lux.gen
     z_prior, st_ebm =
-        model.sample_prior(model, ps, st_kan, st_lux, rng)
+        l.model.sample_prior(l.model, ps, st_kan, st_lux, rng)
 
     ∇ = grad_thermo_llhood(
         ps,
@@ -197,7 +200,7 @@ function thermodynamic_loss(
         z_prior,
         x,
         Δt,
-        model,
+        l.model,
         st_kan,
         st_lux_ebm,
         st_lux_gen,
@@ -211,7 +214,7 @@ function thermodynamic_loss(
         z_prior,
         x,
         Δt,
-        model,
+        l.model,
         st_kan,
         st_lux_ebm,
         st_lux_gen,

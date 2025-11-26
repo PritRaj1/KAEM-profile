@@ -3,6 +3,7 @@ module LstSqSolver
 export regularize, forward_elimination, backward_substitution, ForwardElim, BackSub
 
 using Lux
+using Reactant: @trace
 
 function regularize(B_i, y_i, basis; ε = 1.0f-4, init = false)
     J, O, G = basis.I, basis.O, basis.G
@@ -33,19 +34,17 @@ function eliminator(
         A,
         b,
         k_mask,
-        k_mask_transposed,
         lower_mask,
         upper_mask,
-        upper_mask_transposed,
     )
-    pivot = sum(A .* k_mask .* k_mask_transposed, dims = (1, 2))
+    pivot = sum(A .* k_mask .* k_mask', dims = (1, 2))
     pivot_row = sum(A .* k_mask; dims = 1)
-    pivot_col = sum(A .* k_mask_transposed; dims = 2)
+    pivot_col = sum(A .* k_mask'; dims = 2)
 
     factors = pivot_col .* lower_mask ./ pivot
 
     # Rank-1 update
-    elimination_mask = lower_mask .* upper_mask_transposed
+    elimination_mask = lower_mask .* upper_mask'
     A = A .- (factors .* pivot_row) .* elimination_mask
 
     pivot_b = sum(b .* k_mask; dims = 1)
@@ -61,27 +60,28 @@ function forward_elimination(
     )
     G = basis.G
     k_mask_all = basis.k_mask .* 1.0f0
-    k_mask_transposed_all = basis.k_mask_transposed .* 1.0f0
     lower_mask_all = basis.lower_mask .* 1.0f0
     upper_mask_all = basis.upper_mask .* 1.0f0
-    upper_mask_transposed_all = basis.upper_mask_transposed .* 1.0f0
 
-    state = (A, b)
-    for k in 1:(G - 1)
-        A_acc, b_acc = state
+    state = (1, A, b)
+    @trace while first(state) < G
+        k, A_acc, b_acc = state
+        k_mask = k_mask_all[:, k]
+        lower_mask = lower_mask_all[:, k]
+        upper_mask = upper_mask_all[:, k]
         A_acc, b_acc = eliminator(
             k,
             A_acc,
             b_acc,
-            @inbounds(selectdim(k_mask_all, 2, k)),
-            @inbounds(selectdim(k_mask_transposed_all, 3, k)),
-            @inbounds(selectdim(lower_mask_all, 2, k)),
-            @inbounds(selectdim(upper_mask_all, 2, k)),
-            @inbounds(selectdim(upper_mask_transposed_all, 3, k)),
+            reshape(k_mask, G),
+            reshape(lower_mask, G),
+            reshape(upper_mask, G),
         )
-        state = (A_acc, b_acc)
+        state = (k + 1, A_acc, b_acc)
     end
-    return state
+
+    _, A, b = state
+    return A, b
 end
 
 function backsubber(
@@ -90,10 +90,9 @@ function backsubber(
         A,
         b,
         k_mask,
-        k_mask_transposed,
         upper_mask,
     )
-    diag_elem = sum(A .* k_mask .* k_mask_transposed; dims = (1, 2))
+    diag_elem = sum(A .* k_mask .* k_mask'; dims = (1, 2))
     rhs_elem = sum(b .* k_mask; dims = 1)
 
     upper_row = sum(A .* k_mask; dims = 1)
@@ -112,24 +111,26 @@ function backward_substitution(
         basis,
     )
     k_mask_all = basis.k_mask .* 1.0f0
-    k_mask_transposed_all = basis.k_mask_transposed .* 1.0f0
     upper_mask_all = basis.lower_mask .* 1.0f0
     G = basis.G
 
-    coef = zero(b)
-    for k in G:-1:1
-        coef = backsubber(
+    state = (G, zero(b))
+    @trace while first(state) > 0
+        k, coef_acc = state
+        k_mask = k_mask_all[:, k]
+        upper_mask = upper_mask_all[:, k]
+        coef_acc = backsubber(
             k,
-            coef,
+            coef_acc,
             A,
             b,
-            @inbounds(selectdim(k_mask_all, 2, k)),
-            @inbounds(selectdim(k_mask_transposed_all, 3, k)),
-            @inbounds(selectdim(upper_mask_all, 2, k)),
+            reshape(k_mask, G),
+            reshape(upper_mask, G),
         )
+        state = (k - 1, coef_acc)
     end
 
-    return coef
+    return last(state)
 end
 
 end

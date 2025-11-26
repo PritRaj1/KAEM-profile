@@ -1,6 +1,6 @@
 module LangevinMLE
 
-export langevin_loss
+export LangevinLoss
 
 using ComponentArrays, Random, Enzyme, Statistics, Lux
 
@@ -110,29 +110,31 @@ function grad_langevin_llhood(
     )
 end
 
+struct LangevinLoss
+    model
+end
 
-function langevin_loss(
+function (l::LangevinLoss)(
         ps,
         st_kan,
         st_lux,
-        model,
         x,
         train_idx,
         rng,
         swap_replica_idxs,
     )
     z_posterior, st_new, noise =
-        sample_langevin(ps, st_kan, Lux.trainmode(st_lux), model, x; rng = rng)
+        sample_langevin(ps, st_kan, Lux.trainmode(st_lux), l.model, x; rng = rng)
     st_lux_ebm, st_lux_gen = st_new.ebm, st_new.gen
     z_prior, st_lux_ebm =
-        model.sample_prior(model, ps, st_kan, st_lux, rng)
+        l.model.sample_prior(l.model, ps, st_kan, st_lux, rng)
 
     ∇ = grad_langevin_llhood(
         ps,
         z_posterior,
         z_prior,
         x,
-        model,
+        l.model,
         st_kan,
         st_lux_ebm,
         st_lux_gen,
@@ -144,7 +146,7 @@ function langevin_loss(
         z_posterior,
         z_prior,
         x,
-        model,
+        l.model,
         st_kan,
         st_lux_ebm,
         st_lux_gen,

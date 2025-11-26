@@ -1,6 +1,6 @@
 module ModelGridUpdating
 
-export update_model_grid
+export GridUpdater
 
 using Accessors, ComponentArrays, Lux, NNlib, LinearAlgebra, Random
 
@@ -12,8 +12,11 @@ using ..KAEM_model.EBM_Model
 include("kan/grid_updating.jl")
 using .GridUpdating
 
-function update_model_grid(
-        model,
+struct GridUpdater
+    model
+end
+
+function (gu::GridUpdater)(
         x,
         ps,
         st_kan,
@@ -24,10 +27,9 @@ function update_model_grid(
         rng,
     )
     """
-    Update the grid of the likelihood model using samples from the prior.
+    Update the grid using samples from the prior.
 
     Args:
-        model: The model.
         x: Data samples.
         ps: The parameters of the model.
         st_kan: The states of the KAN model.
@@ -36,12 +38,12 @@ function update_model_grid(
         rng: The random number generator.
 
     Returns:
-        The updated model.
         The updated params.
         The updated KAN states.
         The updated Lux states. 
     """
 
+    model = gu.model
     z = nothing
     if model.update_prior_grid
 

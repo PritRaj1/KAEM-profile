@@ -3,7 +3,7 @@ module ImportanceSampling
 using ComponentArrays, Random, Enzyme, Statistics, Lux
 using NNlib: softmax
 
-export importance_loss
+export ImportanceLoss
 
 using ..Utils
 using ..KAEM_model
@@ -173,11 +173,14 @@ function grad_importance_llhood(
     )
 end
 
-function importance_loss(
+struct ImportanceLoss
+    model
+end
+
+function (l::ImportanceLoss)(
         ps,
         st_kan,
         st_lux,
-        model,
         x,
         train_idx,
         rng,
@@ -185,7 +188,7 @@ function importance_loss(
     )
 
     z_posterior, z_prior, st_lux_ebm, st_lux_gen, weights_resampled, resampled_mask, noise =
-        sample_importance(ps, st_kan, st_lux, model, x; rng = rng)
+        sample_importance(ps, st_kan, st_lux, l.model, x; rng = rng)
 
     st_ebm = Lux.trainmode(st_lux_ebm)
     st_gen = Lux.trainmode(st_lux_gen)
@@ -197,7 +200,7 @@ function importance_loss(
         x,
         weights_resampled,
         resampled_mask,
-        model,
+        l.model,
         st_kan,
         st_ebm,
         st_gen,
@@ -211,7 +214,7 @@ function importance_loss(
         x,
         weights_resampled,
         resampled_mask,
-        model,
+        l.model,
         st_kan,
         st_ebm,
         st_gen,
