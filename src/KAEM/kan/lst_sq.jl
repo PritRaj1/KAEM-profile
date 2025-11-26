@@ -1,7 +1,7 @@
 module LstSqSolver
 
 export regularize, forward_elimination, backward_substitution
-using Reactant: @trace, @allowscalar
+using Reactant: @trace
 
 using Lux
 
@@ -100,7 +100,7 @@ function backward_acc(
     rhs_elem = sum(b .* k_mask; dims = 1)
 
     upper_row = sum(A .* k_mask; dims = 1)
-    upper_coef = @allowscalar permutedims(coef .* upper_mask, (2, 1, 3, 4))
+    upper_coef = PermutedDimsArray(coef .* upper_mask, (2, 1, 3, 4))
     sum_term = sum(upper_row .* upper_coef; dims = 2)
 
     new_coef_k = (rhs_elem .- sum_term) ./ diag_elem
