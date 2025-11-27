@@ -147,24 +147,26 @@ function (gen::KAN_Generator)(
     z = dropdims(sum(z, dims = 2), dims = 2)
 
     # KAN functions
-    st_lyrnorm_new = st_lyrnorm
-    for i in 1:gen.depth
-        z, st_layer_new =
-            gen.bool_config.layernorm ?
-            Lux.apply(
-                gen.layernorms[i],
-                z,
-                ps.layernorm[symbol_map[i]],
-                st_lyrnorm_new[symbol_map[i]],
-            ) : (z, nothing)
+    state = (1, st_lyrnorm, z)
+    while first(state) <= gen.depth
+        i, st_lyrnorm_new, z_acc = state
+
         if gen.bool_config.layernorm
+            z_acc, st_layer_new = Lux.apply(
+                gen.layernorms[i],
+                z_acc,
+                ps.layernorm[symbol_map[i]],
+                st_lyrnorm_new[symbol_map[i]]
+            )
             @reset st_lyrnorm_new[symbol_map[i]] = st_layer_new
         end
 
-        z = Lux.apply(gen.Φ_fcns[i], z, ps.fcn[symbol_map[i]], st_kan[symbol_map[i]])
-        z = dropdims(sum(z, dims = 1); dims = 1)
+        z_acc = Lux.apply(gen.Φ_fcns[i], z_acc, ps.fcn[symbol_map[i]], st_kan[symbol_map[i]])
+        z_acc = dropdims(sum(z_acc, dims = 1); dims = 1)
+        state = (i + 1, st_lyrnorm_new, z_acc)
     end
 
+    _, st_lyrnorm_new, z = state
     return reshape(z, gen.x_shape..., gen.s_size), st_lyrnorm_new
 end
 

@@ -168,6 +168,6 @@ end
     test_pca()
     test_mala_loss()
     test_cnn_loss()
-    # test_cnn_residual_loss()
+    test_cnn_residual_loss()
     # test_seq_loss()
 end

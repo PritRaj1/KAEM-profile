@@ -268,7 +268,7 @@ function backward_substitution(
         b,
         basis,
     )
-    G = basis.G
+    J, O, G = basis.I, basis.O, basis.G
     k_mask_all = Lux.f32(basis.k_mask) .* 1.0f0
     upper_mask_all = Lux.f32(basis.lower_mask) .* 1.0f0
 
@@ -281,6 +281,7 @@ function backward_substitution(
             b,
             k_mask_all,
             upper_mask_all,
+            J, O, G
         )
     end
 

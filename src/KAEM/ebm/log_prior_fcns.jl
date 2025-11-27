@@ -3,7 +3,7 @@ module LogPriorFCNs
 export LogPriorULA, LogPriorMix, LogPriorUnivariate
 
 using NNlib: logsoftmax, softmax
-using LinearAlgebra, Accessors, Random, ComponentArrays
+using LinearAlgebra, Accessors, Random, ComponentArrays, Lux
 
 using ..Utils
 using ..EBM_Model
@@ -58,6 +58,11 @@ function (lp::LogPriorULA)(
     return dropdims(sum(f; dims = 1); dims = 1) + log_π0, st_lyrnorm_new
 end
 
+function reduce_q(i, z, ps, st_kan, st_lyrnorm, ebm)
+    f, st_lyrnorm_new = ebm(ps, st_kan, st_lyrnorm, z[i, :, :])
+    return f[i, :, :], st_lyrnorm_new
+end
+
 function (lp::LogPriorUnivariate)(
         z,
         ebm,
@@ -91,12 +96,24 @@ function (lp::LogPriorUnivariate)(
         lp.normalize && !ula ?
         log_π0 .- log_norm(first(ebm.quad(ebm, ps, st_kan, st_lyrnorm)), lp.ε) : log_π0
 
-    f_diag, st_lyrnorm_new = similar(z), st_lyrnorm
-    for i in 1:Q
-        f, st_lyrnorm_new = ebm(ps, st_kan, st_lyrnorm_new, z[i, :, :])
-        f_diag[i, :, :] = selectdim(f, 1, i)
+    st_lyrnorm_new = st_lyrnorm
+
+    state = (1, zero(z))
+    while first(state) <= Q
+        i, f_diag = state
+        new_f, st_lyrnorm_new = reduce_q(
+            i,
+            z,
+            ps,
+            st_kan,
+            st_lyrnorm_new,
+            ebm
+        )
+        f_diag[i, :, :] = new_f
+        state = (i + 1, f_diag)
     end
 
+    f_diag = last(state)
     log_p = dropdims(sum(f_diag .+ log_π0; dims = (1, 2)); dims = (1, 2))
     return log_p, st_lyrnorm_new
 end
