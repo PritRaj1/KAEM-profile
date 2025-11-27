@@ -228,7 +228,6 @@ function train!(t::KAEM_trainer; train_idx::Int = 1)
                 train_idx == 1 || (train_idx - t.last_grid_update >= t.grid_update_frequency)
             ) && (t.model.update_llhood_grid || t.model.update_prior_grid)
             t.ps, t.st_kan, t.st_lux = grid_compiled(
-                t.model,
                 t.x,
                 t.ps,
                 t.st_kan,
