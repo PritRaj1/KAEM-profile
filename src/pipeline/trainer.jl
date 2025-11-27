@@ -262,6 +262,7 @@ function train!(t::KAEM_trainer; train_idx::Int = 1)
             grid_updated = 1
 
             t.model.verbose && println("Iter: $(train_idx), Grid updated")
+            GC.gc()
         end
 
         t.loss, grads, st_ebm, st_gen = t.model.loss_fcn(

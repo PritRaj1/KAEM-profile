@@ -3,7 +3,7 @@ module LogPriorFCNs
 export LogPriorULA, LogPriorMix, LogPriorUnivariate
 
 using NNlib: logsoftmax, softmax
-using LinearAlgebra, Accessors, Random, ComponentArrays
+using LinearAlgebra, Accessors, Random, ComponentArrays, Lux
 
 using ..Utils
 using ..EBM_Model
@@ -91,12 +91,18 @@ function (lp::LogPriorUnivariate)(
         lp.normalize && !ula ?
         log_π0 .- log_norm(first(ebm.quad(ebm, ps, st_kan, st_lyrnorm)), lp.ε) : log_π0
 
-    f_diag, st_lyrnorm_new = similar(z), st_lyrnorm
-    for i in 1:Q
-        f, st_lyrnorm_new = ebm(ps, st_kan, st_lyrnorm_new, z[i, :, :])
-        f_diag[i, :, :] = selectdim(f, 1, i)
+    z_qp = z .* 1.0f0
+    mask = Lux.f32((1:Q) .== (1:Q)') .* 1.0f0
+
+    state = (1, st_lyrnorm, z .* 0.0f0)
+    while first(state) <= Q
+        i, st_lyrnorm_new, f_diag = state
+        f, st_lyrnorm_new = ebm(ps, st_kan, st_lyrnorm_new, z_qp[i, :, :])
+        f_diag = f_diag + f .* mask[:, i]
+        state = (i + 1, st_lyrnorm_new, f_diag)
     end
 
+    _, st_lyrnorm_new, f_diag = state
     log_p = dropdims(sum(f_diag .+ log_π0; dims = (1, 2)); dims = (1, 2))
     return log_p, st_lyrnorm_new
 end

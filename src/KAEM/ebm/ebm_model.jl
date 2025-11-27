@@ -187,30 +187,44 @@ function (ebm::EbmModel)(
         st: The updated states of the ebm-prior.
     """
 
-    st_lyrnorm_new = st_lyrnorm
     mid_size = ebm.bool_config.mixture_model ? ebm.p_size : ebm.q_size
     outer_dim = ebm.bool_config.mixture_model ? ebm.q_size * ebm.s_size : ebm.p_size * ebm.s_size
 
-    for i in 1:ebm.depth
-        z, st_layer_new =
-            (ebm.bool_config.layernorm && i != 1) ?
-            Lux.apply(
+    # Process first without layernorm
+    z = Lux.apply(
+        ebm.fcns_qp[1],
+        z,
+        ps.fcn[symbol_map[1]],
+        st_kan[symbol_map[1]]
+    )
+
+    state = (2, st_lyrnorm, z .* 1.0f0)
+    while first(state) <= ebm.depth
+        i, st_lyrnorm_new, z_acc = state
+
+        if ebm.bool_config.layernorm
+            z_acc, st_layer_new = Lux.apply(
                 ebm.layernorms[i - 1],
-                z,
+                z_acc,
                 ps.layernorm[symbol_map[i]],
                 st_lyrnorm_new[symbol_map[i]],
-            ) : (z, nothing)
+            )
 
-        if ebm.bool_config.layernorm && i != 1
             @reset st_lyrnorm_new[symbol_map[i]] = st_layer_new
         end
 
-        z = Lux.apply(ebm.fcns_qp[i], z, ps.fcn[symbol_map[i]], st_kan[symbol_map[i]])
-        z =
-            (i == 1 && !ebm.bool_config.ula) ? reshape(z, mid_size, outer_dim) :
-            dropdims(sum(z, dims = 1); dims = 1)
+        z_acc = Lux.apply(ebm.fcns_qp[i], z_acc, ps.fcn[symbol_map[i]], st_kan[symbol_map[i]])
+
+        if ebm.bool_config.layernorm
+            z_acc = reshape(z_acc, mid_size, outer_dim)
+        else
+            z_acc = dropdims(sum(z_acc, dims = 1); dims = 1)
+        end
+
+        state = (i + 1, st_lyrnorm_new, z_acc)
     end
 
+    _, st_lyrnorm_new, z = state
     z = ebm.bool_config.ula ? z : reshape(z, ebm.q_size, ebm.p_size, ebm.s_size)
     return z, st_lyrnorm_new
 end

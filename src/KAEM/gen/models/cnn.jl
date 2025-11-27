@@ -40,38 +40,45 @@ function forward_with_latent_concat(
         st_lux,
     )
 
-    original_z = z
-    current_z = z .* 1.0f0
-    st_lux_new = st_lux
+    z_first, st_layer_new = Lux.apply(
+        gen.Φ_fcns[1],
+        z,
+        ps.fcn[symbol_map[1]],
+        st_lux.fcn[symbol_map[1]],
+    )
+    @reset st_lux.fcn[symbol_map[1]] = st_layer_new
 
-    for i in 1:(gen.depth)
-        if i > 1
-            upsampled_z = upsample_to_match(original_z .* 1.0f0, current_z .* 1.0f0)
-            current_z = cat(current_z, upsampled_z, dims = 3)
+    state = (1, st_lux, z_first)
+    while first(state) < gen.depth
+        i, st_lux_new, z_acc = state
+        if gen.bool_config.batchnorm
+            z_acc, st_layer_new = Lux.apply(
+                gen.batchnorms[i],
+                current_z,
+                ps.batchnorm[symbol_map[i]],
+                st_lux_new.batchnorm[symbol_map[i]],
+            )
+            @reset st_lux_new.batchnorm[symbol_map[i]] = st_layer_new
         end
 
-        current_z, st_layer_new = Lux.apply(
+        i += 1
+
+        upsampled_z = upsample_to_match(z .* 1.0f0, z_acc .* 1.0f0)
+        z_i = cat(z_acc, upsampled_z, dims = 3)
+
+        z_i, st_layer_new = Lux.apply(
             gen.Φ_fcns[i],
-            current_z,
+            z_i,
             ps.fcn[symbol_map[i]],
             st_lux_new.fcn[symbol_map[i]],
         )
         @reset st_lux_new.fcn[symbol_map[i]] = st_layer_new
 
-        current_z, st_layer_new =
-            (gen.bool_config.batchnorm && i < gen.depth) ?
-            Lux.apply(
-                gen.batchnorms[i],
-                current_z,
-                ps.batchnorm[symbol_map[i]],
-                st_lux_new.batchnorm[symbol_map[i]],
-            ) : (current_z, nothing)
-        if gen.bool_config.batchnorm && i < gen.depth
-            @reset st_lux_new.batchnorm[symbol_map[i]] = st_layer_new
-        end
+        state = (i, st_lux_new, z_i)
     end
 
-    return current_z, st_lux_new
+    _, st_lux_new, z = state
+    return z, st_lux_new
 end
 
 function forward(
@@ -82,24 +89,31 @@ function forward(
         current_layer = 1,
         skip_input = nothing,
     )
-    st_lux_new = st_lux
-    for i in 1:(gen.depth)
-        z, st_layer_new =
-            Lux.apply(gen.Φ_fcns[i], z, ps.fcn[symbol_map[i]], st_lux_new.fcn[symbol_map[i]])
+    state = (1, st_lux, z .* 1.0f0)
+    while first(state) < gen.depth
+        i, st_layer_new, z_acc = state
+        z_acc, st_layer_new =
+            Lux.apply(gen.Φ_fcns[i], z_acc, ps.fcn[symbol_map[i]], st_lux_new.fcn[symbol_map[i]])
         @reset st_lux_new.fcn[symbol_map[i]] = st_layer_new
 
-        z, st_layer_new =
-            (gen.bool_config.batchnorm && i < gen.depth) ?
-            Lux.apply(
+        if gen.bool_config.batchnorm
+            z_acc, st_layer_new = Lux.apply(
                 gen.batchnorms[i],
-                z,
+                z_acc,
                 ps.batchnorm[symbol_map[i]],
                 st_lux_new.batchnorm[symbol_map[i]],
-            ) : (z, nothing)
-        if gen.bool_config.batchnorm && i < gen.depth
-            @reset st_lux_new.batchnorm[symbol_map[i]] = st_layer_new
+            )
+
+            @reset st_lux_new.fcn[symbol_map[i]] = st_layer_new
         end
+
+        state = (i + 1, st_layer_new, z_acc)
     end
+
+    _, st_layer_new, z = state
+    z, st_layer_new =
+        Lux.apply(gen.Φ_fcns[gen.depth], z, ps.fcn[symbol_map[gen.depth]], st_lux_new.fcn[symbol_map[gen.depth]])
+    @reset st_lux_new.fcn[symbol_map[gen.depth]] = st_layer_new
 
     return z, st_lux_new
 end
