@@ -11,7 +11,6 @@ using ConfParser,
     LinearAlgebra,
     ComponentArrays
 
-
 using ..Utils
 using ..UnivariateFunctions
 using ..RefPriors
@@ -225,7 +224,11 @@ function (ebm::EbmModel)(
     end
 
     _, st_lyrnorm_new, z = state
-    z = ebm.bool_config.ula ? z : reshape(z, ebm.q_size, ebm.p_size, ebm.s_size)
+    z = (
+        ebm.bool_config.ula ?
+            z :
+            reshape(z, ebm.q_size, ebm.p_size, ebm.s_size) .* 1.0f0
+    )
     return z, st_lyrnorm_new
 end
 
