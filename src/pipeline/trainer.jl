@@ -169,6 +169,19 @@ function init_trainer(
     )
 end
 
+function logit_test_loss(x, x_gen)
+    idxs = dropdims(argmax(x_gen, dims = 1); dims = 1)
+    return sum(
+        (
+            onecold(x, 1:size(x, 1)) .- getindex.(idxs, 1)
+        ) .^ 2
+    ) / size(x)[end]
+end
+
+function image_test_loss(x, x_gen)
+    return mse(x, x_gen)
+end
+
 function train!(t::KAEM_trainer; train_idx::Int = 1)
 
     num_batches = length(t.model.train_loader)
@@ -207,6 +220,9 @@ function train!(t::KAEM_trainer; train_idx::Int = 1)
         Lux.testmode(t.st_lux),
         t.rng,
     )
+
+    test_loss_fcn = t.gen_type == "logits" ? logit_test_loss : image_test_loss
+    test_loss_compiled = Reactant.@compile test_loss_fcn(t.x, t.x)
 
     # Gradient for a single batch
     function grad_fcn()
@@ -283,17 +299,7 @@ function train!(t::KAEM_trainer; train_idx::Int = 1)
                 )
                 @reset t.st_lux.ebm = st_ebm
                 @reset t.st_lux.gen = st_gen
-                x_gen = Array(x_gen)
-
-                # MSE loss between pixels for images, and max index for logits
-                if t.gen_type == "logits"
-                    idxs = dropdims(argmax(x_gen, dims = 1); dims = 1)
-                    test_loss +=
-                        sum((onecold(x, 1:size(x, 1)) .- getindex.(idxs, 1)) .^ 2) /
-                        size(x)[end]
-                else
-                    test_loss += mse(x, x_gen)
-                end
+                test_loss += test_loss_compiled(pu(x), x_gen)
             end
 
             train_loss = train_loss / num_batches

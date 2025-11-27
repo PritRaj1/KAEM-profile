@@ -197,7 +197,7 @@ function (ebm::EbmModel)(
             Lux.apply(
                 ebm.layernorms[i - 1],
                 z,
-                @view(ps.layernorm[symbol_map[i]]),
+                ps.layernorm[symbol_map[i]],
                 st_lyrnorm_new[symbol_map[i]],
             ) : (z, nothing)
 
@@ -205,7 +205,7 @@ function (ebm::EbmModel)(
             @reset st_lyrnorm_new[symbol_map[i]] = st_layer_new
         end
 
-        z = Lux.apply(ebm.fcns_qp[i], z, @view(ps.fcn[symbol_map[i]]), @view(st_kan[symbol_map[i]]))
+        z = Lux.apply(ebm.fcns_qp[i], z, ps.fcn[symbol_map[i]], st_kan[symbol_map[i]])
         z =
             (i == 1 && !ebm.bool_config.ula) ? reshape(z, mid_size, outer_dim) :
             dropdims(sum(z, dims = 1); dims = 1)

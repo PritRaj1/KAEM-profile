@@ -42,12 +42,12 @@ function update_fcn_grid(
     ids = reshape([div(S * i, num_interval) + 1 for i in 0:(num_interval - 1)], 1, 1, num_interval)
     mask = ids .== (1:S)'
     grid_adaptive = dropdims(sum(mask .* x_sort; dims = 2); dims = 2)
-    grid_adaptive = hcat(grid_adaptive, view(x_sort, :, S:S))
+    grid_adaptive = hcat(grid_adaptive, x_sort[:, S:S])
 
     # Uniform grid
-    h = (view(grid_adaptive, :, num_interval:num_interval) .- view(grid_adaptive, :, 1:1)) ./ num_interval # step size
+    h = (grid_adaptive[:, num_interval:num_interval] .- grid_adaptive[:, 1:1] .* 1.0f0) ./ num_interval # step size
     range = (0:num_interval)' |> pu
-    grid_uniform = h .* range .+ view(grid_adaptive, :, 1:1)
+    grid_uniform = h .* range .+ grid_adaptive[:, 1:1] .* 1.0f0
 
     # Grid is a convex combination of the uniform and adaptive grid
     grid = l.grid_update_ratio .* grid_uniform + (1 - l.grid_update_ratio) .* grid_adaptive

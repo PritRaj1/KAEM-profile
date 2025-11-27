@@ -93,7 +93,7 @@ function (lp::LogPriorUnivariate)(
 
     f_diag, st_lyrnorm_new = similar(z), st_lyrnorm
     for i in 1:Q
-        f, st_lyrnorm_new = ebm(ps, st_kan, st_lyrnorm_new, view(z, i, :, :))
+        f, st_lyrnorm_new = ebm(ps, st_kan, st_lyrnorm_new, z[i, :, :])
         f_diag[i, :, :] = selectdim(f, 1, i)
     end
 

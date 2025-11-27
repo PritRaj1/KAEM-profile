@@ -20,7 +20,7 @@ function sample_langevin(
     )
     z, st_lux, = model.posterior_sampler(ps, st_kan, st_lux, x; rng = rng)
     noise = randn(rng, Float32, model.lkhood.x_shape..., model.batch_size)
-    return view(z, :, :, :, 1), st_lux, noise
+    return z[:, :, :, 1], st_lux, noise
 end
 
 function marginal_llhood(

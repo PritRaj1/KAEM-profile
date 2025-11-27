@@ -154,14 +154,14 @@ function (gen::KAN_Generator)(
             Lux.apply(
                 gen.layernorms[i],
                 z,
-                @view(ps.layernorm[symbol_map[i]]),
+                ps.layernorm[symbol_map[i]],
                 st_lyrnorm_new[symbol_map[i]],
             ) : (z, nothing)
         if gen.bool_config.layernorm
             @reset st_lyrnorm_new[symbol_map[i]] = st_layer_new
         end
 
-        z = Lux.apply(gen.Φ_fcns[i], z, @view(ps.fcn[symbol_map[i]]), @view(st_kan[symbol_map[i]]))
+        z = Lux.apply(gen.Φ_fcns[i], z, ps.fcn[symbol_map[i]], st_kan[symbol_map[i]])
         z = dropdims(sum(z, dims = 1); dims = 1)
     end
 
