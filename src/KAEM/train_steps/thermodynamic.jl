@@ -172,6 +172,7 @@ struct ThermoLoss
 end
 
 function (l::ThermoLoss)(
+        opt_state,
         ps,
         st_kan,
         st_lux,
