@@ -58,13 +58,13 @@ function marginal_llhood(
     for t in 1:num_temps
 
         noise_t = (
-            model.lkhood.SEQ ? view(tempered_noise, :, :, :, t) : (
-                    model.use_pca ? view(tempered_noise, :, :, t) : view(tempered_noise, :, :, :, :, t)
+            model.lkhood.SEQ ? tempered_noise[:, :, :, t] : (
+                    model.use_pca ? tempered_noise[:, :, t] : tempered_noise[:, :, :, :, t]
                 )
         )
 
         ll, st_gen = log_likelihood_MALA(
-            view(z_posterior, :, :, :, t),
+            z_posterior[:, :, :, t],
             x,
             model.lkhood,
             ps.gen,
@@ -78,7 +78,7 @@ function marginal_llhood(
 
     # MLE estimator
     logprior_pos, st_ebm = model.log_prior(
-        view(z_posterior, :, :, :, num_temps),
+        z_posterior[:, :, :, num_temps],
         model.prior,
         ps.ebm,
         st_kan.ebm,

@@ -135,32 +135,32 @@ function (gen::SEQ_Generator)(
     st_lux_new = st_lux
 
     # Projection
-    z, st_layer_new = Lux.apply(gen.Φ_fcns[1], z, @view(ps.fcn[:a]), st_lux_new.fcn[:a])
+    z, st_layer_new = Lux.apply(gen.Φ_fcns[1], z, ps.fcn[:a], st_lux_new.fcn[:a])
     @reset st_lux_new.fcn[:a] = st_layer_new
-    z, st_layer_new = Lux.apply(gen.layernorms[1], z, @view(ps.layernorm[:a]), st_lux_new.layernorm[:a])
+    z, st_layer_new = Lux.apply(gen.layernorms[1], z, ps.layernorm[:a], st_lux_new.layernorm[:a])
     @reset st_lux_new.layernorm[:a] = st_layer_new
 
     z_prev = z
     for t in 2:gen.seq_length
 
         # Self-attention
-        Q, st_layer_new = Lux.apply(gen.attention[1], z, @view(ps.attention[:Q]), st_lux_new.attention[:Q])
+        Q, st_layer_new = Lux.apply(gen.attention[1], z, ps.attention[:Q], st_lux_new.attention[:Q])
         @reset st_lux_new.attention[:Q] = st_layer_new
-        K, st_layer_new = Lux.apply(gen.attention[2], z, @view(ps.attention[:K]), st_lux_new.attention[:K])
+        K, st_layer_new = Lux.apply(gen.attention[2], z, ps.attention[:K], st_lux_new.attention[:K])
         @reset st_lux_new.attention[:K] = st_layer_new
-        V, st_layer_new = Lux.apply(gen.attention[3], z, @view(ps.attention[:V]), st_lux_new.attention[:V])
+        V, st_layer_new = Lux.apply(gen.attention[3], z, ps.attention[:V], st_lux_new.attention[:V])
         @reset st_lux_new.attention[:V] = st_layer_new
 
         attn = scaled_dotprod_attn(Q, K, V, gen.d_model)
         z = @. z + attn
 
         # Feed forward
-        z, st_layer_new = Lux.apply(gen.Φ_fcns[2], z, @view(ps.fcn[:b]), st_lux_new.fcn[:b])
+        z, st_layer_new = Lux.apply(gen.Φ_fcns[2], z, ps.fcn[:b], st_lux_new.fcn[:b])
         @reset st_lux_new.fcn[:b] = st_layer_new
         z, st_layer_new = Lux.apply(
             gen.layernorms[2],
-            @view(z[:, end:end, :]),
-            @view(ps.layernorm[:b]),
+            z[:, end:end, :],
+            ps.layernorm[:b],
             st_lux_new.layernorm[:b],
         )
         @reset st_lux_new.layernorm[:b] = st_layer_new
@@ -170,7 +170,7 @@ function (gen::SEQ_Generator)(
     end
 
     # Output layer
-    z, st_layer_new = Lux.apply(gen.Φ_fcns[3], z, @view(ps.fcn[:c]), st_lux_new.fcn[:c])
+    z, st_layer_new = Lux.apply(gen.Φ_fcns[3], z, ps.fcn[:c], st_lux_new.fcn[:c])
     @reset st_lux_new.fcn[:c] = st_layer_new
 
     return z, st_lux_new

@@ -94,7 +94,7 @@ function sample_mixture(
     Returns:
         z: The samples from the ebm-prior, (num_samples, q). 
     """
-    alpha = @view(ps.dist.α[:, :])
+    alpha = ps.dist.α .* 1.0f0
     if ebm.bool_config.use_attention_kernel
         z = rand(rng, Float32, ebm.q_size, ebm.s_size)
         scale = sqrt(Float32(ebm.s_size))
