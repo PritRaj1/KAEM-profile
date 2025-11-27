@@ -11,7 +11,6 @@ export extend_grid,
     Cheby_basis
 
 using ComponentArrays, LinearAlgebra, Lux, Accessors
-using Reactant: @trace
 
 using ..Utils
 
@@ -245,22 +244,20 @@ function forward_elimination(
         basis,
     )
     G = basis.G
-    k_mask_all = Lux.f32(basis.k_mask) .* 1.0f0
     lower_mask_all = Lux.f32(basis.lower_mask) .* 1.0f0
     upper_mask_all = Lux.f32(basis.upper_mask) .* 1.0f0
 
     state = (1, A, b)
-    @trace while first(state) < G
+    while first(state) < G
         k, A_acc, b_acc = state
-        A_acc, b_acc = eliminator(
+        A_new, b_new = eliminator(
             k,
             A_acc,
             b_acc,
-            k_mask_all,
             lower_mask_all,
             upper_mask_all,
         )
-        state = (k + 1, A_acc, b_acc)
+        state = (k + 1, A_new, b_new)
     end
 
     _, A, b = state
@@ -277,9 +274,9 @@ function backward_substitution(
     upper_mask_all = Lux.f32(basis.lower_mask) .* 1.0f0
 
     state = (G, zero(b))
-    @trace while first(state) > 0
+    while first(state) > 0
         k, coef_acc = state
-        coef_acc = backsubber(
+        new_coef = backsubber(
             k,
             coef_acc,
             A,
@@ -287,7 +284,7 @@ function backward_substitution(
             k_mask_all,
             upper_mask_all,
         )
-        state = (k - 1, coef_acc)
+        state = (k - 1, new_coef)
     end
 
     return last(state)

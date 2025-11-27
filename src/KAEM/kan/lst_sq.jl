@@ -32,17 +32,15 @@ function eliminator(
         k,
         A,
         b,
-        k_mask_all,
         lower_mask_all,
         upper_mask_all,
     )
-    k_mask = k_mask_all[:, k]
-    lower_mask = lower_mask_all[:, k]
-    upper_mask = upper_mask_all[:, k]
+    lower_mask = selectdim(lower_mask_all, 2, k)
+    upper_mask = selectdim(upper_mask_all, 2, k)
 
-    pivot = sum(A .* (k_mask * k_mask'), dims = (1, 2))
-    pivot_row = sum(A .* k_mask; dims = 1)
-    pivot_col = sum(A .* k_mask'; dims = 2)
+    pivot = view(A, k:k, k:k, :, :)
+    pivot_row = view(A, k:k, :, :, :)
+    pivot_col = view(A, :, k:k, :, :)
 
     factors = pivot_col .* lower_mask ./ pivot
 
@@ -50,7 +48,7 @@ function eliminator(
     elimination_mask = lower_mask * upper_mask'
     A = A .- (factors .* pivot_row) .* elimination_mask
 
-    pivot_b = sum(b .* k_mask; dims = 1)
+    pivot_b = view(b, k:k, :, :, :)
     b = b .- factors .* pivot_b
     return A, b
 end
@@ -63,13 +61,13 @@ function backsubber(
         k_mask_all,
         upper_mask_all,
     )
-    k_mask = k_mask_all[:, k]
-    upper_mask = upper_mask_all[:, k]
+    k_mask = selectdim(k_mask_all, 2, k)
+    upper_mask = selectdim(upper_mask_all, 2, k)
 
-    diag_elem = sum(A .* (k_mask * k_mask'); dims = (1, 2))
-    rhs_elem = sum(b .* k_mask; dims = 1)
+    diag_elem = view(A, k:k, k:k, :, :)
+    rhs_elem = view(b, k:k, :, :, :)
 
-    upper_row = sum(A .* k_mask; dims = 1)
+    upper_row = view(A, k:k, :, :, :)
     upper_coef = PermutedDimsArray(coef .* upper_mask, (2, 1, 3, 4))
     sum_term = sum(upper_row .* upper_coef; dims = 2)
 

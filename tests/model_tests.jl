@@ -63,7 +63,6 @@ function test_grid_update()
     )
 
     ps, st_kan, st_lux = compiled_update(
-        model,
         x,
         ps,
         st_kan,
@@ -165,7 +164,7 @@ end
 
 @testset "KAEM Tests" begin
     test_ps_derivative()
-    # test_grid_update()
+    test_grid_update()
     test_pca()
     test_mala_loss()
     test_cnn_loss()
