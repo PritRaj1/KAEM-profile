@@ -247,9 +247,9 @@ function forward_elimination(
     lower_mask_all = Lux.f32(basis.lower_mask) .* 1.0f0
     upper_mask_all = Lux.f32(basis.upper_mask) .* 1.0f0
 
-    state = (1, A, b)
-    while first(state) < G
-        k, A_acc, b_acc = state
+    state = (A, b)
+    for k in 1:(G - 1)
+        A_acc, b_acc = state
         A_new, b_new = eliminator(
             k,
             A_acc,
@@ -257,11 +257,10 @@ function forward_elimination(
             lower_mask_all,
             upper_mask_all,
         )
-        state = (k + 1, A_new, b_new)
+        state = (A_new, b_new)
     end
 
-    _, A, b = state
-    return A, b
+    return state
 end
 
 function backward_substitution(
@@ -273,21 +272,19 @@ function backward_substitution(
     k_mask_all = Lux.f32(basis.k_mask) .* 1.0f0
     upper_mask_all = Lux.f32(basis.lower_mask) .* 1.0f0
 
-    state = (G, zero(b))
-    while first(state) > 0
-        k, coef_acc = state
-        new_coef = backsubber(
+    coef = zero(b)
+    for k in G:-1:1
+        coef = backsubber(
             k,
-            coef_acc,
+            coef,
             A,
             b,
             k_mask_all,
             upper_mask_all,
         )
-        state = (k - 1, new_coef)
     end
 
-    return last(state)
+    return coef
 end
 
 function curve2coef(

@@ -39,9 +39,9 @@ if !use_thermo && N_t <= 1
 end
 
 prior_type = Dict(1 => "lognormal", 2 => "gaussian", 3 => "uniform", 4 => "ebm")
-bases = Dict(5 => "RBF", 6 => "FFT")
-acts = Dict(5 => "silu", 6 => "silu")
-grid_sizes = Dict(5 => "20", 6 => "50")
+bases = Dict(5 => "RBF", 6 => "Cheby", 7 => "FFT")
+acts = Dict(5 => "leaky_relu", 6 => "none", 7 => "leakyrelu")
+grid_sizes = Dict(5 => "8", 6 => "1", 7 => "12")
 
 rng = Random.MersenneTwister(1)
 im_resize = dataset == "CELEBA" || dataset == "CELEBAPANG" ? (64, 64) : (32, 32)
@@ -62,13 +62,19 @@ else
         commit!(conf, "POST_LANGEVIN", "use_langevin", "false")
         for prior_idx in [3, 2, 1, 4]
             commit!(conf, "EbmModel", "π_0", prior_type[prior_idx])
-            for base_idx in [5, 6]
+            for base_idx in [5, 6, 7]
                 commit!(conf, "EbmModel", "spline_function", bases[base_idx])
                 commit!(conf, "GeneratorModel", "spline_function", bases[base_idx])
                 commit!(conf, "GeneratorModel", "base_activation", acts[base_idx])
                 commit!(conf, "EbmModel", "base_activation", acts[base_idx])
                 commit!(conf, "GeneratorModel", "grid_size", grid_sizes[base_idx])
                 commit!(conf, "EbmModel", "grid_size", grid_sizes[base_idx])
+                if base_idx == 6
+                    commit!(conf, "EbmModel", "τ_trainable", "false")
+                    commit!(conf, "EbmModel", "init_τ", "1.001")
+                    commit!(conf, "GeneratorModel", "τ_trainable", "false")
+                    commit!(conf, "GeneratorModel", "init_τ", "1.001")
+                end
                 t = init_trainer(rng, conf, dataset)
                 train!(t)
             end
