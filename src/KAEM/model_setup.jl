@@ -2,7 +2,7 @@ module ModelSetup
 
 export prep_model
 
-using ConfParser, Lux, Accessors, ComponentArrays, Random, Reactant, Enzyme
+using ConfParser, Lux, Accessors, ComponentArrays, Random, Reactant, Enzyme, Optimisers
 
 using ..Utils
 using ..KAEM_model
@@ -10,9 +10,9 @@ using ..KAEM_model.LogPriorFCNs
 using ..KAEM_model.InverseTransformSampling
 using ..KAEM_model.PopulationXchange
 
-include("loss_fcns/langevin_mle.jl")
-include("loss_fcns/importance_sampling.jl")
-include("loss_fcns/thermodynamic.jl")
+include("train_steps/langevin_mle.jl")
+include("train_steps/importance_sampling.jl")
+include("train_steps/thermodynamic.jl")
 include("ula/unadjusted_langevin.jl")
 using .ImportanceSampling
 using .LangevinMLE
@@ -21,6 +21,7 @@ using .ULA_sampling
 
 
 function setup_training(
+        opt_state,
         ps::ComponentArray{T},
         st_kan::ComponentArray{T},
         st_lux::NamedTuple,
@@ -83,12 +84,13 @@ function setup_training(
     end
 
     # Default training criterion
-    @reset model.loss_fcn = begin
+    @reset model.train_step = begin
 
         static_loss = ImportanceLoss(model)
 
         if MLIR
             Reactant.@compile static_loss(
+                opt_state,
                 ps,
                 st_kan,
                 st_lux,
@@ -114,12 +116,13 @@ function setup_training(
         P = model.prior.bool_config.mixture_model ? 1 : model.prior.p_size
         @reset model.xchange_func = ReplicaXchange(Q, P, S, model.N_t)
 
-        @reset model.loss_fcn = begin
+        @reset model.train_step = begin
 
             static_loss = ThermoLoss(model)
 
             if MLIR
                 Reactant.@compile static_loss(
+                    opt_state,
                     ps,
                     st_kan,
                     st_lux,
@@ -138,9 +141,10 @@ function setup_training(
 
         static_loss = LangevinLoss(model)
 
-        @reset model.loss_fcn = begin
+        @reset model.train_step = begin
             if MLIR
                 Reactant.@compile static_loss(
+                    opt_state,
                     ps,
                     st_kan,
                     st_lux,
@@ -163,7 +167,8 @@ end
 
 function prep_model(
         model::KAEM{T},
-        x::AbstractArray{T};
+        x::AbstractArray{T},
+        optimizer;
         rng::AbstractRNG = Random.default_rng(),
         MLIR::Bool = true,
     ) where {T <: Float32}
@@ -171,8 +176,18 @@ function prep_model(
     st_kan, st_lux = Lux.initialstates(rng, model)
     ps, st_kan, st_lux =
         ps |> ComponentArray |> Lux.f32 |> pu, st_kan |> ComponentArray |> Lux.f32 |> pu, st_lux |> Lux.f32 |> pu
-    model = setup_training(ps, st_kan, st_lux, model::KAEM{T}, x; rng = rng, MLIR = MLIR)
-    return model, ps, st_kan, st_lux
+    opt_state = Optimisers.setup(optimizer.rule(), ps)
+    model = setup_training(
+        opt_state,
+        ps,
+        st_kan,
+        st_lux,
+        model::KAEM{T},
+        x;
+        rng = rng,
+        MLIR = MLIR
+    )
+    return model, opt_state, ps, st_kan, st_lux
 end
 
 end

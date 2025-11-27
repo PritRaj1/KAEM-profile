@@ -4,7 +4,7 @@ export KAEM_trainer, init_trainer, train!
 
 using Flux: onecold, mse
 using Random, ComponentArrays, CSV, HDF5, JLD2, ConfParser, Reactant
-using Lux, LinearAlgebra, Accessors, Optimisers
+using Lux, LinearAlgebra, Accessors
 using MultivariateStats: reconstruct
 using MLDataDevices: cpu_device
 
@@ -29,7 +29,7 @@ mutable struct KAEM_trainer{T <: Float32}
     model::Any
     grid_updater::Any
     cnn::Bool
-    o::opt
+    opt_state::Any
     dataset_name::AbstractString
     ps::ComponentArray{T}
     st_kan::ComponentArray{T}
@@ -124,9 +124,10 @@ function init_trainer(
     model = init_KAEM(dataset, conf, x_shape; file_loc = file_loc, rng = rng)
     x, loader_state = iterate(model.train_loader)
     x = pu(x)
-    model, params, st_kan, st_lux = prep_model(model, x; rng = rng)
-
     optimizer = create_opt(conf)
+
+    model, opt_state, params, st_kan, st_lux = prep_model(model, x, optimizer; rng = rng)
+
     grid_update_frequency =
         parse(Int, retrieve(conf, "GRID_UPDATING", "grid_update_frequency"))
 
@@ -149,7 +150,7 @@ function init_trainer(
         model,
         GridUpdater(model),
         cnn,
-        optimizer,
+        opt_state,
         dataset_name,
         params,
         st_kan,
@@ -183,11 +184,9 @@ function image_test_loss(x, x_gen)
 end
 
 function train!(t::KAEM_trainer; train_idx::Int = 1)
-
     num_batches = length(t.model.train_loader)
     grid_updated = 0
     num_param_updates = num_batches * t.N_epochs
-
     loss_file = t.model.file_loc * "loss.csv"
 
     # Rand like this cannot be compiled with MLIR
@@ -221,11 +220,11 @@ function train!(t::KAEM_trainer; train_idx::Int = 1)
         t.rng,
     )
 
-    test_loss_fcn = t.gen_type == "logits" ? logit_test_loss : image_test_loss
-    test_loss_compiled = Reactant.@compile test_loss_fcn(t.x, t.x)
+    test_train_step = t.gen_type == "logits" ? logit_test_loss : image_test_loss
+    test_loss_compiled = Reactant.@compile test_train_step(t.x, t.x)
 
-    # Gradient for a single batch
-    function grad_fcn()
+    # Update for a single batch
+    function step!()
         # Rand like this cannot be compiled with MLIR
         swap_replica_idxs = (
             t.model.N_t > 1 ?
@@ -265,7 +264,8 @@ function train!(t::KAEM_trainer; train_idx::Int = 1)
             GC.gc()
         end
 
-        t.loss, grads, st_ebm, st_gen = t.model.loss_fcn(
+        t.loss, t.ps, t.opt_state, st_ebm, st_gen = t.model.train_step(
+            t.opt_state,
             t.ps,
             t.st_kan,
             t.st_lux,
@@ -278,13 +278,13 @@ function train!(t::KAEM_trainer; train_idx::Int = 1)
         @reset t.st_lux.gen = st_gen
 
         t.model.verbose && println("Iter: $(train_idx), Loss: $(t.loss)")
-        return grads
+        return nothing
     end
 
     train_loss = 0
 
     # Train and test loss with logging
-    function opt_loss()
+    function opt_loss!()
         train_loss += t.loss
 
         # After one epoch, calculate test loss and log to CSV
@@ -408,11 +408,9 @@ function train!(t::KAEM_trainer; train_idx::Int = 1)
 
     start_time = time()
 
-    opt_state = Optimisers.setup(t.o.rule(), t.ps)
     while train_idx <= num_param_updates
-        G = grad_fcn()
-        opt_state, t.ps = Optimisers.update!(opt_state, t.ps, G)
-        opt_loss()
+        step!()
+        opt_loss!()
     end
 
     # Generate samples

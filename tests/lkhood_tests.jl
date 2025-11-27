@@ -14,6 +14,9 @@ using .ModelSetup
 include("../src/KAEM/gen/loglikelihoods.jl")
 using .LogLikelihoods
 
+include("../src/pipeline/optimizer.jl")
+using .optimization
+
 conf = ConfParse("tests/test_conf.ini")
 parse_conf!(conf)
 out_dim = parse(Int, retrieve(conf, "GeneratorModel", "output_dim"))
@@ -21,6 +24,7 @@ b_size = parse(Int, retrieve(conf, "TRAINING", "batch_size"))
 z_dim = last(parse.(Int, retrieve(conf, "EbmModel", "layer_widths")))
 
 Random.seed!(42)
+optimizer = create_opt(conf)
 
 function test_generate()
     Random.seed!(42)
@@ -28,7 +32,7 @@ function test_generate()
     dataset = randn(Float32, 32, 32, 1, 50)
     model = init_KAEM(dataset, conf, (32, 32, 1))
     x_test = first(model.train_loader) |> pu
-    model, ps, st_kan, st_lux = prep_model(model, x_test; MLIR = false)
+    model, _, ps, st_kan, st_lux = prep_model(model, x_test, optimizer; MLIR = false)
 
     compiled_sample_prior = Reactant.@compile model.sample_prior(model, ps, st_kan, st_lux, Random.default_rng())
     z = first(compiled_sample_prior(model, ps, st_kan, st_lux, Random.default_rng()))
@@ -43,7 +47,7 @@ function test_logllhood()
     dataset = randn(Float32, 32, 32, 1, 50)
     model = init_KAEM(dataset, conf, (32, 32, 1))
     x_test = first(model.train_loader) |> pu
-    model, ps, st_kan, st_lux = prep_model(model, x_test; MLIR = false)
+    model, _, ps, st_kan, st_lux = prep_model(model, x_test, optimizer; MLIR = false)
 
     x = randn(Float32, 32, 32, 1, b_size) |> pu
     compiled_sample_prior = Reactant.@compile model.sample_prior(model, ps, st_kan, st_lux, Random.default_rng())
@@ -61,7 +65,7 @@ function test_cnn_generate()
     dataset = randn(Float32, 32, 32, out_dim, 50)
     model = init_KAEM(dataset, conf, (32, 32, out_dim))
     x_test = first(model.train_loader) |> pu
-    model, ps, st_kan, st_lux = prep_model(model, x_test; MLIR = false)
+    model, _, ps, st_kan, st_lux = prep_model(model, x_test, optimizer; MLIR = false)
 
     compiled_sample_prior = Reactant.@compile model.sample_prior(model, ps, st_kan, st_lux, Random.default_rng())
     z = first(compiled_sample_prior(model, ps, st_kan, st_lux, Random.default_rng()))
@@ -79,7 +83,7 @@ function test_seq_generate()
     dataset = randn(Float32, out_dim, 8, 50)
     model = init_KAEM(dataset, conf, (out_dim, 8))
     x_test = first(model.train_loader) |> pu
-    model, ps, st_kan, st_lux = prep_model(model, x_test; MLIR = false)
+    model, _, ps, st_kan, st_lux = prep_model(model, x_test, optimizer; MLIR = false)
 
     compiled_sample_prior = Reactant.@compile model.sample_prior(model, ps, st_kan, st_lux, Random.default_rng())
     z = first(compiled_sample_prior(model, ps, st_kan, st_lux, Random.default_rng()))

@@ -44,7 +44,7 @@ struct KAEM{T <: Float32} <: Lux.AbstractLuxLayer
     sample_prior::Function
     posterior_sampler::Any
     xchange_func::Any
-    loss_fcn::Any
+    train_step::Any
     ε::T
     file_loc::AbstractString
     MALA::Bool
