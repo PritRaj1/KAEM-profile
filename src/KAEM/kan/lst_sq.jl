@@ -1,9 +1,8 @@
 module LstSqSolver
 
-export regularize, forward_elimination, backward_substitution, ForwardElim, BackSub
+export regularize, eliminator, backsubber
 
 using Lux
-using Reactant: @trace
 
 function regularize(B_i, y_i, basis; ε = 1.0f-4, init = false)
     J, O, G = basis.I, basis.O, basis.G
@@ -33,54 +32,26 @@ function eliminator(
         k,
         A,
         b,
-        k_mask,
-        lower_mask,
-        upper_mask,
+        k_mask_all,
+        lower_mask_all,
+        upper_mask_all,
     )
-    pivot = sum(A .* k_mask .* k_mask', dims = (1, 2))
+    k_mask = k_mask_all[:, k]
+    lower_mask = lower_mask_all[:, k]
+    upper_mask = upper_mask_all[:, k]
+
+    pivot = sum(A .* (k_mask * k_mask'), dims = (1, 2))
     pivot_row = sum(A .* k_mask; dims = 1)
     pivot_col = sum(A .* k_mask'; dims = 2)
 
     factors = pivot_col .* lower_mask ./ pivot
 
     # Rank-1 update
-    elimination_mask = lower_mask .* upper_mask'
+    elimination_mask = lower_mask * upper_mask'
     A = A .- (factors .* pivot_row) .* elimination_mask
 
     pivot_b = sum(b .* k_mask; dims = 1)
     b = b .- factors .* pivot_b
-    return A, b
-end
-
-
-function forward_elimination(
-        A,
-        b,
-        basis,
-    )
-    G = basis.G
-    k_mask_all = Lux.f32(basis.k_mask) .* 1.0f0
-    lower_mask_all = Lux.f32(basis.lower_mask) .* 1.0f0
-    upper_mask_all = Lux.f32(basis.upper_mask) .* 1.0f0
-
-    state = (1, A, b)
-    @trace while first(state) < G
-        k, A_acc, b_acc = state
-        k_mask = k_mask_all[:, k:k]
-        lower_mask = lower_mask_all[:, k:k]
-        upper_mask = upper_mask_all[:, k:k]
-        A_acc, b_acc = eliminator(
-            k,
-            A_acc,
-            b_acc,
-            k_mask,
-            lower_mask,
-            upper_mask,
-        )
-        state = (k + 1, A_acc, b_acc)
-    end
-
-    _, A, b = state
     return A, b
 end
 
@@ -89,10 +60,13 @@ function backsubber(
         coef,
         A,
         b,
-        k_mask,
-        upper_mask,
+        k_mask_all,
+        upper_mask_all,
     )
-    diag_elem = sum(A .* k_mask .* k_mask'; dims = (1, 2))
+    k_mask = k_mask_all[:, k]
+    upper_mask = upper_mask_all[:, k]
+
+    diag_elem = sum(A .* (k_mask * k_mask'); dims = (1, 2))
     rhs_elem = sum(b .* k_mask; dims = 1)
 
     upper_row = sum(A .* k_mask; dims = 1)
@@ -102,35 +76,6 @@ function backsubber(
     new_coef_k = (rhs_elem .- sum_term) ./ diag_elem
     coef = coef .+ new_coef_k .* k_mask
     return coef
-end
-
-
-function backward_substitution(
-        A,
-        b,
-        basis,
-    )
-    G = basis.G
-    k_mask_all = Lux.f32(basis.k_mask) .* 1.0f0
-    upper_mask_all = Lux.f32(basis.lower_mask) .* 1.0f0
-
-    state = (G, zero(b))
-    @trace while first(state) > 0
-        k, coef_acc = state
-        k_mask = k_mask_all[:, k:k]
-        upper_mask = upper_mask_all[:, k:k]
-        coef_acc = backsubber(
-            k,
-            coef_acc,
-            A,
-            b,
-            k_mask,
-            upper_mask,
-        )
-        state = (k - 1, coef_acc)
-    end
-
-    return last(state)
 end
 
 end

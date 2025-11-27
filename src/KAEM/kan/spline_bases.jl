@@ -11,6 +11,7 @@ export extend_grid,
     Cheby_basis
 
 using ComponentArrays, LinearAlgebra, Lux, Accessors
+using Reactant: @trace
 
 using ..Utils
 
@@ -236,6 +237,60 @@ function coef2curve_Spline(
             spl_4d .* coef_4d; dims = 4
         ); dims = 4
     )
+end
+
+function forward_elimination(
+        A,
+        b,
+        basis,
+    )
+    G = basis.G
+    k_mask_all = Lux.f32(basis.k_mask) .* 1.0f0
+    lower_mask_all = Lux.f32(basis.lower_mask) .* 1.0f0
+    upper_mask_all = Lux.f32(basis.upper_mask) .* 1.0f0
+
+    state = (1, A, b)
+    @trace while first(state) < G
+        k, A_acc, b_acc = state
+        A_acc, b_acc = eliminator(
+            k,
+            A_acc,
+            b_acc,
+            k_mask_all,
+            lower_mask_all,
+            upper_mask_all,
+        )
+        state = (k + 1, A_acc, b_acc)
+    end
+
+    _, A, b = state
+    return A, b
+end
+
+function backward_substitution(
+        A,
+        b,
+        basis,
+    )
+    G = basis.G
+    k_mask_all = Lux.f32(basis.k_mask) .* 1.0f0
+    upper_mask_all = Lux.f32(basis.lower_mask) .* 1.0f0
+
+    state = (G, zero(b))
+    @trace while first(state) > 0
+        k, coef_acc = state
+        coef_acc = backsubber(
+            k,
+            coef_acc,
+            A,
+            b,
+            k_mask_all,
+            upper_mask_all,
+        )
+        state = (k - 1, coef_acc)
+    end
+
+    return last(state)
 end
 
 function curve2coef(
