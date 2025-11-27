@@ -58,9 +58,9 @@ function (lp::LogPriorULA)(
     return dropdims(sum(f; dims = 1); dims = 1) + log_π0, st_lyrnorm_new
 end
 
-function reduce_q(i, z, f_diag, mask, ps, st_kan, st_lyrnorm, ebm)
+function reduce_q(i, z, ps, st_kan, st_lyrnorm, ebm)
     f, st_lyrnorm_new = ebm(ps, st_kan, st_lyrnorm, z[i, :, :])
-    return f_diag + f .* mask[:, i], st_lyrnorm_new
+    return f[i, :, :], st_lyrnorm_new
 end
 
 function (lp::LogPriorUnivariate)(
@@ -96,7 +96,6 @@ function (lp::LogPriorUnivariate)(
         lp.normalize && !ula ?
         log_π0 .- log_norm(first(ebm.quad(ebm, ps, st_kan, st_lyrnorm)), lp.ε) : log_π0
 
-    mask = Lux.f32((1:Q) .== (1:Q)') .* 1.0f0
     st_lyrnorm_new = st_lyrnorm
 
     state = (1, zero(z))
@@ -105,14 +104,13 @@ function (lp::LogPriorUnivariate)(
         new_f, st_lyrnorm_new = reduce_q(
             i,
             z,
-            f_diag,
-            mask,
             ps,
             st_kan,
             st_lyrnorm_new,
             ebm
         )
-        state = (i + 1, new_f)
+        f_diag[i, :, :] = new_f
+        state = (i + 1, f_diag)
     end
 
     f_diag = last(state)

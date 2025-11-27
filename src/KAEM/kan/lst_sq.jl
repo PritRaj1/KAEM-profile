@@ -35,8 +35,8 @@ function eliminator(
         lower_mask_all,
         upper_mask_all,
     )
-    lower_mask = selectdim(lower_mask_all, 2, k)
-    upper_mask = selectdim(upper_mask_all, 2, k)
+    lower_mask = lower_mask_all[:, k]
+    upper_mask = upper_mask_all[:, k]
 
     pivot = A[k:k, k:k, :, :]
     pivot_row = A[k:k, :, :, :]
@@ -60,15 +60,16 @@ function backsubber(
         b,
         k_mask_all,
         upper_mask_all,
+        J, O, G
     )
-    k_mask = selectdim(k_mask_all, 2, k)
-    upper_mask = selectdim(upper_mask_all, 2, k)
+    k_mask = k_mask_all[:, k]
+    upper_mask = upper_mask_all[:, k]
 
     diag_elem = A[k:k, k:k, :, :]
     rhs_elem = b[k:k, :, :, :]
 
     upper_row = A[k:k, :, :, :]
-    upper_coef = PermutedDimsArray(coef .* upper_mask, (2, 1, 3, 4))
+    upper_coef = reshape(coef .* upper_mask, 1, G, O, J)
     sum_term = sum(upper_row .* upper_coef; dims = 2)
 
     new_coef_k = (rhs_elem .- sum_term) ./ diag_elem
