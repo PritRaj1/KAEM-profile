@@ -11,6 +11,9 @@ using .KAEM_model
 include("../src/KAEM/model_setup.jl")
 using .ModelSetup
 
+include("../src/pipeline/optimizer.jl")
+using .optimization
+
 conf = ConfParse("tests/test_conf.ini")
 parse_conf!(conf)
 b_size = parse(Int, retrieve(conf, "TRAINING", "batch_size"))
@@ -21,8 +24,8 @@ Random.seed!(42)
 dataset = randn(Float32, 32, 32, 1, b_size * 10)
 model = init_KAEM(dataset, conf, (32, 32, 1))
 x_test = first(model.train_loader) |> pu
-model, ps, st_kan, st_lux = prep_model(model, x_test, MLIR = false)
-ps = ps
+optimizer = create_opt(conf)
+model, _, ps, st_kan, st_lux = prep_model(model, x_test, optimizer; MLIR = false)
 
 function test_shapes()
     @test model.prior.p_size == p_size

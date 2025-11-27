@@ -12,9 +12,6 @@ using .KAEM_model
 include("../src/KAEM/model_setup.jl")
 using .ModelSetup
 
-include("../src/KAEM/loss_fcns/thermodynamic.jl")
-using .ThermodynamicIntegration: sample_thermo
-
 conf = ConfParse("tests/test_conf.ini")
 parse_conf!(conf)
 commit!(conf, "THERMODYNAMIC_INTEGRATION", "num_temps", "4")
@@ -28,13 +25,13 @@ function test_model_derivative()
     model, ps, st_kan, st_lux = prep_model(model, x_test)
     swap_replica_idxs = rand(1:(model.N_t - 1), model.posterior_sampler.N) |> pu
 
+    ps_before = Array(ps)
+    loss, ps, _, st_ebm, st_gen =
+        model.train_step(opt_state, ps, st_kan, st_lux, x_test, 1, Random.default_rng(), nothing)
 
-    loss, ∇, st_ebm, st_gen =
-        model.loss_fcn(ps, st_kan, st_lux, x_test, 1, Random.default_rng(), swap_replica_idxs)
-
-    ∇ = Array(∇)
-    @test norm(∇) != 0
-    return @test !any(isnan, ∇)
+    ps_after = Array(ps)
+    @test any(ps_before .!= ps_after)
+    return @test !any(isnan, ps)
 end
 
 @testset "Thermodynamic Integration Tests" begin

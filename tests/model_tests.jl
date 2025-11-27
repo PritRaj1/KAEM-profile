@@ -16,24 +16,30 @@ using .ModelSetup
 include("../src/KAEM/grid_updating.jl")
 using .ModelGridUpdating
 
+include("../src/pipeline/optimizer.jl")
+using .optimization
+
 conf = ConfParse("tests/test_conf.ini")
 parse_conf!(conf)
 out_dim = parse(Int, retrieve(conf, "GeneratorModel", "output_dim"))
 commit!(conf, "THERMODYNAMIC_INTEGRATION", "num_temps", "-1")
+
+optimizer = create_opt(conf)
 
 function test_ps_derivative()
     Random.seed!(42)
     dataset = randn(Float32, 32, 32, 1, 50)
     model = init_KAEM(dataset, conf, (32, 32, 1))
     x_test = first(model.train_loader) |> pu
-    model, ps, st_kan, st_lux = prep_model(model, x_test)
+    model, opt_state, ps, st_kan, st_lux = prep_model(model, x_test, optimizer)
 
-    loss, ∇, st_ebm, st_gen =
-        model.loss_fcn(ps, st_kan, st_lux, x_test, 1, Random.default_rng(), nothing)
+    ps_before = Array(ps)
+    loss, ps, _, st_ebm, st_gen =
+        model.train_step(opt_state, ps, st_kan, st_lux, x_test, 1, Random.default_rng(), nothing)
 
-    ∇ = Array(∇)
-    @test norm(∇) != 0
-    return @test !any(isnan, ∇)
+    ps_after = Array(ps)
+    @test any(ps_before .!= ps_after)
+    return @test !any(isnan, ps_after)
 end
 
 function test_grid_update()
@@ -41,7 +47,7 @@ function test_grid_update()
     dataset = randn(Float32, 32, 32, 1, 50)
     model = init_KAEM(dataset, conf, (32, 32, 1))
     x_test = first(model.train_loader) |> pu
-    model, ps, st_kan, st_lux = prep_model(model, x_test)
+    model, opt_state, ps, st_kan, st_lux = prep_model(model, x_test, optimizer)
 
     x = first(model.train_loader) |> pu
     grid_sample_idxs = (
@@ -82,14 +88,14 @@ function test_pca()
     commit!(conf, "PCA", "pca_components", "10")
     model = init_KAEM(dataset, conf, (32, 32, 1))
     x_test = first(model.train_loader)
-    model, ps, st_kan, st_lux = prep_model(model, x_test)
+    model, opt_state, ps, st_kan, st_lux = prep_model(model, x_test, optimizer)
 
     @test size(x_test, 1) == 9
 
     x_recon = reconstruct(model.PCA_model, cpu_device()(x_test))
     x_recon = reshape(x_recon, model.original_data_size..., :)
-    return @test all(size(x_recon)[1:3] .== size(dataset)[1:3])
     commit!(conf, "PCA", "use_pca", "false")
+    return @test all(size(x_recon)[1:3] .== size(dataset)[1:3])
 end
 
 function test_mala_loss()
@@ -98,14 +104,15 @@ function test_mala_loss()
     commit!(conf, "POST_LANGEVIN", "use_langevin", "true")
     model = init_KAEM(dataset, conf, (32, 32, 1))
     x_test = first(model.train_loader) |> pu
-    model, ps, st_kan, st_lux = prep_model(model, x_test)
+    model, opt_state, ps, st_kan, st_lux = prep_model(model, x_test, optimizer)
 
-    loss, ∇, st_ebm, st_gen =
-        model.loss_fcn(ps, st_kan, st_lux, x_test, 1, Random.default_rng(), nothing)
+    ps_before = Array(ps)
+    loss, ps, _, st_ebm, st_gen =
+        model.train_step(opt_state, ps, st_kan, st_lux, x_test, 1, Random.default_rng(), nothing)
 
-    ∇ = Array(∇)
-    @test norm(∇) != 0
-    return @test !any(isnan, ∇)
+    ps_after = Array(ps)
+    @test any(ps_before .!= ps_after)
+    return @test !any(isnan, ps_after)
 end
 
 function test_cnn_loss()
@@ -116,14 +123,15 @@ function test_cnn_loss()
     commit!(conf, "PCA", "use_pca", "false")
     model = init_KAEM(dataset, conf, (32, 32, 3))
     x_test = first(model.train_loader) |> pu
-    model, ps, st_kan, st_lux = prep_model(model, x_test)
+    model, opt_state, ps, st_kan, st_lux = prep_model(model, x_test, optimizer)
 
-    loss, ∇, st_ebm, st_gen =
-        model.loss_fcn(ps, st_kan, st_lux, x_test, 1, Random.default_rng(), nothing)
+    ps_before = Array(ps)
+    loss, ps, _, st_ebm, st_gen =
+        model.train_step(opt_state, ps, st_kan, st_lux, x_test, 1, Random.default_rng(), nothing)
 
-    ∇ = Array(∇)
-    @test norm(∇) != 0
-    @test !any(isnan, ∇)
+    ps_after = Array(ps)
+    @test any(ps_before .!= ps_after)
+    @test !any(isnan, ps_after)
     return commit!(conf, "CNN", "use_cnn_lkhood", "false")
 end
 
@@ -134,15 +142,16 @@ function test_cnn_residual_loss()
     commit!(conf, "CNN", "latent_concat", "true")
     model = init_KAEM(dataset, conf, (32, 32, 3))
     x_test = first(model.train_loader) |> pu
-    model, ps, st_kan, st_lux = prep_model(model, x_test)
+    model, opt_state, ps, st_kan, st_lux = prep_model(model, x_test, optimizer)
 
-    loss, ∇, st_ebm, st_gen =
-        model.loss_fcn(ps, st_kan, st_lux, x_test, 1, Random.default_rng(), nothing)
+    ps_before = Array(ps)
+    loss, ps, _, st_ebm, st_gen =
+        model.train_step(opt_state, ps, st_kan, st_lux, x_test, 1, Random.default_rng(), nothing)
 
-    ∇ = Array(∇)
-    @test norm(∇) != 0
-    @test !any(isnan, ∇)
-    return commit!(conf, "CNN", "use_cnn_lkhood", "false")
+    ps_after = Array(ps)
+    @test any(ps_before .!= ps_after)
+    commit!(conf, "CNN", "use_cnn_lkhood", "false")
+    return @test !any(isnan, ps_after)
 end
 
 function test_seq_loss()
@@ -152,14 +161,15 @@ function test_seq_loss()
     commit!(conf, "SEQ", "vocab_size", "50")
     model = init_KAEM(dataset, conf, (50, 10))
     x_test = first(model.train_loader) |> pu
-    model, ps, st_kan, st_lux = prep_model(model, x_test)
+    model, opt_state, ps, st_kan, st_lux = prep_model(model, x_test, optimizer)
 
-    loss, ∇, st_ebm, st_gen =
-        model.loss_fcn(ps, st_kan, st_lux, x_test, 1, Random.default_rng(), nothing)
+    ps_before = Array(ps)
+    loss, ps, _, st_ebm, st_gen =
+        model.train_step(opt_state, ps, st_kan, st_lux, x_test, 1, Random.default_rng(), nothing)
 
-    ∇ = Array(∇)
-    @test norm(∇) != 0
-    return @test !any(isnan, ∇)
+    ps_after = Array(ps)
+    @test any(ps_before .!= ps_after)
+    return @test !any(isnan, ps_after)
 end
 
 @testset "KAEM Tests" begin
