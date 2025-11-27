@@ -385,6 +385,7 @@ function train!(t::KAEM_trainer; train_idx::Int = 1)
                 end
             end
 
+            GC.gc() # Force GC
         end
 
         train_idx += 1
