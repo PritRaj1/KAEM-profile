@@ -300,7 +300,7 @@ function train!(t::KAEM_trainer; train_idx::Int = 1)
                 )
                 @reset t.st_lux.ebm = st_ebm
                 @reset t.st_lux.gen = st_gen
-                test_loss += test_loss_compiled(pu(x), x_gen)
+                test_loss += test_loss_compiled(pu(x), x_gen) |> Float32
             end
 
             train_loss = train_loss / num_batches
