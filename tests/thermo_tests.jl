@@ -31,7 +31,7 @@ function test_model_derivative()
 
     ps_before = Array(ps)
     loss, ps, _, st_ebm, st_gen =
-        model.train_step(opt_state, ps, st_kan, st_lux, x_test, 1, Random.default_rng(), nothing)
+        model.train_step(opt_state, ps, st_kan, st_lux, x_test, 1, Random.default_rng(), swap_replica_idxs)
 
     ps_after = Array(ps)
     @test any(ps_before .!= ps_after)
