@@ -8,22 +8,22 @@ using JLD2,
     Random,
     Accessors
 
-ENV["GPU"] = "true"
+ENV["GPU"] = "false"
 
-include("src/utils.jl")
+include("../src/utils.jl")
 using .Utils
 
-include("src/KAEM/KAEM.jl")
+include("../src/KAEM/KAEM.jl")
 using .KAEM_model
 
-include("src/pipeline/trainer.jl")
+include("../src/pipeline/trainer.jl")
 using .trainer
 
 
 for fcn_type in ["RBF", "FFT"]
     for prior_type in ["gaussian", "lognormal", "uniform", "ebm"]
         for dataset_name in ["DARCY_FLOW", "MNIST", "FMNIST"]
-            file = "logs/Vanilla/$(dataset_name)/importance/$(prior_type)_$(fcn_type)/univariate/saved_model.jld2"
+            file = "../logs/Vanilla/$(dataset_name)/importance/$(prior_type)_$(fcn_type)/univariate/saved_model.jld2"
 
             conf_loc = Dict(
                 "DARCY_FLOW" => "config/darcy_flow_config.ini",
@@ -45,9 +45,9 @@ for fcn_type in ["RBF", "FFT"]
 
             saved_data = load(file)
 
-            ps = saved_data["params"] .|> Float32 |> pu
-            st_kan = saved_data["kan_state"] |> pu
-            st_lux = saved_data["lux_state"] |> pu
+            ps = saved_data["params"] .|> Float32
+            st_kan = saved_data["kan_state"]
+            st_lux = saved_data["lux_state"]
 
             rng = Random.MersenneTwister(1)
             t = init_trainer(rng, conf, dataset_name; file_loc = "garbage/")
@@ -57,7 +57,7 @@ for fcn_type in ["RBF", "FFT"]
             st_kan = st_kan.ebm
             st_lux = st_lux.ebm
             t = nothing
-            a, b = minimum(st_kan[:a].grid; dims = 2), maximum(st_kan[:a].grid; dims = 2)
+            a, b = st_kan[:a].grid[:, 1], st_kan[:a].grid[:, end]
 
             no_grid = (
                 prior.fcns_qp[1].spline_string == "FFT" ||
@@ -65,24 +65,24 @@ for fcn_type in ["RBF", "FFT"]
             )
 
             if no_grid
-                a = fill(Float32(first(st_kan[:a].min)), size(a)) |> pu
-                b = fill(Float32(last(st_kan[:a].max)), size(b)) |> pu
+                a .= a .* 0.0f0 .+ st_kan[:a].min
+                b .= b .* 0.0f0 .+ st_kan[:a].max
             end
 
             z = (a + b) ./ 2 .+ (b - a) ./ 2 .* pu(prior.nodes)
             π_0 = prior.π_pdf(z[:, :, :], ps.dist.π_μ, ps.dist.π_σ)
 
-            f, _ = prior(ps, st_kan, st_lux, z)
+            f = first(prior(ps, st_kan, st_lux, z))
             f = exp.(f) .* permutedims(π_0, (3, 1, 2))
-            z, f, π_0 = z |> cpu_device(),
-                softmax(f; dims = 3) |> cpu_device(),
-                softmax(π_0; dims = 2) |> cpu_device()
+            z, f, π_0 = z,
+                softmax(f; dims = 3),
+                softmax(π_0; dims = 2)
 
             # Components to plot (q, p)
             plot_components = [(1, 1), (1, 2), (1, 3)]
             colours = [:red, :blue, :green]
 
-            mkpath("figures/results/priors/$(dataset_name)")
+            mkpath("../figures/results/priors/$(dataset_name)")
 
             for (i, (q, p)) in enumerate(plot_components)
                 fig = Makie.Figure(
@@ -125,7 +125,7 @@ for fcn_type in ["RBF", "FFT"]
                 hidedecorations!(ax)
                 hidespines!(ax)
                 save(
-                    "figures/results/priors/$(dataset_name)/$(prior_type)_$(fcn_type)_$(q)_$(p).png",
+                    "../figures/results/priors/$(dataset_name)/$(prior_type)_$(fcn_type)_$(q)_$(p).png",
                     fig,
                 )
             end

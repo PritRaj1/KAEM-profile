@@ -261,7 +261,6 @@ function train!(t::KAEM_trainer; train_idx::Int = 1)
             grid_updated = 1
 
             t.model.verbose && println("Iter: $(train_idx), Grid updated")
-            GC.gc()
         end
 
         t.loss, t.ps, t.opt_state, st_ebm, st_gen = t.model.train_step(
@@ -363,8 +362,8 @@ function train!(t::KAEM_trainer; train_idx::Int = 1)
                 gen_data = zeros(Float32, t.model.lkhood.x_shape..., 0)
             end
 
+            GC.gc() # Force GC
             if (t.gen_every > 0 && epoch % t.gen_every == 0)
-
                 if !t.model.lkhood.SEQ && !t.model.lkhood.CNN && t.model.use_pca
                     gen_data = reconstruct(t.model.PCA_model, gen_data)
                     gen_data = (
@@ -391,8 +390,6 @@ function train!(t::KAEM_trainer; train_idx::Int = 1)
                     )
                 end
             end
-
-            GC.gc() # Force GC
         end
 
         train_idx += 1
