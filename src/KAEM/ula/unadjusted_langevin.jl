@@ -211,7 +211,7 @@ function (sampler::ULA_sampler)(
     mask_swap_2 = isnothing(swap_replica_idxs) ? nothing : Lux.f32(1:num_temps .== swap_replica_idxs_plus') .* 1.0f0
 
     state = (1, z_flat)
-    @trace while state <= N_steps
+    @trace while first(state) <= N_steps
         i, z_acc = state
         z_new = step(
             i,
