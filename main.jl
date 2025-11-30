@@ -40,7 +40,7 @@ end
 
 prior_type = Dict(1 => "lognormal", 2 => "gaussian", 3 => "uniform", 4 => "ebm")
 bases = Dict(5 => "RBF", 6 => "Cheby", 7 => "FFT")
-acts = Dict(5 => "gelu", 6 => "none", 7 => "gelu")
+acts = Dict(5 => "leakyrelu", 6 => "none", 7 => "leakyrelu")
 grid_sizes = Dict(5 => "20", 6 => "1", 7 => "50")
 
 rng = Random.MersenneTwister(1)
@@ -77,6 +77,11 @@ else
                 end
                 t = init_trainer(rng, conf, dataset)
                 train!(t)
+
+                commit!(conf, "EbmModel", "τ_trainable", "true")
+                commit!(conf, "EbmModel", "init_τ", "1")
+                commit!(conf, "GeneratorModel", "τ_trainable", "true")
+                commit!(conf, "GeneratorModel", "init_τ", "1")
             end
         end
     end
