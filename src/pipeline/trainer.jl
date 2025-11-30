@@ -362,7 +362,6 @@ function train!(t::KAEM_trainer; train_idx::Int = 1)
                 gen_data = zeros(Float32, t.model.lkhood.x_shape..., 0)
             end
 
-            GC.gc() # Force GC
             if (t.gen_every > 0 && epoch % t.gen_every == 0)
                 if !t.model.lkhood.SEQ && !t.model.lkhood.CNN && t.model.use_pca
                     gen_data = reconstruct(t.model.PCA_model, gen_data)
@@ -408,6 +407,7 @@ function train!(t::KAEM_trainer; train_idx::Int = 1)
     while train_idx <= num_param_updates
         step!()
         opt_loss!()
+        GC.gc()
     end
 
     # Generate samples

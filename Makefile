@@ -7,7 +7,7 @@ CONDA_ACTIVATE := $(shell if [ -f "$(CONDA_BASE)/etc/profile.d/conda.sh" ]; then
 DATASET ?= MNIST
 MODE ?= thermo
 
-XLA_REACTANT_GPU_MEM_FRACTION ?= 0.85
+XLA_REACTANT_GPU_MEM_FRACTION ?= 0.9
 XLA_REACTANT_GPU_PREALLOCATE ?= true
 TF_GPU_ALLOCATOR ?= cuda_malloc_async
 XLA_FLAGS ?=
