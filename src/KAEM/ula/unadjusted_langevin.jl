@@ -2,6 +2,7 @@ module ULA_sampling
 
 export initialize_ULA_sampler, ULA_sampler
 
+using Reactant: @trace
 using LinearAlgebra,
     Random,
     Lux,
@@ -209,10 +210,12 @@ function (sampler::ULA_sampler)(
     mask_swap_1 = isnothing(swap_replica_idxs) ? nothing : Lux.f32(1:num_temps .== swap_replica_idxs') .* 1.0f0
     mask_swap_2 = isnothing(swap_replica_idxs) ? nothing : Lux.f32(1:num_temps .== swap_replica_idxs_plus') .* 1.0f0
 
-    for i in 1:N_steps
-        z_flat = step(
+    state = (1, z_flat)
+    @trace while state <= N_steps
+        i, z_acc = state
+        z_new = step(
             i,
-            z_flat,
+            z_acc,
             x,
             x_t,
             temps,
@@ -231,9 +234,10 @@ function (sampler::ULA_sampler)(
             mask_swap_1,
             mask_swap_2,
         )
+        state = (i + 1, z_new)
     end
 
-    z = reshape(z_flat, Q, P, S, num_temps)
+    z = reshape(last(state), Q, P, S, num_temps)
 
     if prior_sampling_bool
         st_lux = st_lux.ebm
