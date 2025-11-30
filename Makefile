@@ -89,17 +89,17 @@ train:
 	@echo "Starting training for dataset: $(DATASET), mode: $(MODE)"
 	@tmux kill-session -t kaem_train 2>/dev/null || true
 	@tmux new-session -d -s kaem_train -n training
-ifeq ($(MODE),thermo)
-	@tmux send-keys -t kaem_train:training "export LD_LIBRARY_PATH=$(LD_LIB_PATH) && if [ -f '$(CONDA_ACTIVATE)' ]; then . '$(CONDA_ACTIVATE)' && conda activate $(ENV_NAME) && DATASET=$(DATASET) USE_THERMO=true julia --project=. --threads=auto main.jl 2>&1 | tee logs/train_thermo_$(DATASET)_$(shell date +%Y%m%d_%H%M%S).log; else conda activate $(ENV_NAME) && DATASET=$(DATASET) USE_THERMO=true julia --project=. --threads=auto main.jl 2>&1 | tee logs/train_thermo_$(DATASET)_$(shell date +%Y%m%d_%H%M%S).log; fi && tmux kill-session -t kaem_train" Enter
-else
-	@tmux send-keys -t kaem_train:training "export LD_LIBRARY_PATH=$(LD_LIB_PATH) && if [ -f '$(CONDA_ACTIVATE)' ]; then . '$(CONDA_ACTIVATE)' && conda activate $(ENV_NAME) && DATASET=$(DATASET) USE_THERMO=false julia --project=. --threads=auto main.jl 2>&1 | tee logs/train_vanilla_$(DATASET)_$(shell date +%Y%m%d_%H%M%S).log; else conda activate $(ENV_NAME) && DATASET=$(DATASET) USE_THERMO=false julia --project=. --threads=auto main.jl 2>&1 | tee logs/train_vanilla_$(DATASET)_$(shell date +%Y%m%d_%H%M%S).log; fi && tmux kill-session -t kaem_train" Enter
-endif
-	@echo "Training session started in tmux. Attach with: tmux attach-session -t kaem_train"
-ifeq ($(MODE),thermo)
-	@echo "Log file: logs/train_thermo_$(DATASET)_$(shell date +%Y%m%d_%H%M%S).log"
-else
-	@echo "Log file: logs/train_vanilla_$(DATASET)_$(shell date +%Y%m%d_%H%M%S).log"
-endif
+	ifeq ($(MODE),thermo)
+		@tmux send-keys -t kaem_train:training "export LD_LIBRARY_PATH=$(LD_LIB_PATH) && if [ -f '$(CONDA_ACTIVATE)' ]; then . '$(CONDA_ACTIVATE)' && conda activate $(ENV_NAME) && DATASET=$(DATASET) USE_THERMO=true julia --project=. --threads=auto main.jl 2>&1 | tee logs/train_thermo_$(DATASET)_$(shell date +%Y%m%d_%H%M%S).log; else conda activate $(ENV_NAME) && DATASET=$(DATASET) USE_THERMO=true julia --project=. --threads=auto main.jl 2>&1 | tee logs/train_thermo_$(DATASET)_$(shell date +%Y%m%d_%H%M%S).log; fi && tmux kill-session -t kaem_train" Enter
+	else
+		@tmux send-keys -t kaem_train:training "export LD_LIBRARY_PATH=$(LD_LIB_PATH) && if [ -f '$(CONDA_ACTIVATE)' ]; then . '$(CONDA_ACTIVATE)' && conda activate $(ENV_NAME) && DATASET=$(DATASET) USE_THERMO=false julia --project=. --threads=auto main.jl 2>&1 | tee logs/train_vanilla_$(DATASET)_$(shell date +%Y%m%d_%H%M%S).log; else conda activate $(ENV_NAME) && DATASET=$(DATASET) USE_THERMO=false julia --project=. --threads=auto main.jl 2>&1 | tee logs/train_vanilla_$(DATASET)_$(shell date +%Y%m%d_%H%M%S).log; fi && tmux kill-session -t kaem_train" Enter
+	endif
+		@echo "Training session started in tmux. Attach with: tmux attach-session -t kaem_train"
+	ifeq ($(MODE),thermo)
+		@echo "Log file: logs/train_thermo_$(DATASET)_$(shell date +%Y%m%d_%H%M%S).log"
+	else
+		@echo "Log file: logs/train_vanilla_$(DATASET)_$(shell date +%Y%m%d_%H%M%S).log"
+	endif
 
 train-thermo:
 	@$(MAKE) train DATASET=$(DATASET) MODE=thermo
