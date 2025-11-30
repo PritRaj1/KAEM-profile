@@ -36,7 +36,6 @@ function setup_training(
     initial_step_size =
         parse(Float32, retrieve(conf, "POST_LANGEVIN", "initial_step_size"))
     num_steps = parse(Int, retrieve(conf, "POST_LANGEVIN", "iters"))
-    N_unadjusted = parse(Int, retrieve(conf, "POST_LANGEVIN", "N_unadjusted"))
     η_init = parse(Float32, retrieve(conf, "POST_LANGEVIN", "initial_step_size"))
 
     batch_size = parse(Int, retrieve(conf, "TRAINING", "batch_size"))

@@ -14,8 +14,12 @@
 # include("../src/KAEM/model_setup.jl")
 # using .ModelSetup
 
+# include("optimizer.jl")
+# using .optimization
+
 # conf = ConfParse("config/celeba_pang_config.ini")
 # parse_conf!(conf)
+# optimizer = create_opt(conf)
 
 # rng = Random.MersenneTwister(1)
 
@@ -40,7 +44,7 @@
 
 #     x_test, loader_state = iterate(model.train_loader)
 #     x_test = pu(x_test)
-#     model, ps, st_kan, st_lux = prep_model(model, x_test; rng = rng, MLIR = false)
+#     model, _, ps, st_kan, st_lux = prep_model(model, x_test; rng = rng, MLIR = false)
 
 #     return model, ps, st_kan, st_lux
 # end
