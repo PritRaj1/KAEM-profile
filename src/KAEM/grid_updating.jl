@@ -23,7 +23,6 @@ function (gu::GridUpdater)(
         st_lux,
         train_idx,
         swap_replica_idxs,
-        grid_sample_idxs,
         rng,
     )
     """
@@ -101,22 +100,26 @@ function (gu::GridUpdater)(
                 model.prior.fcns_qp[1].spline_string == "FFT" ||
                     model.prior.fcns_qp[1].spline_string == "Cheby"
             )
-            Q, P, B = model.prior.q_size, model.prior.p_size, model.batch_size
+            prior_copy = model.prior
+            Q, P, B = prior_copy.q_size, prior_copy.p_size, model.batch_size
 
-            # Randomly sample components if univariate to reduce computation
-            if !isnothing(grid_sample_idxs)
-                mask = Lux.f32(1:Q .== grid_sample_idxs') .* 1.0f0
-                z = dropdims(sum(z .* reshape(mask, Q, 1, B); dims = 1); dims = 1)
+            if !prior_copy.bool_config.ula && !prior_copy.bool_config.mixture_model
+                for i in 1:prior_copy.depth
+                    @reset prior_copy.fcns_qp[i].basis_function.S = Q * B
+                end
+                @reset prior_copy.s_size = Q * B
+                z = reshape(z, P, Q * B)
+            else
+                z = dropdims(z; dims = 2)
             end
-            z = !isnothing(grid_sample_idxs) ? z : reshape(z, Q, B)
 
-            mid_size = model.prior.bool_config.mixture_model ? P : Q
-            outer_dim = model.prior.bool_config.mixture_model ? Q * B : P * B
+            mid_size = prior_copy.bool_config.mixture_model ? P : Q
+            outer_dim = prior_copy.bool_config.mixture_model ? Q * Q * B : Q * P * B
 
-            for i in 1:model.prior.depth
-                if model.prior.bool_config.layernorm && i != 1
+            for i in 1:prior_copy.depth
+                if prior_copy.bool_config.layernorm && i != 1
                     z, st_ebm = Lux.apply(
-                        model.prior.layernorms[i - 1],
+                        prior_copy.layernorms[i - 1],
                         z,
                         ps.ebm.layernorm[symbol_map[i]],
                         st_lux.ebm[symbol_map[i]],
@@ -125,7 +128,7 @@ function (gu::GridUpdater)(
                 end
 
                 new_grid, new_coef = update_fcn_grid(
-                    model.prior.fcns_qp[i],
+                    prior_copy.fcns_qp[i],
                     ps.ebm.fcn[symbol_map[i]],
                     st_kan.ebm[symbol_map[i]],
                     z,
@@ -133,7 +136,7 @@ function (gu::GridUpdater)(
                 ps.ebm.fcn[symbol_map[i]].coef = new_coef
                 st_kan.ebm[symbol_map[i]].grid = new_grid
 
-                if model.prior.fcns_qp[i].spline_string == "RBF"
+                if prior_copy.fcns_qp[i].spline_string == "RBF"
                     scale = (maximum(new_grid) - minimum(new_grid)) /
                         (size(new_grid, 2) - 1) |> Lux.f32
 
@@ -141,19 +144,19 @@ function (gu::GridUpdater)(
                 end
 
                 z = Lux.apply(
-                    model.prior.fcns_qp[i],
+                    prior_copy.fcns_qp[i],
                     z,
                     ps.ebm.fcn[symbol_map[i]],
                     st_kan.ebm[symbol_map[i]],
                 )
                 z =
-                    (i == 1 && !model.prior.bool_config.ula) ? reshape(z, mid_size, outer_dim) :
+                    (i == 1 && !prior_copy.bool_config.ula) ? reshape(z, mid_size, outer_dim) :
                     dropdims(sum(z, dims = 1); dims = 1)
             end
         end
     end
 
-    new_nodes, new_weights = get_gausslegendre(model.prior, st_kan.ebm)
+    new_nodes, new_weights = get_gausslegendre(prior_copy, st_kan.ebm)
     st_kan.quad.nodes = new_nodes
     st_kan.quad.weights = new_weights
 

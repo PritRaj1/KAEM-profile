@@ -40,8 +40,8 @@ end
 
 prior_type = Dict(1 => "lognormal", 2 => "gaussian", 3 => "uniform", 4 => "ebm")
 bases = Dict(5 => "RBF", 6 => "Cheby", 7 => "FFT")
-acts = Dict(5 => "leaky_relu", 6 => "none", 7 => "leakyrelu")
-grid_sizes = Dict(5 => "8", 6 => "1", 7 => "12")
+acts = Dict(5 => "leakyrelu", 6 => "none", 7 => "leakyrelu")
+grid_sizes = Dict(5 => "20", 6 => "1", 7 => "50")
 
 rng = Random.MersenneTwister(1)
 im_resize = dataset == "CELEBA" || dataset == "CELEBAPANG" ? (64, 64) : (32, 32)
@@ -60,7 +60,7 @@ else
         train!(t)
     else
         commit!(conf, "POST_LANGEVIN", "use_langevin", "false")
-        for prior_idx in [2, 4, 3, 1]
+        for prior_idx in [4, 2, 3, 1]
             commit!(conf, "EbmModel", "π_0", prior_type[prior_idx])
             for base_idx in [5, 7, 6]
                 commit!(conf, "EbmModel", "spline_function", bases[base_idx])
@@ -77,6 +77,11 @@ else
                 end
                 t = init_trainer(rng, conf, dataset)
                 train!(t)
+
+                commit!(conf, "EbmModel", "τ_trainable", "true")
+                commit!(conf, "EbmModel", "init_τ", "1")
+                commit!(conf, "GeneratorModel", "τ_trainable", "true")
+                commit!(conf, "GeneratorModel", "init_τ", "1")
             end
         end
     end
