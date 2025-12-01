@@ -175,7 +175,7 @@ function SplineMUL(
     x_act = l.base_activation(x)
     w_base, w_sp = ps.w_base, ps.w_sp
     I, S = l.basis_function.I, l.basis_function.S
-    return w_base .* reshape(x_act, I, 1, S) .+ w_sp .* y
+    return w_base .* PermutedDimsArray(view(x_act, :, :, :), (1, 3, 2)) .+ w_sp .* y
 end
 
 function (l::univariate_function)(
