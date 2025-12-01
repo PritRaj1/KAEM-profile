@@ -69,7 +69,7 @@ function backsubber(
     rhs_elem = b[k:k, :, :, :]
 
     upper_row = A[k:k, :, :, :]
-    upper_coef = reshape(coef .* upper_mask, 1, G, O, J)
+    upper_coef = PermutedDimsArray(coef .* upper_mask, (2, 1, 3, 4))
     sum_term = sum(upper_row .* upper_coef; dims = 2)
 
     new_coef_k = (rhs_elem .- sum_term) ./ diag_elem
