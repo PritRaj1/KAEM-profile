@@ -42,7 +42,11 @@ function residual_kernel(
     deterministic_part = 1 .+ dropdims(sum(c .< reshape(1:N, 1, 1, N); dims = 2); dims = 2)
 
     # Fill remaining with multinomial sampling
-    residual_part = dropdims(sum(1 .+ (cdf .< reshape(u, B, 1, N)); dims = 2); dims = 2)
+    residual_part = dropdims(
+        sum(
+            1 .+ (cdf .< PermutedDimsArray(view(u, :, :, :), (1, 3, 2))); dims = 2
+        ); dims = 2
+    )
     residual_part = ifelse.(residual_part .> N, N, residual_part)
 
     indices = (mask .* residual_part) .+ (1 .- mask) .* deterministic_part
@@ -95,7 +99,11 @@ function systematic_kernel(
         N,
     )
     early_return = (1 .- ESS_bool) .* (1:N)'
-    indices = dropdims(sum(1 .+ (cdf .< reshape(u, B, 1, N)); dims = 2); dims = 2)
+    indices = dropdims(
+        sum(
+            1 .+ (cdf .< PermutedDimsArray(view(u, :, :, :), (1, 3, 2))); dims = 2
+        ); dims = 2
+    )
     indices = ifelse.(indices .> N, N, indices)
     return early_return .+ ESS_bool .* indices
 end
