@@ -31,7 +31,7 @@ function (r::ReplicaXchange)(
         mask_swap_2,
     )
     Q, P, S, num_temps = r.Q, r.P, r.S, r.num_temps
-    z = view(z_i, Q, P, S, num_temps)
+    z = reshape(z_i, Q, P, S, num_temps)
 
     mask1 = mask_swap_1[:, i]
     mask2 = mask_swap_2[:, i]
@@ -115,7 +115,7 @@ function (r::ReplicaXchange)(
             mask2_expanded .* z # Index of t1
     )
 
-    return view(z, Q, P, S * num_temps)
+    return reshape(z, Q, P, S * num_temps)
 end
 
 struct NoExchange end
