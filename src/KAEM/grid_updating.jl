@@ -105,9 +105,9 @@ function (gu::GridUpdater)(
 
             if !prior_copy.bool_config.ula && !prior_copy.bool_config.mixture_model
                 for i in 1:prior_copy.depth
-                    @reset prior_copy.fcns_qp[i].basis_function.S = Q * S
+                    @reset prior_copy.fcns_qp[i].basis_function.S = Q * B
                 end
-                @reset prior_copy.s_size = Q * S
+                @reset prior_copy.s_size = Q * B
                 z = reshape(z, P, Q * B)
             else
                 z = dropdims(z; dims = 2)
