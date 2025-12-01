@@ -139,6 +139,7 @@ function Cheby_basis(degree::Int, I::Int, O::Int, S::Int)
     )
 end
 
+# Broken
 function (b::B_spline_basis)(
         x,
         grid,
@@ -147,7 +148,7 @@ function (b::B_spline_basis)(
         init::Bool = false,
     )
     I, G, S = b.I, b.G - 1, b.S
-    x = init ? reshape(x, I, 1, :) : reshape(x, I, 1, S)
+    x = PermutedDimsArray(view(x, :, :, :), (1, 3, 2))
 
     # B0
     grid_1 = @view grid[:, 1:(end - 1)]
@@ -186,9 +187,8 @@ function (b::RBF_basis)(
         scale;
         init::Bool = false,
     )
-    I, G, S = b.I, b.G, b.S
-    x_3d = init ? reshape(x, I, 1, :) : reshape(x, I, 1, S)
-    return @. exp(-((x_3d - grid) * (scale * σ))^2 / 2)
+    x_3d = PermutedDimsArray(view(x, :, :, :), (1, 3, 2))
+    return @. exp(-((x_3d - grid) / (scale * σ))^2 / 2)
 end
 
 function (b::RSWAF_basis)(
@@ -198,8 +198,7 @@ function (b::RSWAF_basis)(
         scale;
         init::Bool = false,
     )
-    I, G, S = b.I, b.G, b.S
-    x_3d = init ? reshape(x, I, 1, :) : reshape(x, I, 1, S)
+    x_3d = PermutedDimsArray(view(x, :, :, :), (1, 3, 2))
     diff = @. tanh((x_3d - grid) / σ)
     return @. 1.0f0 - diff^2
 end
@@ -211,10 +210,9 @@ function (b::Cheby_basis)(
         scale;
         init::Bool = false,
     )
-    I, S = b.I, b.S
-    x = init ? reshape(x, I, 1, :) : reshape(x, I, 1, S)
-    x = @. acos(tanh(x) / σ)
-    return @. cos(x * b.lin)
+    x_3d = PermutedDimsArray(view(x, :, :, :), (1, 3, 2))
+    x_3d = @. acos(tanh(x_3d) / σ)
+    return @. cos(x_3d * b.lin)
 end
 
 function coef2curve_Spline(
@@ -226,10 +224,9 @@ function coef2curve_Spline(
         scale;
         init::Bool = false,
     )
-    I, O, G, S = b.I, b.O, b.G, b.S
     spl = b(x_eval, grid, σ, scale)
-    spl_4d = reshape(spl, I, 1, S, G)
-    coef_4d = reshape(coef, I, O, 1, G)
+    spl_4d = PermutedDimsArray(view(spl, :, :, :, :), (1, 4, 3, 2))
+    coef_4d = PermutedDimsArray(view(coef, :, :, :, :), (1, 2, 4, 3))
 
     return dropdims(
         sum(
@@ -328,9 +325,8 @@ function (b::FFT_basis)(
     )
     I, G, S = b.I, b.G, b.S
 
-    x_3d = reshape(x, I, 1, S)
-    grid_3d = reshape(grid, I, G, 1)
-    freq = @. x_3d * grid_3d * Float32(2π) * σ
+    x_3d = PermutedDimsArray(view(x, :, :, :), (1, 3, 2))
+    freq = @. x_3d * grid * Float32(2π) * σ
     return cos.(freq), sin.(freq)
 end
 
@@ -344,10 +340,10 @@ function coef2curve_FFT(
     I, O, G, S = b.I, b.O, b.G, b.S
 
     even, odd = b(x_eval, grid, σ)
-    even = reshape(PermutedDimsArray(even, (1, 3, 2)), I, 1, S, G)
-    odd = reshape(PermutedDimsArray(odd, (1, 3, 2)), I, 1, S, G)
-    even_coef = reshape(coef[1, :, :, :], I, O, 1, G)
-    odd_coef = reshape(coef[2, :, :, :], I, O, 1, G)
+    even = PermutedDimsArray(view(even, :, :, :, :), (1, 4, 3, 2))
+    odd = PermutedDimsArray(view(odd, :, :, :, :), (1, 4, 3, 2))
+    even_coef = PermutedDimsArray(view(coef, 1:1, :, :, :), (2, 3, 1, 4))
+    odd_coef = PermutedDimsArray(view(coef, 2:2, :, :, :), (2, 3, 1, 4))
 
     y_even = sum(even .* even_coef; dims = 4)
     y_odd = sum(odd .* odd_coef; dims = 4)
