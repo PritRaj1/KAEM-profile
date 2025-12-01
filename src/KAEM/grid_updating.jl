@@ -156,7 +156,7 @@ function (gu::GridUpdater)(
         end
     end
 
-    new_nodes, new_weights = get_gausslegendre(prior_copy, st_kan.ebm)
+    new_nodes, new_weights = get_gausslegendre(model.prior, st_kan.ebm)
     st_kan.quad.nodes = new_nodes
     st_kan.quad.weights = new_weights
 
