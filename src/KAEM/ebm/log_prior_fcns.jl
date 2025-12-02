@@ -168,7 +168,7 @@ function (lp::LogPriorMix)(
     Z =
         lp.normalize && !ula ?
         dropdims(sum(first(ebm.quad(ebm, ps, st_kan, st_lyrnorm)), dims = 3), dims = 3) :
-        ones(Float32, Q, P) |> pu
+        zero(alpha) .+ 1.0f0
 
     reg = ebm.λ > 0 ? ebm.λ * sum(abs.(alpha)) : 0.0f0
     log_p = log_mix_pdf(f, alpha, π_0, Z, lp.ε, Q, P, :)
