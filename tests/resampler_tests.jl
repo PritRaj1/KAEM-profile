@@ -11,7 +11,7 @@ using .WeightResamplers
 
 function test_systematic_resampler()
     Random.seed!(42)
-    weights = randn(Float32, 4, 6) * 10
+    weights = randn(Float32, 4, 6) * 3
     ESS_bool = rand(Bool, 4)
     r = SystematicResampler(0.5, true)
 
@@ -23,7 +23,7 @@ end
 
 function test_stratified_resampler()
     Random.seed!(42)
-    weights = randn(Float32, 4, 6) * 10
+    weights = randn(Float32, 4, 6) * 3
     ESS_bool = rand(Bool, 4)
     r = StratifiedResampler(0.5, true)
 
@@ -35,7 +35,7 @@ end
 
 function test_residual_resampler()
     Random.seed!(42)
-    weights = randn(Float32, 4, 6) * 10
+    weights = randn(Float32, 4, 6) * 3
     ESS_bool = rand(Bool, 4)
     r = ResidualResampler(0.5, true)
 
