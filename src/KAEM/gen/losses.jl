@@ -26,7 +26,7 @@ function cross_entropy_IS(
     )
     ll =
         dropdims(sum(log.(x̂ .+ ε) .* x, dims = (1, 2)), dims = (1, 2))
-    return ll' ./ Float32(D) ./ scale
+    return ll' ./ scale
 end
 
 function l2_IS(
@@ -35,7 +35,6 @@ function l2_IS(
         ε,
         scale,
     )
-    W, H, C, S, B = size(x̂)
     ll =
         -dropdims(
         sum((x .- x̂) .^ 2, dims = (1, 2, 3)),
@@ -75,7 +74,7 @@ function cross_entropy_MALA(
         scale,
     )
     ll = dropdims(sum(log.(x̂ .+ ε) .* x, dims = (1, 2)), dims = (1, 2))
-    return ll ./ Float32(size(x, 1)) ./ scale
+    return ll ./ scale
 end
 
 function l2_PCA(
