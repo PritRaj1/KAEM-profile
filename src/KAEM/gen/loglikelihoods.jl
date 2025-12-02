@@ -46,7 +46,11 @@ function log_likelihood_IS(
     x_expanded = (
         length(lkhood.x_shape) == 3 ?
             PermutedDimsArray(view(x, :, :, :, :, :), (1, 2, 3, 5, 4)) :
-            PermutedDimsArray(view(x, :, :, :), ((1, 3, 2)))
+            (
+                length(lkhood.x_shape) == 2 ?
+                PermutedDimsArray(view(x, :, :, :, :), ((1, 2, 4, 3))) :
+                PermutedDimsArray(view(x, :, :, :), ((1, 3, 2)))
+            )
     )
 
     ll = IS_loss(x_expanded, x̂_noised, ε, 2 * lkhood.σ.llhood^2, B, S, lkhood.SEQ)
