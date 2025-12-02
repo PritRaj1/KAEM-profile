@@ -22,8 +22,9 @@ function log_mix_pdf(
         ε,
     )
     exp_f = @. exp(f) * π_0 * α / Z
-    lp = dropdims(sum(exp_f; dims = 2); dims = 2)
-    return log.(dropdims(prod(lp; dims = 1) .+ ε; dims = 1))
+    summed_p = sum(exp_f; dims = 2) .+ ε
+    prod_q = sum(log.(summed_p); dims = 1)
+    return dropdims(prod_q; dims = (1, 2))
 end
 
 struct LogPriorULA{T <: Float32} <: AbstractLogPrior
