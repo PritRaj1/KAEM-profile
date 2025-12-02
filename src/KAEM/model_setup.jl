@@ -135,6 +135,8 @@ function setup_training(
                 static_loss
             end
         end
+
+        println("Posterior sampler: MLE ULA")
     else
         @reset model.train_step = begin
 
