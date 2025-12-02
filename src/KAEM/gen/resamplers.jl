@@ -44,7 +44,7 @@ function residual_kernel(
     # Fill remaining with multinomial sampling
     residual_part = dropdims(
         sum(
-            1 .+ (cdf .< PermutedDimsArray(view(u, :, :, :), (1, 3, 2))); dims = 2
+            1 .+ (cdf .< u; dims = 2
         ); dims = 2
     )
     residual_part = ifelse.(residual_part .> N, N, residual_part)
@@ -81,7 +81,7 @@ function (r::ResidualResampler)(
     residual_weights = softmax(weights .* (N .- integer_counts), dims = 2)
 
     # CDF and variate for resampling
-    u = rand(rng, Float32, B, N)
+    u = rand(rng, Float32, B, 1, N)
     cdf = cumsum(residual_weights, dims = 2)
     return residual_kernel(ESS_bool, cdf, u, integer_counts, num_remaining, B, N)
 end
@@ -101,7 +101,7 @@ function systematic_kernel(
     early_return = (1 .- ESS_bool) .* (1:N)'
     indices = dropdims(
         sum(
-            1 .+ (cdf .< PermutedDimsArray(view(u, :, :, :), (1, 3, 2))); dims = 2
+            1 .+ (cdf .< PermutedDimsArray(u, (1, 3, 2)); dims = 2
         ); dims = 2
     )
     indices = ifelse.(indices .> N, N, indices)
@@ -128,7 +128,7 @@ function (r::SystematicResampler)(
     cdf = cumsum(weights, dims = 2)
 
     # Systematic thresholds
-    u = (rand(rng, Float32, B, 1) .+ (0:(N - 1))') ./ N
+    u = (rand(rng, Float32, B, 1, 1) .+ (0:(N - 1))') ./ N
     return systematic_kernel(ESS_bool, cdf, u, B, N)
 end
 
@@ -157,7 +157,7 @@ function (r::StratifiedResampler)(
     cdf = cumsum(weights, dims = 2)
 
     # Stratified thresholds
-    u = (rand(rng, Float32, B, N) .+ (0:(N - 1))') ./ N
+    u = (rand(rng, Float32, B, N, 1) .+ (0:(N - 1))') ./ N
     return systematic_kernel(ESS_bool, cdf, u, B, N)
 end
 
