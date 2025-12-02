@@ -53,8 +53,8 @@ function get_gausslegendre(
         (ebm.fcns_qp[1].spline_string == "FFT" || ebm.fcns_qp[1].spline_string == "Cheby")
 
     if no_grid
-        a .= a .* 0.0f0 .+ st_kan[:a].min
-        b .= b .* 0.0f0 .+ st_kan[:a].max
+        a = zero(a) .+ st_kan[:a].min
+        b = zero(b) .+ st_kan[:a].max
     end
 
     nodes, weights = gausslegendre(ebm.N_quad)
