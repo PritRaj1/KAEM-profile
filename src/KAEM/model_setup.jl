@@ -82,27 +82,6 @@ function setup_training(
         println("Prior sampler: Univar ITS")
     end
 
-    # Default training criterion
-    @reset model.train_step = begin
-
-        static_loss = ImportanceLoss(model)
-
-        if MLIR
-            Reactant.@compile static_loss(
-                opt_state,
-                ps,
-                st_kan,
-                st_lux,
-                x,
-                1,
-                rng,
-                swap_replica_idxs
-            )
-        else
-            static_loss
-        end
-    end
-
     @reset model.posterior_sampler = initialize_ULA_sampler(
         model;
         η = η_init,
@@ -157,6 +136,25 @@ function setup_training(
             end
         end
     else
+        @reset model.train_step = begin
+
+            static_loss = ImportanceLoss(model)
+
+            if MLIR
+                Reactant.@compile static_loss(
+                    opt_state,
+                    ps,
+                    st_kan,
+                    st_lux,
+                    x,
+                    1,
+                    rng,
+                    swap_replica_idxs
+                )
+            else
+                static_loss
+            end
+        end
 
         println("Posterior sampler: MLE IS")
     end
