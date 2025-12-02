@@ -35,7 +35,7 @@ function test_model_derivative()
 
     ps_after = Array(ps)
     @test any(ps_before .!= ps_after)
-    return @test !any(isnan, ps)
+    return @test !any(isnan, ps_after)
 end
 
 @testset "Thermodynamic Integration Tests" begin

@@ -237,8 +237,12 @@ function (gen::CNN_Generator)(
         The generated data.
     """
     z = reshape(sum(z, dims = 2), 1, 1, gen.in_channels, gen.s_size)
-    gen.bool_config.skip_bool && return forward_with_latent_concat(gen, z, ps, st_lux)
-    return forward(gen, z, ps, st_lux)
+    out = (
+        gen.bool_config.skip_bool ?
+            forward_with_latent_concat(gen, z, ps, st_lux) :
+            forward(gen, z, ps, st_lux)
+    )
+    return out
 end
 
 

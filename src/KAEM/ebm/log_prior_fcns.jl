@@ -20,9 +20,6 @@ function log_mix_pdf(
         π_0,
         Z,
         ε,
-        Q,
-        P,
-        S,
     )
     exp_f = @. exp(f) * π_0 * α / Z
     lp = dropdims(sum(exp_f; dims = 2); dims = 2)
@@ -170,8 +167,13 @@ function (lp::LogPriorMix)(
         dropdims(sum(first(ebm.quad(ebm, ps, st_kan, st_lyrnorm)), dims = 3), dims = 3) :
         zero(alpha) .+ 1.0f0
 
-    reg = ebm.λ > 0 ? ebm.λ * sum(abs.(alpha)) : 0.0f0
-    log_p = log_mix_pdf(f, alpha, π_0, Z, lp.ε, Q, P, :)
+    reg = (
+        ebm.λ > 0 ?
+            ebm.λ * sum(abs.(alpha)) :
+            0.0f0
+    )
+
+    log_p = log_mix_pdf(f, alpha, π_0, Z, lp.ε)
     return log_p .+ reg, st_lyrnorm
 end
 
