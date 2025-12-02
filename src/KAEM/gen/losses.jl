@@ -50,7 +50,6 @@ function l2_IS_PCA(
         ε,
         scale,
     )
-    D, S, B = size(x̂)
     ll = -dropdims(sum((x .- x̂) .^ 2, dims = 1), dims = 1)
     return ll' ./ scale
 end

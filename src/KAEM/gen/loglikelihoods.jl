@@ -43,11 +43,10 @@ function log_likelihood_IS(
     x̂_noised = lkhood.output_activation(x̂ .+ noise_scaled)
 
     # Add singleton dimension
-    x_expanded = reshape(
-        x,
-        lkhood.x_shape...,
-        1,
-        B
+    x_expanded = (
+        length(lkhood.x_shape) == 3 ?
+            PermutedDimsArray(view(x, :, :, :, :, :), (1, 2, 3, 5, 4)) :
+            PermutedDimsArray(view(x, :, :, :), ((1, 3, 2)))
     )
 
     ll = IS_loss(x_expanded, x̂_noised, ε, 2 * lkhood.σ.llhood^2, B, S, lkhood.SEQ)
