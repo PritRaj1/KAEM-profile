@@ -39,7 +39,11 @@ function residual_kernel(
 
     # Replicate by integer_counts in a stableHLO-compatible manner
     c = cumsum(integer_counts; dims = 2)
-    deterministic_part = 1 .+ dropdims(sum(c .< reshape(1:N, 1, 1, N); dims = 2); dims = 2)
+    deterministic_part = 1 .+ dropdims(
+        sum(
+            c .< reshape(1:N, 1, 1, N); dims = 2
+        ); dims = 2
+    )
 
     # Fill remaining with multinomial sampling
     residual_part = dropdims(
@@ -75,15 +79,29 @@ function (r::ResidualResampler)(
 
     # Number times to replicate each sample
     integer_counts = floor.(weights .* N)
-    num_remaining = dropdims(N .- sum(integer_counts, dims = 2); dims = 2)
+    R = N .- sum(integer_counts, dims = 2)
 
     # Residual weights to resample from
-    residual_weights = softmax(weights .* (N .- integer_counts), dims = 2)
+    residual_mass = weights .* N .- integer_counts
+    zero_vec = zero(residual_mass)
+    residual_weights = ifelse.(
+        R .> zero_vec,
+        residual_mass ./ R,
+        zero_vec
+    )
 
     # CDF and variate for resampling
     u = rand(rng, Float32, B, 1, N)
     cdf = cumsum(residual_weights, dims = 2)
-    return residual_kernel(ESS_bool, cdf, u, integer_counts, num_remaining, B, N)
+    return residual_kernel(
+        ESS_bool,
+        cdf,
+        u,
+        integer_counts,
+        dropdims(R; dims = 2),
+        B,
+        N
+    )
 end
 
 struct SystematicResampler <: AbstractResampler
