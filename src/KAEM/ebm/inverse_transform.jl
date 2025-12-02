@@ -11,7 +11,7 @@ using .MixtureChoice: choose_component
 
 
 function interpolate_kernel(cdf, grid, rand_vals, Q, P, G, S; mix_bool = false)
-    grid_idxs = reshape(1:G, 1, 1, G, 1) |> pu
+    grid_idxs = reshape(1:G, 1, 1, G, 1)
 
     # First index, i, such that cdf[i] >= rand_vals
     indices = sum(1 .+ (cdf .< reshape(rand_vals, Q, P, 1, S)); dims = 3)
