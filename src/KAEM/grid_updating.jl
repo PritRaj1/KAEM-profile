@@ -114,7 +114,7 @@ function (gu::GridUpdater)(
             end
 
             mid_size = prior_copy.bool_config.mixture_model ? P : Q
-            outer_dim = prior_copy.bool_config.mixture_model ? Q * Q * B : Q * P * B
+            outer_dim = prior_copy.bool_config.mixture_model ? Q * B : Q * P * B
 
             for i in 1:prior_copy.depth
                 if prior_copy.bool_config.layernorm && i != 1
