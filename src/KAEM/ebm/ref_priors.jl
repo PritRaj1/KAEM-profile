@@ -32,7 +32,7 @@ function (prior::UniformPrior)(
         log_bool = false,
     )
     z = @. (z >= 0) * (z <= 1)
-    log_bool && return stable_log(z, prior.ε)
+    z = log_bool ? stable_log(z, prior.ε) : z
     return z
 end
 
@@ -44,7 +44,7 @@ function (prior::GaussianPrior)(
     )
     scale = Float32(1 / sqrt(2π))
     z = @. scale * exp(-z^2 / 2)
-    log_bool && return stable_log(z, prior.ε)
+    z = log_bool ? stable_log(z, prior.ε) : z
     return z
 end
 
@@ -56,7 +56,7 @@ function (prior::LogNormalPrior)(
     )
     sqrt_2π = Float32(sqrt(2π))
     z = @. exp(-((log(z + prior.ε))) / 2) / (z * sqrt_2π * prior.ε)
-    log_bool && return stable_log(z, prior.ε)
+    z = log_bool ? stable_log(z, prior.ε) : z
     return z
 end
 
@@ -69,7 +69,7 @@ function (prior::LearnableGaussianPrior)(
     π_eps = @. π_σ * Float32(sqrt(2π)) + prior.ε
     denom_eps = @. 2 * π_σ^2 + prior.ε
     z = @. (1 / abs(π_eps)) * exp(-((z - π_μ)^2) / denom_eps)
-    log_bool && return stable_log(z, prior.ε)
+    z = log_bool ? stable_log(z, prior.ε) : z
     return z
 end
 
@@ -80,7 +80,7 @@ function (prior::EbmPrior)(
         log_bool = false,
     )
     log_pdf = zero(z)
-    log_bool && return log_pdf
+    log_pdf = log_bool ? log_pdf .- 1.0f0 : log_pdf
     return @. log_pdf + 1.0f0
 end
 
