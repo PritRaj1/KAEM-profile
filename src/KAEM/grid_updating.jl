@@ -161,87 +161,87 @@ function (gu::GridUpdater)(
     st_kan.quad.weights = new_weights
 
     # Only update if KAN-type generator requires
-    (!model.update_llhood_grid || model.lkhood.CNN || model.lkhood.SEQ) &&
-        return ps, st_kan, st_lux
 
-    if model.N_t > 1
-        temps = collect(Float32, [(k / model.N_t)^model.p[train_idx] for k in 1:model.N_t])
-        z = first(
-            model.posterior_sampler(
-                ps,
-                st_kan,
-                st_lux,
-                x;
-                temps = temps,
-                rng = rng,
-                swap_replica_idxs = swap_replica_idxs
-            ),
-        )[
-            :,
-            :,
-            :,
-            end,
-        ]
-    elseif model.prior.bool_config.ula || model.MALA
-        z = first(model.posterior_sampler(ps, st_kan, st_lux, x; rng = rng))[
-            :,
-            :,
-            :,
-            1,
-        ]
-    else
-        # z = first(
-        #     model.sample_prior(model, ps, st_kan, st_lux, rng)
-        # )
-        z = first(model.posterior_sampler(ps, st_kan, st_lux, x; rng = rng))[
-            :,
-            :,
-            :,
-            1,
-        ] # For domain updating: use ULA to explore beyond prior init domain.
-    end
-
-    z = dropdims(sum(z; dims = 2); dims = 2)
-
-    for i in 1:model.lkhood.generator.depth
-        if model.lkhood.generator.bool_config.layernorm
-            z, st_gen = Lux.apply(
-                model.lkhood.generator.layernorms[i],
-                z,
-                ps.gen.layernorm[symbol_map[i]],
-                st_lux.gen[symbol_map[i]],
-            )
-            @reset st_lux.gen[symbol_map[i]] = st_gen
+    if (model.update_llhood_grid || !model.lkhood.CNN || !model.lkhood.SEQ)
+        if model.N_t > 1
+            temps = collect(Float32, [(k / model.N_t)^model.p[train_idx] for k in 1:model.N_t])
+            z = first(
+                model.posterior_sampler(
+                    ps,
+                    st_kan,
+                    st_lux,
+                    x;
+                    temps = temps,
+                    rng = rng,
+                    swap_replica_idxs = swap_replica_idxs
+                ),
+            )[
+                :,
+                :,
+                :,
+                end,
+            ]
+        elseif model.prior.bool_config.ula || model.MALA
+            z = first(model.posterior_sampler(ps, st_kan, st_lux, x; rng = rng))[
+                :,
+                :,
+                :,
+                1,
+            ]
+        else
+            # z = first(
+            #     model.sample_prior(model, ps, st_kan, st_lux, rng)
+            # )
+            z = first(model.posterior_sampler(ps, st_kan, st_lux, x; rng = rng))[
+                :,
+                :,
+                :,
+                1,
+            ] # For domain updating: use ULA to explore beyond prior init domain.
         end
 
-        if !(
-                model.lkhood.generator.Φ_fcns[i].spline_string == "FFT" ||
-                    model.lkhood.generator.Φ_fcns[i].spline_string == "Cheby"
-            )
-            new_grid, new_coef = update_fcn_grid(
+        z = dropdims(sum(z; dims = 2); dims = 2)
+
+        for i in 1:model.lkhood.generator.depth
+            if model.lkhood.generator.bool_config.layernorm
+                z, st_gen = Lux.apply(
+                    model.lkhood.generator.layernorms[i],
+                    z,
+                    ps.gen.layernorm[symbol_map[i]],
+                    st_lux.gen[symbol_map[i]],
+                )
+                @reset st_lux.gen[symbol_map[i]] = st_gen
+            end
+
+            if !(
+                    model.lkhood.generator.Φ_fcns[i].spline_string == "FFT" ||
+                        model.lkhood.generator.Φ_fcns[i].spline_string == "Cheby"
+                )
+                new_grid, new_coef = update_fcn_grid(
+                    model.lkhood.generator.Φ_fcns[i],
+                    ps.gen.fcn[symbol_map[i]],
+                    st_kan.gen[symbol_map[i]],
+                    z,
+                )
+                ps.gen.fcn[symbol_map[i]].coef = new_coef
+                st_kan.gen[symbol_map[i]].grid = new_grid
+
+                if model.lkhood.generator.Φ_fcns[i].spline_string == "RBF"
+                    scale = (maximum(new_grid) - minimum(new_grid)) /
+                        (size(new_grid, 2) - 1) |> Lux.f32
+
+                    st_kan.gen[symbol_map[i]].scale = [scale]
+                end
+            end
+
+            z = Lux.apply(
                 model.lkhood.generator.Φ_fcns[i],
+                z,
                 ps.gen.fcn[symbol_map[i]],
                 st_kan.gen[symbol_map[i]],
-                z,
             )
-            ps.gen.fcn[symbol_map[i]].coef = new_coef
-            st_kan.gen[symbol_map[i]].grid = new_grid
-
-            if model.lkhood.generator.Φ_fcns[i].spline_string == "RBF"
-                scale = (maximum(new_grid) - minimum(new_grid)) /
-                    (size(new_grid, 2) - 1) |> Lux.f32
-
-                st_kan.gen[symbol_map[i]].scale = [scale]
-            end
+            z = dropdims(sum(z, dims = 1); dims = 1)
         end
-
-        z = Lux.apply(
-            model.lkhood.generator.Φ_fcns[i],
-            z,
-            ps.gen.fcn[symbol_map[i]],
-            st_kan.gen[symbol_map[i]],
-        )
-        z = dropdims(sum(z, dims = 1); dims = 1)
     end
 
     return ps, st_kan, st_lux
