@@ -23,8 +23,7 @@ function loss_accum(
     loss = sum(
         weights_resampled .*
             (
-            sum(logprior' .* resampled_mask; dims = 3)
-                .+ sum(logllhood .* resampled_mask; dims = 3)
+            sum((logprior' .+ logllhood) .* resampled_mask; dims = 3)
         )
     )
     return loss / B
