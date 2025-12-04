@@ -113,7 +113,7 @@ function sample_mixture(
     cdf, grid, st_lyrnorm_new =
         ebm.quad(ebm, ps, st_kan, st_lyrnorm, st_quad; component_mask = mask, mix_bool = true)
     cdf = cumsum(cdf; dims = 3) # Cumulative trapezium = CDF
-    cdf = PermutedDimsArray(view(cdf, :, :, :, :), (1, 4, 2, 3))
+    cdf = PermutedDimsArray(view(cdf, :, :, :, :), (1, 4, 3, 2))
 
     rand_vals = rand(rng, Float32, ebm.q_size, 1, 1, ebm.s_size) .* cdf[:, :, end:end, :]
     z = interpolate_kernel(
