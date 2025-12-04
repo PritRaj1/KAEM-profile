@@ -27,7 +27,7 @@ conf = Dict(
 parse_conf!(conf)
 
 N_t = parse(Int, retrieve(conf, "THERMODYNAMIC_INTEGRATION", "num_temps"))
-ENV["THERMO"] = (N_t > 1 || use_thermo) ? "true" : "false"
+ENV["THERMO"] = (N_t > 1 && use_thermo) ? "true" : "false"
 ENV["GPU"] = retrieve(conf, "TRAINING", "use_gpu")
 ENV["PERCEPTUAL"] = retrieve(conf, "TRAINING", "use_perceptual_loss")
 
@@ -46,7 +46,7 @@ grid_sizes = Dict(5 => "20", 6 => "1", 7 => "50")
 rng = Random.MersenneTwister(1)
 im_resize = dataset == "CELEBA" || dataset == "CELEBAPANG" ? (64, 64) : (32, 32)
 
-if use_thermo || N_t > 1
+if use_thermo && N_t > 1
     t = init_trainer(rng, conf, dataset; img_resize = im_resize)
     train!(t)
 else
