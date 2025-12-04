@@ -3,7 +3,7 @@ module trainer
 export KAEM_trainer, init_trainer, train!
 
 using Flux: onecold, mse
-using Random, ComponentArrays, CSV, HDF5, JLD2, ConfParser, Reactant, Optimisers
+using Random, ComponentArrays, CSV, HDF5, JLD2, ConfParser, Reactant
 using Lux, LinearAlgebra, Accessors
 using MultivariateStats: reconstruct
 using MLDataDevices: cpu_device
@@ -213,8 +213,8 @@ function train!(t::KAEM_trainer; train_idx::Int = 1)
         t.rng,
     )
 
-    test_loss_func = t.gen_type == "logits" ? logit_test_loss : image_test_loss
-    test_loss_compiled = Reactant.@compile test_loss_func(t.x, t.x)
+    test_train_step = t.gen_type == "logits" ? logit_test_loss : image_test_loss
+    test_loss_compiled = Reactant.@compile test_train_step(t.x, t.x)
 
     # Update for a single batch
     function step!()
@@ -255,7 +255,8 @@ function train!(t::KAEM_trainer; train_idx::Int = 1)
             t.model.verbose && println("Iter: $(train_idx), Grid updated")
         end
 
-        t.loss, ∇, st_ebm, st_gen = t.model.loss_func(
+        t.loss, t.ps, t.opt_state, st_ebm, st_gen = t.model.train_step(
+            t.opt_state,
             t.ps,
             t.st_kan,
             t.st_lux,
@@ -267,7 +268,6 @@ function train!(t::KAEM_trainer; train_idx::Int = 1)
         @reset t.st_lux.ebm = st_ebm
         @reset t.st_lux.gen = st_gen
 
-        t.opt_state, t.ps = Optimisers.update(t.opt_state, t.ps, ∇)
         t.model.verbose && println("Iter: $(train_idx), Loss: $(t.loss)")
         return nothing
     end
