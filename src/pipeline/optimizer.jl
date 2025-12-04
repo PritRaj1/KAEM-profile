@@ -28,8 +28,8 @@ function create_opt(conf::ConfParse)
     opt_type = retrieve(conf, "OPTIMIZER", "type")
 
     opt_mapping = Dict(
-        "adam" => () -> Optimisers.Adam(LR, β, ε),
-        "adamw" => () -> Optimisers.AdamW(LR, β, decay, ε),
+        # "adam" => () -> Optimisers.Adam(LR, β, ε),
+        # "adamw" => () -> Optimisers.AdamW(LR, β, decay, ε),
         "momentum" => () -> Optimisers.Momentum(LR, ρ),
         "nesterov" => () -> Optimisers.Nesterov(LR, ρ),
         "sgd" => () -> Optimisers.Descent(LR),

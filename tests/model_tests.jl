@@ -33,12 +33,13 @@ function test_ps_derivative()
     x_test = first(model.train_loader) |> pu
     model, opt_state, ps, st_kan, st_lux = prep_model(model, x_test, optimizer)
 
-    loss, grads, st_ebm, st_gen =
-        model.loss_func(ps, st_kan, st_lux, x_test, 1, Random.default_rng(), nothing)
+    ps_before = Array(ps)
+    loss, ps, _, st_ebm, st_gen =
+        model.train_step(opt_state, ps, st_kan, st_lux, x_test, 1, Random.default_rng(), nothing)
 
-    grads = Array(grads)
-    @test !all(iszero, grads)
-    return @test !any(isnan, grads)
+    ps_after = Array(ps)
+    @test any(ps_before .!= ps_after)
+    return @test !any(isnan, ps_after)
 end
 
 function test_grid_update()
@@ -98,12 +99,13 @@ function test_mala_loss()
     x_test = first(model.train_loader) |> pu
     model, opt_state, ps, st_kan, st_lux = prep_model(model, x_test, optimizer)
 
-    loss, grads, st_ebm, st_gen =
-        model.loss_func(ps, st_kan, st_lux, x_test, 1, Random.default_rng(), nothing)
+    ps_before = Array(ps)
+    loss, ps, _, st_ebm, st_gen =
+        model.train_step(opt_state, ps, st_kan, st_lux, x_test, 1, Random.default_rng(), nothing)
 
-    grads = Array(grads)
-    @test !all(iszero, grads)
-    return @test !any(isnan, grads)
+    ps_after = Array(ps)
+    @test any(ps_before .!= ps_after)
+    return @test !any(isnan, ps_after)
 end
 
 function test_cnn_loss()
@@ -116,12 +118,13 @@ function test_cnn_loss()
     x_test = first(model.train_loader) |> pu
     model, opt_state, ps, st_kan, st_lux = prep_model(model, x_test, optimizer)
 
-    loss, grads, st_ebm, st_gen =
-        model.loss_func(ps, st_kan, st_lux, x_test, 1, Random.default_rng(), nothing)
+    ps_before = Array(ps)
+    loss, ps, _, st_ebm, st_gen =
+        model.train_step(opt_state, ps, st_kan, st_lux, x_test, 1, Random.default_rng(), nothing)
 
-    grads = Array(grads)
-    @test !all(iszero, grads)
-    @test !any(isnan, grads)
+    ps_after = Array(ps)
+    @test any(ps_before .!= ps_after)
+    @test !any(isnan, ps_after)
     return commit!(conf, "CNN", "use_cnn_lkhood", "false")
 end
 
@@ -134,13 +137,14 @@ function test_cnn_residual_loss()
     x_test = first(model.train_loader) |> pu
     model, opt_state, ps, st_kan, st_lux = prep_model(model, x_test, optimizer)
 
-    loss, grads, st_ebm, st_gen =
-        model.loss_func(ps, st_kan, st_lux, x_test, 1, Random.default_rng(), nothing)
+    ps_before = Array(ps)
+    loss, ps, _, st_ebm, st_gen =
+        model.train_step(opt_state, ps, st_kan, st_lux, x_test, 1, Random.default_rng(), nothing)
 
-    grads = Array(grads)
-    @test !all(iszero, grads)
+    ps_after = Array(ps)
+    @test any(ps_before .!= ps_after)
     commit!(conf, "CNN", "use_cnn_lkhood", "false")
-    return @test !any(isnan, grads)
+    return @test !any(isnan, ps_after)
 end
 
 function test_seq_loss()
@@ -152,12 +156,13 @@ function test_seq_loss()
     x_test = first(model.train_loader) |> pu
     model, opt_state, ps, st_kan, st_lux = prep_model(model, x_test, optimizer)
 
-    loss, grads, st_ebm, st_gen =
-        model.loss_func(ps, st_kan, st_lux, x_test, 1, Random.default_rng(), nothing)
+    ps_before = Array(ps)
+    loss, ps, _, st_ebm, st_gen =
+        model.train_step(opt_state, ps, st_kan, st_lux, x_test, 1, Random.default_rng(), nothing)
 
-    grads = Array(grads)
-    @test !all(iszero, grads)
-    return @test !any(isnan, grads)
+    ps_after = Array(ps)
+    @test any(ps_before .!= ps_after)
+    return @test !any(isnan, ps_after)
 end
 
 @testset "KAEM Tests" begin
