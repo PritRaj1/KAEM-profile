@@ -161,7 +161,6 @@ function (gu::GridUpdater)(
     st_kan.quad.weights = new_weights
 
     # Only update if KAN-type generator requires
-
     if (model.update_llhood_grid && !model.lkhood.CNN && !model.lkhood.SEQ)
         if model.N_t > 1
             temps = collect(Float32, [(k / model.N_t)^model.p[train_idx] for k in 1:model.N_t])
