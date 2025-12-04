@@ -34,7 +34,7 @@ ENV["PERCEPTUAL"] = retrieve(conf, "TRAINING", "use_perceptual_loss")
 include("src/pipeline/trainer.jl")
 using .trainer
 
-if !use_thermo && N_t <= 1
+if !use_thermo || N_t <= 1
     commit!(conf, "THERMODYNAMIC_INTEGRATION", "num_temps", "-1")
 end
 
