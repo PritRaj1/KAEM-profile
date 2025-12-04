@@ -37,7 +37,7 @@ function test_ps_derivative()
         model.loss_func(ps, st_kan, st_lux, x_test, 1, Random.default_rng(), nothing)
 
     grads = Array(grads)
-    @test all(iszero, grads)
+    @test !all(iszero, grads)
     return @test !any(isnan, grads)
 end
 
@@ -102,7 +102,7 @@ function test_mala_loss()
         model.loss_func(ps, st_kan, st_lux, x_test, 1, Random.default_rng(), nothing)
 
     grads = Array(grads)
-    @test all(iszero, grads)
+    @test !all(iszero, grads)
     return @test !any(isnan, grads)
 end
 
@@ -120,7 +120,7 @@ function test_cnn_loss()
         model.loss_func(ps, st_kan, st_lux, x_test, 1, Random.default_rng(), nothing)
 
     grads = Array(grads)
-    @test all(iszero, grads)
+    @test !all(iszero, grads)
     @test !any(isnan, grads)
     return commit!(conf, "CNN", "use_cnn_lkhood", "false")
 end
@@ -138,7 +138,7 @@ function test_cnn_residual_loss()
         model.loss_func(ps, st_kan, st_lux, x_test, 1, Random.default_rng(), nothing)
 
     grads = Array(grads)
-    @test all(iszero, grads)
+    @test !all(iszero, grads)
     commit!(conf, "CNN", "use_cnn_lkhood", "false")
     return @test !any(isnan, grads)
 end
@@ -156,7 +156,7 @@ function test_seq_loss()
         model.loss_func(ps, st_kan, st_lux, x_test, 1, Random.default_rng(), nothing)
 
     grads = Array(grads)
-    @test all(iszero, grads)
+    @test !all(iszero, grads)
     return @test !any(isnan, grads)
 end
 

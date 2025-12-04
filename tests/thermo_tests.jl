@@ -33,7 +33,7 @@ function test_model_derivative()
         model.loss_func(ps, st_kan, st_lux, x_test, 1, Random.default_rng(), swap_replica_idxs)
 
     grads = Array(grads)
-    @test all(iszero, grads)
+    @test !all(iszero, grads)
     return @test !any(isnan, grads)
 end
 
