@@ -46,7 +46,7 @@ grid_sizes = Dict(5 => "20", 6 => "1", 7 => "50")
 rng = Random.MersenneTwister(1)
 im_resize = dataset == "CELEBA" || dataset == "CELEBAPANG" ? (64, 64) : (32, 32)
 
-if use_thermo || N_t > 1
+if use_thermo && N_t > 1
     t = init_trainer(rng, conf, dataset; img_resize = im_resize)
     train!(t)
 else
