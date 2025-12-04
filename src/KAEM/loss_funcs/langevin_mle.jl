@@ -2,7 +2,7 @@ module LangevinMLE
 
 export LangevinLoss
 
-using ComponentArrays, Random, Enzyme, Statistics, Lux, Optimisers
+using ComponentArrays, Random, Enzyme, Statistics, Lux
 
 using ..Utils
 using ..KAEM_model
@@ -154,8 +154,7 @@ function (l::LangevinLoss)(
         noise,
     )
 
-    opt_state, ps = Optimisers.update(opt_state, ps, ∇)
-    return loss, ps, opt_state, st_lux_ebm, st_lux_gen
+    return loss, ∇, st_lux_ebm, st_lux_gen
 end
 
 end

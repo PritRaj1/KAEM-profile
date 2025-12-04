@@ -2,7 +2,7 @@ module ThermodynamicIntegration
 
 export ThermoLoss
 
-using ComponentArrays, Random, Enzyme, Statistics, Lux, Optimisers
+using ComponentArrays, Random, Enzyme, Statistics, Lux
 
 using ..Utils
 using ..KAEM_model
@@ -172,7 +172,6 @@ struct ThermoLoss
 end
 
 function (l::ThermoLoss)(
-        opt_state,
         ps,
         st_kan,
         st_lux,
@@ -223,8 +222,7 @@ function (l::ThermoLoss)(
         tempered_noise,
     )
 
-    opt_state, ps = Optimisers.update(opt_state, ps, ∇)
-    return loss, ps, opt_state, st_lux_ebm, st_lux_gen
+    return loss, ∇, st_lux_ebm, st_lux_gen
 end
 
 end

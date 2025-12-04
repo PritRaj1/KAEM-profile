@@ -1,6 +1,6 @@
 module ImportanceSampling
 
-using ComponentArrays, Random, Enzyme, Statistics, Lux, Optimisers
+using ComponentArrays, Random, Enzyme, Statistics, Lux
 using NNlib: softmax
 
 export ImportanceLoss
@@ -177,7 +177,6 @@ struct ImportanceLoss
 end
 
 function (l::ImportanceLoss)(
-        opt_state,
         ps,
         st_kan,
         st_lux,
@@ -221,8 +220,7 @@ function (l::ImportanceLoss)(
         noise,
     )
 
-    opt_state, ps = Optimisers.update(opt_state, ps, ∇)
-    return loss, ps, opt_state, st_lux_ebm, st_lux_gen
+    return loss, ∇, st_lux_ebm, st_lux_gen
 end
 
 end

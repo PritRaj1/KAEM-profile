@@ -10,9 +10,9 @@ using ..KAEM_model.LogPriorFCNs
 using ..KAEM_model.InverseTransformSampling
 using ..KAEM_model.PopulationXchange
 
-include("train_steps/langevin_mle.jl")
-include("train_steps/importance_sampling.jl")
-include("train_steps/thermodynamic.jl")
+include("loss_funcs/langevin_mle.jl")
+include("loss_funcs/importance_sampling.jl")
+include("loss_funcs/thermodynamic.jl")
 include("ula/unadjusted_langevin.jl")
 using .ImportanceSampling
 using .LangevinMLE
@@ -21,7 +21,6 @@ using .ULA_sampling
 
 
 function setup_training(
-        opt_state,
         ps::ComponentArray{T},
         st_kan::ComponentArray{T},
         st_lux::NamedTuple,
@@ -94,13 +93,12 @@ function setup_training(
         P = model.prior.bool_config.mixture_model ? 1 : model.prior.p_size
         @reset model.xchange_func = ReplicaXchange(Q, P, S, model.N_t)
 
-        @reset model.train_step = begin
+        @reset model.loss_func = begin
 
             static_loss = ThermoLoss(model)
 
             if MLIR
                 Reactant.@compile static_loss(
-                    opt_state,
                     ps,
                     st_kan,
                     st_lux,
@@ -119,10 +117,9 @@ function setup_training(
 
         static_loss = LangevinLoss(model)
 
-        @reset model.train_step = begin
+        @reset model.loss_func = begin
             if MLIR
                 Reactant.@compile static_loss(
-                    opt_state,
                     ps,
                     st_kan,
                     st_lux,
@@ -138,13 +135,12 @@ function setup_training(
 
         println("Posterior sampler: MLE ULA")
     else
-        @reset model.train_step = begin
+        @reset model.loss_func = begin
 
             static_loss = ImportanceLoss(model)
 
             if MLIR
                 Reactant.@compile static_loss(
-                    opt_state,
                     ps,
                     st_kan,
                     st_lux,
@@ -177,7 +173,6 @@ function prep_model(
         ps |> ComponentArray |> Lux.f32 |> pu, st_kan |> ComponentArray |> Lux.f32 |> pu, st_lux |> Lux.f32 |> pu
     opt_state = Optimisers.setup(optimizer.rule(), ps)
     model = setup_training(
-        opt_state,
         ps,
         st_kan,
         st_lux,
