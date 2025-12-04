@@ -29,7 +29,7 @@ function update_fcn_grid(
     """
     coef = ps.coef
     τ = l.τ_trainable ? ps.basis_τ : st.basis_τ
-    I, S = l.basis_function.I, l.basis_function.S
+    I, S, G = l.basis_function.I, l.basis_function.S, l.basis_function.G
 
     x_sort = sort(x, dims = 2)
     y =
@@ -38,9 +38,9 @@ function update_fcn_grid(
         coef2curve_Spline(l.basis_function, x_sort, st.grid, coef, τ, st.scale)
 
     # Adaptive grid - concentrate grid points around regions of higher density
-    num_interval = size(st.grid, 2) - 2 * l.spline_degree - 1
+    num_interval = G - 2 * l.spline_degree - 1
     ids = reshape([div(S * i, num_interval) + 1 for i in 0:(num_interval - 1)], 1, 1, num_interval)
-    mask = ids .== (1:S)'
+    mask = PermutedDimsArray(view(ids .== 1:S', :, :, :), (3, 2, 1))
     grid_adaptive = dropdims(sum(mask .* x_sort; dims = 2); dims = 2)
     grid_adaptive = hcat(grid_adaptive, x_sort[:, S:S])
 
