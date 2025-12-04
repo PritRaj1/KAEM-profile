@@ -1,7 +1,10 @@
 using ConfParser, Random
 
 dataset = get(ENV, "DATASET", "MNIST")
-use_thermo = get(ENV, "MODE", "vanilla") == "thermo"
+mode = get(ENV, "MODE", "vanilla")
+use_thermo = mode == "thermo"
+
+println("Init main.jl training as $dataset $mode")
 
 println("=== XLA Environment Config ===")
 println("XLA_REACTANT_GPU_MEM_FRACTION: ", get(ENV, "XLA_REACTANT_GPU_MEM_FRACTION", "not set"))
