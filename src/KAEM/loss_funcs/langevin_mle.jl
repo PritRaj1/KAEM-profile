@@ -115,7 +115,6 @@ struct LangevinLoss
 end
 
 function (l::LangevinLoss)(
-        opt_state,
         ps,
         st_kan,
         st_lux,
