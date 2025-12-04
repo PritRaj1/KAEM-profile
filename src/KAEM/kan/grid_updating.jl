@@ -40,7 +40,7 @@ function update_fcn_grid(
     # Adaptive grid - concentrate grid points around regions of higher density
     num_interval = G - 2 * l.spline_degree - 1
     ids = [div(S * i, num_interval) + 1 for i in 0:(num_interval - 1)]
-    mask = PermutedDimsArray(view(ids .== 1:S', :, :, :), (3, 2, 1))
+    mask = PermutedDimsArray(view(ids .== (1:S)', :, :, :), (3, 2, 1))
     grid_adaptive = dropdims(sum(mask .* x_sort; dims = 2); dims = 2)
     grid_adaptive = hcat(grid_adaptive, x_sort[:, S:S])
 
