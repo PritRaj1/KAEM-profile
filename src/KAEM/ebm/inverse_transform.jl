@@ -49,7 +49,7 @@ function sample_univariate(
     rand_vals = rand(rng, Float32, 1, ebm.p_size, ebm.s_size) .* cdf[:, :, end]
     z = interpolate_kernel(
         cdf,
-        reshape(grid, 1, :, ebm.N_quad),
+        PermutedDimsArray(view(grid, :, :, :), (3, 1, 2)),
         rand_vals,
         ebm.q_size,
         ebm.p_size,
@@ -113,7 +113,7 @@ function sample_mixture(
     cdf, grid, st_lyrnorm_new =
         ebm.quad(ebm, ps, st_kan, st_lyrnorm, st_quad; component_mask = mask, mix_bool = true)
     cdf = cumsum(cdf; dims = 3) # Cumulative trapezium = CDF
-    cdf = reshape(cdf, ebm.q_size, 1, :, ebm.s_size)
+    cdf = PermutedDimsArray(view(cdf, :, :, :), (3, 1, 2))
 
     rand_vals = rand(rng, Float32, ebm.q_size, 1, 1, ebm.s_size) .* cdf[:, :, end:end, :]
     z = interpolate_kernel(

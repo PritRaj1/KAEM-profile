@@ -1,7 +1,7 @@
 using ConfParser, Random
 
 dataset = get(ENV, "DATASET", "MNIST")
-use_thermo = get(ENV, "USE_THERMO", "false") == "true"
+use_thermo = get(ENV, "MODE", "thermo") == "thermo"
 
 println("=== XLA Environment Config ===")
 println("XLA_REACTANT_GPU_MEM_FRACTION: ", get(ENV, "XLA_REACTANT_GPU_MEM_FRACTION", "not set"))
