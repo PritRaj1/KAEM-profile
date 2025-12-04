@@ -92,8 +92,8 @@ function (gu::GridUpdater)(
         # Must update domain for inverse transform sampling
         if (model.MALA || model.N_t > 1 || model.prior.bool_config.ula)
             min_z, max_z = minimum(z), maximum(z)
-            st_kan.ebm[:a].min = [min_z * 0.9f0]
-            st_kan.ebm[:a].max = [max_z * 1.1f0]
+            st_kan.ebm[:a].min = zero(st_kan.ebm[:a].min) .+ 0.9f0 .* min_z
+            st_kan.ebm[:a].max = zero(st_kan.ebm[:a].max) .+ 1.1f0 .* max_z
         end
 
         if !(
