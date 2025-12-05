@@ -25,7 +25,8 @@ function choose_component(
         num_samples,
         q_size,
         p_size,
-        st_rng,
+        st_rng;
+        ula_init = false
     )
     """
     Creates a one-hot mask for mixture model, q, to select one component, p.
@@ -39,7 +40,7 @@ function choose_component(
     Returns:
         chosen_components: The one-hot mask for each mixture model, (num_samples, q, p).    
     """
-    rand_vals = st_rng.mix_rv
+    rand_vals = ula_init ? st_rng.mix_rv_ula : st_rng.mix_rv
     α = cumsum(softmax(α; dims = 2); dims = 2)
     return mask_kernel(α, rand_vals, q_size, p_size)
 end

@@ -28,6 +28,12 @@ function seed_rand(
             [0.0f0]
     )
 
+    mix_mask_rv_ula = (
+        model.prior.bool_config.mixture_model ?
+            rand(rng, T, model.prior.q_size, 1, model.batch_size * num_temps) :
+            [0.0f0]
+    )
+
     attn_rand = (
         model.prior.bool_config.use_attention_kernel ?
             rand(rng, T, model.prior.q_size, model.batch_size) :
@@ -82,6 +88,7 @@ function seed_rand(
         prior_its = prior_its,
         posterior_its = posterior_its,
         mix_rv = mix_mask_rv,
+        mix_rv_ula = mix_mask_rv_ula,
         attn_rand = attn_rand,
         train_noise = train_noise,
         tempered_noise = tempered_noise,
@@ -98,6 +105,7 @@ function seed_rand(
         prior_its = prior_its,
         posterior_its = posterior_its,
         mix_rv = mix_mask_rv,
+        mix_rv_ula = mix_mask_rv_ula,
         attn_rand = attn_rand,
         train_noise = train_noise,
         tempered_noise = tempered_noise,
