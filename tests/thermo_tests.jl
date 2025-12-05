@@ -24,7 +24,7 @@ rng = Random.MersenneTwister(1)
 
 function test_model_derivative()
     Random.seed!(42)
-    dataset = randn(Float32, 32, 32, 1, 50)
+    dataset = randn(rng, Float32, 32, 32, 1, 50)
     model = init_KAEM(dataset, conf, (32, 32, 1))
     x_test = first(model.train_loader) |> pu
     model, opt_state, ps, st_kan, st_lux = prep_model(model, x_test, optimizer)
