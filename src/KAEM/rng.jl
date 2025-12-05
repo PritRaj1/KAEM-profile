@@ -73,7 +73,7 @@ function seed_rand(
     # Replica exchange
     swap_replica_idxs = (
         num_temps > 1 ?
-            rand(rng, 1:(model.N_t - 1), model.posterior_sampler.N) :
+            rand(rng, 1:(model.N_t - 1), 1, model.posterior_sampler.N) :
             [0]
     )
 
@@ -102,7 +102,7 @@ function seed_rand(
         ula_noise = ula_noise,
         log_swap = log_swap,
         xchange_ll_noise = xchange_ll_noise,
-    ) |> pu
+    )
 end
 
 end
