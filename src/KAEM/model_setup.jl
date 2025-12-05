@@ -27,7 +27,7 @@ function setup_training(
         st_lux::NamedTuple,
         model::KAEM{T},
         x::AbstractArray{T};
-        rng::AbstractRNG = Random.default_rng(),
+        rng::AbstractRNG = Random.MersenneTwister(1),
         MLIR::Bool = true,
     ) where {T <: Float32}
     conf = model.conf
@@ -168,7 +168,7 @@ function prep_model(
         model::KAEM{T},
         x::AbstractArray{T},
         optimizer;
-        rng::AbstractRNG = Random.default_rng(),
+        rng::AbstractRNG = Random.MersenneTwister(1),
         MLIR::Bool = true,
     ) where {T <: Float32}
     ps = Lux.initialparameters(rng, model)
