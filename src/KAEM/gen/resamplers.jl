@@ -91,8 +91,7 @@ function (r::ResidualResampler)(
     )
 
     # CDF and variate for resampling
-    rv = st_rng.resample_rv[:, 1:1, :]
-    u = rand_like(Lux.replicate(rng), PermutedDimsArray(view(weights, :, :, :), (1, 3, 2)))
+    u = st_rng.resample_rv[:, 1:1, :]
     cdf = cumsum(residual_weights, dims = 2)
     return residual_kernel(
         ESS_bool,
