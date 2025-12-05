@@ -25,7 +25,7 @@ include("data_utils.jl")
 using .optimization
 using .DataUtils: get_vision_dataset, get_text_dataset
 
-include("rng.jl")
+include("../KAEM/rng.jl")
 using .HLOrand
 
 mutable struct KAEM_trainer{T <: Float32}
