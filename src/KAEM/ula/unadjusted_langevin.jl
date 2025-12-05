@@ -164,7 +164,7 @@ function (sampler::ULA_sampler)(
 
             z_init, st_ebm = begin
                 if model.prior.bool_config.mixture_model
-                    sample_mixture(
+                    z, st = sample_mixture(
                         model_copy.prior,
                         ps.ebm,
                         st_kan.ebm,
@@ -174,7 +174,7 @@ function (sampler::ULA_sampler)(
                         ula_init = true
                     )
                 else
-                    sample_univariate(
+                    z, st = sample_univariate(
                         model_copy.prior,
                         ps.ebm,
                         st_kan.ebm,
