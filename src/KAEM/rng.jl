@@ -89,7 +89,7 @@ function seed_rand(
         resample_rv = resample_rv,
     ) |> pu
 
-    Q, N, S = sampler.Q, sampler.N, model.batch_size
+    Q, N, S = model.posterior_sampler.Q, model.posterior_sampler.N, model.batch_size
     ula_noise = randn(rng, T, Q, P, S * num_temps, N)
     log_swap = log.(rand(rng, T, num_temps, N))
     xchange_ll_noise = randn(rng, T, model.lkhood.x_shape..., S, 2, num_temps, N)
