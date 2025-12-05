@@ -26,7 +26,7 @@ using .optimization
 using .DataUtils: get_vision_dataset, get_text_dataset
 
 include("../KAEM/rng.jl")
-using .HLOrand
+using .HLOrng
 
 mutable struct KAEM_trainer{T <: Float32}
     model::Any
