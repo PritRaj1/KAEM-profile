@@ -84,18 +84,6 @@ function seed_rand(
             rand(rng, T, model.batch_size, model.batch_size, 1)
     )
 
-    (!model.MALA && !model.prior.bool_config.ula) && return (
-        prior_its = prior_its,
-        posterior_its = posterior_its,
-        mix_rv = mix_mask_rv,
-        mix_rv_ula = mix_mask_rv_ula,
-        attn_rand = attn_rand,
-        train_noise = train_noise,
-        tempered_noise = tempered_noise,
-        swap_replica_idxs = swap_replica_idxs,
-        resample_rv = resample_rv,
-    ) |> pu
-
     Q, N, S = model.posterior_sampler.Q, model.posterior_sampler.N, model.batch_size
     ula_noise = randn(rng, T, Q, P, S * num_temps, N)
     log_swap = log.(rand(rng, T, num_temps, N))
