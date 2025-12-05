@@ -27,12 +27,11 @@ function test_model_derivative()
     dataset = randn(rng, Float32, 32, 32, 1, 50)
     model = init_KAEM(dataset, conf, (32, 32, 1))
     x_test = first(model.train_loader) |> pu
-    model, opt_state, ps, st_kan, st_lux = prep_model(model, x_test, optimizer)
-    swap_replica_idxs = rand(1:(model.N_t - 1), model.posterior_sampler.N) |> pu
+    model, opt_state, ps, st_kan, st_lux, st_rng = prep_model(model, x_test, optimizer; rng = rng)
 
     ps_before = Array(ps)
     loss, ps, _, st_ebm, st_gen =
-        model.train_step(opt_state, ps, st_kan, st_lux, x_test, 1, rng, swap_replica_idxs)
+        model.train_step(opt_state, ps, st_kan, st_lux, x_test, 1, st_rng)
 
     ps_after = Array(ps)
     @test any(ps_before .!= ps_after)

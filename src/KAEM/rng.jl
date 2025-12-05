@@ -1,0 +1,114 @@
+module HLOrng
+
+using Random
+using MLUtils: randn_like
+
+export seed_rand
+
+using ..Utils
+using ..KAEM_model
+
+function seed_rand(
+        model::KAEM{T};
+        rng::AbstractRNG = Random.MersenneTwister(1)
+    ) where {T <: Float32}
+
+    # ITS prior rng
+    prior_its = (
+        model.prior.bool_config.mixture_model ?
+            rand(rng, T, 1, model.prior.p_size, model.batch_size) :
+            rand(rng, T, model.prior.q_size, 1, 1, model.batch_size)
+    )
+
+    P = model.posterior_sampler.P
+    prior_its = model.prior.bool_config.ula ? randn(rng, T, P, 1, model.batch_size) : prior_its
+    num_temps = model.posterior_sampler.num_temps
+
+    mix_mask_rv = (
+        model.prior.bool_config.mixture_model ?
+            rand(rng, T, model.prior.q_size, 1, model.batch_size) :
+            [0.0f0]
+    )
+
+    attn_rand = (
+        model.prior.bool_config.use_attention_kernel ?
+            rand(rng, T, model.prior.q_size, model.batch_size) :
+            [0.0f0]
+    )
+
+    # ITS ula (init)
+    posterior_its = (
+        model.prior.bool_config.mixture_model ?
+            rand(rng, T, 1, model.prior.p_size, model.batch_size * num_temps) :
+            rand(rng, T, model.prior.q_size, 1, 1, model.batch_size * num_temps)
+    )
+
+    posterior_its = (
+        num_temps > 1 || model.MALA ?
+            posterior_its :
+            (
+                model.prior.prior_type == "uniform" ?
+                rand_like(rng, prior_its) :
+                randn(rng, T, P, 1, model.batch_size)
+            )
+    )
+
+    # Lkhood noise
+    train_noise = (
+        num_temps > 1 || model.MALA ?
+            randn(rng, T, model.lkhood.x_shape..., model.batch_size) :
+            randn(rng, T, model.lkhood.x_shape..., model.batch_size, model.batch_size)
+    )
+
+    tempered_noise = (
+        num_temps > 1 ?
+            randn(rng, T, model.lkhood.x_shape..., model.batch_size, model.N_t) :
+            [0.0f0]
+    )
+
+    # Replica exchange
+    swap_replica_idxs = (
+        num_temps > 1 ?
+            rand(rng, 1:(model.N_t - 1), model.posterior_sampler.N) :
+            [0]
+    )
+
+    # Resampler uniform noise
+    resample_rv = (
+        (num_temps > 1 || model.MALA) ?
+            [0.0f0] :
+            rand(rng, T, model.batch_size, model.batch_size, 1)
+    )
+
+    (!model.MALA && !model.prior.bool_config.ula) && return (
+        prior_its = prior_its,
+        posterior_its = posterior_its,
+        mix_rv = mix_mask_rv,
+        attn_rand = attn_rand,
+        train_noise = train_noise,
+        tempered_noise = tempered_noise,
+        swap_replica_idxs = swap_replica_idxs,
+        resample_rv = resample_rv,
+    ) |> pu
+
+    Q, N, S = sampler.Q, sampler.N, model.batch_size
+    ula_noise = randn(rng, T, Q, P, S * num_temps, N)
+    log_swap = log.(rand(rng, T, num_temps, N))
+    xchange_ll_noise = randn(rng, T, model.lkhood.x_shape..., S, 2, num_temps, N)
+
+    return (
+        prior_its = prior_its,
+        posterior_its = posterior_its,
+        mix_rv = mix_mask_rv,
+        attn_rand = attn_rand,
+        train_noise = train_noise,
+        tempered_noise = tempered_noise,
+        swap_replica_idxs = swap_replica_idxs,
+        resample_rv = resample_rv,
+        ula_noise = ula_noise,
+        log_swap = log_swap,
+        xchange_ll_noise = xchange_ll_noise,
+    ) |> pu
+end
+
+end

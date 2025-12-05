@@ -31,11 +31,11 @@ function test_ps_derivative()
     dataset = randn(rng, Float32, 32, 32, 1, 50)
     model = init_KAEM(dataset, conf, (32, 32, 1))
     x_test = first(model.train_loader) |> pu
-    model, opt_state, ps, st_kan, st_lux = prep_model(model, x_test, optimizer)
+    model, opt_state, ps, st_kan, st_lux, st_rng = prep_model(model, x_test, optimizer; rng = rng)
 
     ps_before = Array(ps)
     loss, ps, _, st_ebm, st_gen =
-        model.train_step(opt_state, ps, st_kan, st_lux, x_test, 1, rng, nothing)
+        model.train_step(opt_state, ps, st_kan, st_lux, x_test, 1, st_rng)
 
     ps_after = Array(ps)
     @test any(ps_before .!= ps_after)
@@ -46,7 +46,7 @@ function test_grid_update()
     dataset = randn(rng, Float32, 32, 32, 1, 50)
     model = init_KAEM(dataset, conf, (32, 32, 1))
     x_test = first(model.train_loader) |> pu
-    model, opt_state, ps, st_kan, st_lux = prep_model(model, x_test, optimizer)
+    model, opt_state, ps, st_kan, st_lux, st_rng = prep_model(model, x_test, optimizer; rng = rng)
 
     x = first(model.train_loader) |> pu
 
@@ -57,8 +57,7 @@ function test_grid_update()
         st_kan,
         Lux.testmode(st_lux),
         1,
-        nothing,
-        rng,
+        st_rng,
     )
 
     ps, st_kan, st_lux = compiled_update(
@@ -79,7 +78,7 @@ function test_pca()
     commit!(conf, "PCA", "pca_components", "10")
     model = init_KAEM(dataset, conf, (32, 32, 1))
     x_test = first(model.train_loader)
-    model, opt_state, ps, st_kan, st_lux = prep_model(model, x_test, optimizer)
+    model, opt_state, ps, st_kan, st_lux, st_rng = prep_model(model, x_test, optimizer; rng = rng)
 
     @test size(x_test, 1) == 9
 
@@ -94,11 +93,11 @@ function test_mala_loss()
     commit!(conf, "POST_LANGEVIN", "use_langevin", "true")
     model = init_KAEM(dataset, conf, (32, 32, 1))
     x_test = first(model.train_loader) |> pu
-    model, opt_state, ps, st_kan, st_lux = prep_model(model, x_test, optimizer)
+    model, opt_state, ps, st_kan, st_lux, st_rng = prep_model(model, x_test, optimizer; rng = rng)
 
     ps_before = Array(ps)
     loss, ps, _, st_ebm, st_gen =
-        model.train_step(opt_state, ps, st_kan, st_lux, x_test, 1, rng, nothing)
+        model.train_step(opt_state, ps, st_kan, st_lux, x_test, 1, st_rng)
 
     ps_after = Array(ps)
     @test any(ps_before .!= ps_after)
@@ -112,11 +111,11 @@ function test_cnn_loss()
     commit!(conf, "PCA", "use_pca", "false")
     model = init_KAEM(dataset, conf, (32, 32, 3))
     x_test = first(model.train_loader) |> pu
-    model, opt_state, ps, st_kan, st_lux = prep_model(model, x_test, optimizer)
+    model, opt_state, ps, st_kan, st_lux, st_rng = prep_model(model, x_test, optimizer; rng = rng)
 
     ps_before = Array(ps)
     loss, ps, _, st_ebm, st_gen =
-        model.train_step(opt_state, ps, st_kan, st_lux, x_test, 1, rng, nothing)
+        model.train_step(opt_state, ps, st_kan, st_lux, x_test, 1, st_rng)
 
     ps_after = Array(ps)
     @test any(ps_before .!= ps_after)
@@ -130,11 +129,11 @@ function test_cnn_residual_loss()
     commit!(conf, "CNN", "latent_concat", "true")
     model = init_KAEM(dataset, conf, (32, 32, 3))
     x_test = first(model.train_loader) |> pu
-    model, opt_state, ps, st_kan, st_lux = prep_model(model, x_test, optimizer)
+    model, opt_state, ps, st_kan, st_lux, st_rng = prep_model(model, x_test, optimizer; rng = rng)
 
     ps_before = Array(ps)
     loss, ps, _, st_ebm, st_gen =
-        model.train_step(opt_state, ps, st_kan, st_lux, x_test, 1, rng, nothing)
+        model.train_step(opt_state, ps, st_kan, st_lux, x_test, 1, st_rng)
 
     ps_after = Array(ps)
     @test any(ps_before .!= ps_after)
@@ -148,11 +147,11 @@ function test_seq_loss()
     commit!(conf, "SEQ", "vocab_size", "50")
     model = init_KAEM(dataset, conf, (50, 10))
     x_test = first(model.train_loader) |> pu
-    model, opt_state, ps, st_kan, st_lux = prep_model(model, x_test, optimizer)
+    model, opt_state, ps, st_kan, st_lux, st_rng = prep_model(model, x_test, optimizer; rng = rng)
 
     ps_before = Array(ps)
     loss, ps, _, st_ebm, st_gen =
-        model.train_step(opt_state, ps, st_kan, st_lux, x_test, 1, rng, nothing)
+        model.train_step(opt_state, ps, st_kan, st_lux, x_test, 1, st_rng)
 
     ps_after = Array(ps)
     @test any(ps_before .!= ps_after)

@@ -3,27 +3,18 @@ module ULA_sampling
 export initialize_ULA_sampler, ULA_sampler
 
 using Reactant: @trace
-using MLUtils: randn_like
 using LinearAlgebra,
-    Random,
     Lux,
-    Distributions,
     Accessors,
     Statistics,
     ComponentArrays
 
 using ..Utils
 using ..KAEM_model
+using ..KAEM_model.InverseTransformSampling
 
 include("updates.jl")
 using .LangevinUpdates
-
-π_dist = Dict(
-    "uniform" => (p, b, rng) -> rand_like(Lux.replicate(rng), zeros(Float32, p, 1, b)),
-    "gaussian" => (p, b, rng) -> randn_like(Lux.replicate(rng), zeros(Float32, p, 1, b)),
-    "lognormal" => (p, b, rng) -> rand_like(Lux.replicate(rng), zeros(Float32, p, 1, b)) .|> exp,
-    "ebm" => (p, b, rng) -> randn_like(Lux.replicate(rng), zeros(Float32, p, 1, b)),
-)
 
 struct ULA_sampler
     prior_sampling_bool
@@ -122,10 +113,9 @@ function (sampler::ULA_sampler)(
         ps,
         st_kan,
         st_lux,
-        x;
+        x,
+        st_rng;
         temps = [1.0f0],
-        rng = Random.MersenneTwister(1),
-        swap_replica_idxs = nothing,
     )
     """
     Unadjusted Langevin Algorithm (ULA) sampler to generate posterior samples.
@@ -160,21 +150,43 @@ function (sampler::ULA_sampler)(
     # Initialize from prior
     z_flat = begin
         if model.prior.bool_config.ula && sampler.prior_sampling_bool
-            π_dist[model.prior.prior_type](P, S, rng)
+            rv = st_rng.posterior_its
+            rv = model.prior.prior_type == "lognormal" ? exp.(rv) : rv
+            rv
         else
-            z_initial, st_ebm =
-                model.sample_prior(model, ps, st_kan, st_lux, rng)
-            z_samples = Vector{typeof(z_initial)}()
-            sizehint!(z_samples, length(temps))
-            push!(z_samples, z_initial)
+            model_copy = model
 
-            for i in 1:(length(temps) - 1)
-                z_i, st_ebm =
-                    model.sample_prior(model, ps, st_kan, st_lux, rng)
-                push!(z_samples, z_i)
+            @reset model_copy.batch_size = S * num_temps
+            @reset model_copy.prior.s_size = S * num_temps
+            for i in 1:model_copy.prior.depth
+                @reset model_copy.prior.fcns_qp[i].basis_function.S = S * num_temps
             end
-            @reset st_lux.ebm = st_ebm
-            cat(z_samples..., dims = 3)
+
+            z_init, st_ebm = begin
+                if model.prior.bool_config.mixture_model
+                    sample_mixture(
+                        model_copy.prior,
+                        ps.ebm,
+                        st_kan.ebm,
+                        st_lyrnorm.ebm,
+                        st_kan.ebm.quad,
+                        st_rng;
+                        ula_init = true
+                    )
+                else
+                    sample_univariate(
+                        model_copy.prior,
+                        ps.ebm,
+                        st_kan.ebm,
+                        st_lyrnorm.ebm,
+                        st_kan.ebm.quad,
+                        st_rng;
+                        ula_init = true
+                    )
+                end
+            end
+
+            z_init, st_ebm
         end
     end
 
@@ -202,14 +214,15 @@ function (sampler::ULA_sampler)(
         ) : nothing
 
     # Pre-allocate noise
-    noise = randn_like(Lux.replicate(rng), zeros(Float32, Q, P, S * num_temps, N_steps))
-    log_u_swap = log.(rand_like(Lux.replicate(rng), zeros(Float32, num_temps, N_steps)))
-    ll_noise = randn_like(Lux.replicate(rng), zeros(Float32, model.lkhood.x_shape..., S, 2, num_temps, N_steps))
-    swap_replica_idxs_plus = isnothing(swap_replica_idxs) ? nothing : swap_replica_idxs .+ 1
+    noise = st_rng.ula_noise
+    log_u_swap = st_rng.log_swap
+    ll_noise = st_rng.xchange_ll_noise
+    swap_replica_idxs = st_rng.swap_replica_idxs
+    swap_replica_idxs_plus = swap_replica_idxs .+ 1
 
     # Traced HLO does not support int arrays, so handle mask outside
-    mask_swap_1 = isnothing(swap_replica_idxs) ? nothing : Lux.f32(1:num_temps .== swap_replica_idxs') .* 1.0f0
-    mask_swap_2 = isnothing(swap_replica_idxs) ? nothing : Lux.f32(1:num_temps .== swap_replica_idxs_plus') .* 1.0f0
+    mask_swap_1 = Lux.f32(1:num_temps .== swap_replica_idxs') .* 1.0f0
+    mask_swap_2 = Lux.f32(1:num_temps .== swap_replica_idxs_plus') .* 1.0f0
 
     state = (1, z_flat)
     @trace while first(state) <= N_steps

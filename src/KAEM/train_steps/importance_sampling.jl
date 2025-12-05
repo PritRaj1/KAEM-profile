@@ -1,8 +1,7 @@
 module ImportanceSampling
 
-using ComponentArrays, Random, Enzyme, Statistics, Lux, Optimisers
+using ComponentArrays, Enzyme, Statistics, Lux, Optimisers
 using NNlib: softmax
-using MLUtils: randn_like
 
 export ImportanceLoss
 
@@ -35,12 +34,12 @@ function sample_importance(
         st_kan,
         st_lux,
         m,
-        x;
-        rng = Random.MersenneTwister(1),
+        x,
+        st_rng
     )
     # Prior is proposal for importance sampling
-    z_posterior, st_lux_ebm = m.sample_prior(m, ps, st_kan, st_lux, rng)
-    noise = randn_like(Lux.replicate(rng), zeros(Float32, m.lkhood.x_shape..., m.batch_size, m.batch_size))
+    z_posterior, st_lux_ebm = m.sample_prior(m, ps, st_kan, st_lux, st_rng)
+    noise = st_rng.train_noise
     logllhood, st_lux_gen = log_likelihood_IS(
         z_posterior,
         x,
@@ -54,7 +53,7 @@ function sample_importance(
 
     # Posterior weights and resampling
     weights = softmax(logllhood, dims = 2)
-    resampled_indices = m.lkhood.resample_z(weights; rng = rng)
+    resampled_indices = m.lkhood.resample_z(weights, st_rng)
     resampled_mask = resampled_indices .== reshape(1:m.batch_size, 1, 1, m.batch_size) |> Lux.f32
     weights_resampled = softmax(
         dropdims(sum(weights .* resampled_mask; dims = 3); dims = 3);
@@ -184,12 +183,11 @@ function (l::ImportanceLoss)(
         st_lux,
         x,
         train_idx,
-        rng,
-        swap_replica_idxs,
+        st_rng,
     )
 
     z_posterior, z_prior, st_lux_ebm, st_lux_gen, weights_resampled, resampled_mask, noise =
-        sample_importance(ps, st_kan, st_lux, l.model, x; rng = rng)
+        sample_importance(ps, st_kan, st_lux, l.model, x, st_rng)
 
     st_ebm = Lux.trainmode(st_lux_ebm)
     st_gen = Lux.trainmode(st_lux_gen)

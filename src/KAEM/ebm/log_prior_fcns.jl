@@ -3,7 +3,7 @@ module LogPriorFCNs
 export LogPriorULA, LogPriorMix, LogPriorUnivariate
 
 using NNlib: logsoftmax, softmax
-using LinearAlgebra, Accessors, Random, ComponentArrays, Lux
+using LinearAlgebra, Accessors, ComponentArrays, Lux
 
 using ..Utils
 using ..EBM_Model
