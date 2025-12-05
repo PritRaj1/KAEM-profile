@@ -168,8 +168,8 @@ function (sampler::ULA_sampler)(
                         model_copy.prior,
                         ps.ebm,
                         st_kan.ebm,
-                        st_lyrnorm.ebm,
-                        st_kan.ebm.quad,
+                        st_lux.ebm,
+                        st_kan.quad,
                         st_rng;
                         ula_init = true
                     )
@@ -178,15 +178,15 @@ function (sampler::ULA_sampler)(
                         model_copy.prior,
                         ps.ebm,
                         st_kan.ebm,
-                        st_lyrnorm.ebm,
-                        st_kan.ebm.quad,
+                        st_lux.ebm,
+                        st_kan.quad,
                         st_rng;
                         ula_init = true
                     )
                 end
             end
 
-            z_init, st_ebm
+            z_init
         end
     end
 
@@ -218,11 +218,10 @@ function (sampler::ULA_sampler)(
     log_u_swap = st_rng.log_swap
     ll_noise = st_rng.xchange_ll_noise
     swap_replica_idxs = st_rng.swap_replica_idxs
-    swap_replica_idxs_plus = swap_replica_idxs .+ 1
 
     # Traced HLO does not support int arrays, so handle mask outside
-    mask_swap_1 = Lux.f32(1:num_temps .== swap_replica_idxs') .* 1.0f0
-    mask_swap_2 = Lux.f32(1:num_temps .== swap_replica_idxs_plus') .* 1.0f0
+    mask_swap_1 = num_temps > 1 ? Lux.f32(1:num_temps .== swap_replica_idxs) .* 1.0f0 : nothing
+    mask_swap_2 = num_temps > 1 ? Lux.f32(1:num_temps .== (swap_replica_idxs .+ 1)) .* 1.0f0 : nothing
 
     state = (1, z_flat)
     @trace while first(state) <= N_steps

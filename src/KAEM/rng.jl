@@ -28,6 +28,12 @@ function seed_rand(
             [0.0f0]
     )
 
+    mix_mask_rv_ula = (
+        model.prior.bool_config.mixture_model ?
+            rand(rng, T, model.prior.q_size, 1, model.batch_size * num_temps) :
+            [0.0f0]
+    )
+
     attn_rand = (
         model.prior.bool_config.use_attention_kernel ?
             rand(rng, T, model.prior.q_size, model.batch_size) :
@@ -67,7 +73,7 @@ function seed_rand(
     # Replica exchange
     swap_replica_idxs = (
         num_temps > 1 ?
-            rand(rng, 1:(model.N_t - 1), model.posterior_sampler.N) :
+            rand(rng, 1:(model.N_t - 1), 1, model.posterior_sampler.N) :
             [0]
     )
 
@@ -78,18 +84,7 @@ function seed_rand(
             rand(rng, T, model.batch_size, model.batch_size, 1)
     )
 
-    (!model.MALA && !model.prior.bool_config.ula) && return (
-        prior_its = prior_its,
-        posterior_its = posterior_its,
-        mix_rv = mix_mask_rv,
-        attn_rand = attn_rand,
-        train_noise = train_noise,
-        tempered_noise = tempered_noise,
-        swap_replica_idxs = swap_replica_idxs,
-        resample_rv = resample_rv,
-    ) |> pu
-
-    Q, N, S = sampler.Q, sampler.N, model.batch_size
+    Q, N, S = model.posterior_sampler.Q, model.posterior_sampler.N, model.batch_size
     ula_noise = randn(rng, T, Q, P, S * num_temps, N)
     log_swap = log.(rand(rng, T, num_temps, N))
     xchange_ll_noise = randn(rng, T, model.lkhood.x_shape..., S, 2, num_temps, N)
@@ -98,6 +93,7 @@ function seed_rand(
         prior_its = prior_its,
         posterior_its = posterior_its,
         mix_rv = mix_mask_rv,
+        mix_rv_ula = mix_mask_rv_ula,
         attn_rand = attn_rand,
         train_noise = train_noise,
         tempered_noise = tempered_noise,
@@ -106,7 +102,7 @@ function seed_rand(
         ula_noise = ula_noise,
         log_swap = log_swap,
         xchange_ll_noise = xchange_ll_noise,
-    ) |> pu
+    )
 end
 
 end

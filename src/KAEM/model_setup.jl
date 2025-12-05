@@ -44,12 +44,6 @@ function setup_training(
     max_samples = max(model.batch_size, batch_size)
     x = zeros(T, model.lkhood.x_shape..., max_samples) |> pu
 
-    @reset model.posterior_sampler = initialize_ULA_sampler(
-        model;
-        η = η_init,
-        N = num_steps,
-    )
-
     # Prior sampling setup
     if model.prior.bool_config.ula
         num_steps_prior = parse(Int, retrieve(conf, "PRIOR_LANGEVIN", "iters"))
@@ -83,7 +77,13 @@ function setup_training(
         println("Prior sampler: Univar ITS")
     end
 
-    st_rng = seed_rand(model; rng = rng)
+    @reset model.posterior_sampler = initialize_ULA_sampler(
+        model;
+        η = η_init,
+        N = num_steps,
+    )
+
+    st_rng = seed_rand(model; rng = rng) |> pu
 
     if model.N_t > 1
 
