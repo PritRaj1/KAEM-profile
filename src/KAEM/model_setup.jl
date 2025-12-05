@@ -83,7 +83,7 @@ function setup_training(
         N = num_steps,
     )
 
-    st_rng = seed_rand(model; rng = rng) |> pu
+    st_rng = seed_rand(model; rng = rng)
 
     if model.N_t > 1
 
