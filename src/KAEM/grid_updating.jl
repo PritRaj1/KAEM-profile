@@ -80,7 +80,7 @@ function (gu::GridUpdater)(
                     st_rng,
                 )
             )
-            # z = first(model.posterior_sampler(ps, st_kan, st_lux, x; rng = rng))[
+            # z = first(model.posterior_sampler(ps, st_kan, st_lux, x,  st_rng))[
             #     :,
             #     :,
             #     :,
@@ -190,7 +190,7 @@ function (gu::GridUpdater)(
             z = first(
                 model.sample_prior(model, ps, st_kan, st_lux, st_rng)
             )
-            # z = first(model.posterior_sampler(ps, st_kan, st_lux, x; rng = rng))[
+            # z = first(model.posterior_sampler(ps, st_kan, st_lux, x st_rng))[
             #     :,
             #     :,
             #     :,
