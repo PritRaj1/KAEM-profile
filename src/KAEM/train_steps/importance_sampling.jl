@@ -61,7 +61,7 @@ function sample_importance(
     )
 
     # Works better with more samples
-    z_prior, st_lux_ebm = m.sample_prior(m, ps, st_kan, st_lux, rng)
+    z_prior, st_lux_ebm = m.sample_prior(m, ps, st_kan, st_lux, st_rng)
     return z_posterior,
         z_prior,
         st_lux_ebm,

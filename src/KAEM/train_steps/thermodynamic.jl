@@ -190,7 +190,7 @@ function (l::ThermoLoss)(
     )
     st_lux_ebm, st_lux_gen = st_lux.ebm, st_lux.gen
     z_prior, st_ebm =
-        l.model.sample_prior(l.model, ps, st_kan, st_lux, rng)
+        l.model.sample_prior(l.model, ps, st_kan, st_lux, st_rng)
 
     ∇ = grad_thermo_llhood(
         ps,

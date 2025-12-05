@@ -106,15 +106,15 @@ model = init_KAEM(
 # MLIR-compiled loss, (slow to compile, fast to run, see https://mlir.llvm.org/).
 x, loader_state = iterate(model.train_loader)
 x = pu(x)
-model, ps, st_kan, st_lux = prep_model(model, x; rng = rng) 
+model, ps, st_kan, st_lux, st_rng = prep_model(model, x, optimizer; rng = rng) 
 loss, grads, st_ebm, st_gen = model.loss_fcn(
       ps,
       st_kan,
       st_lux,
       model,
-      x;
+      x,
+      st_rng;
       train_idx = 1, # Only affects temperature scheduling in thermo model
-      rng = Random.default_rng()
 )
 
 # States reset with Accessors.jl:
