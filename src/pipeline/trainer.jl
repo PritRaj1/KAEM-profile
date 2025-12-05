@@ -215,7 +215,7 @@ function train!(t::KAEM_trainer; train_idx::Int = 1)
 
     # Update for a single batch
     function step!()
-        t.st_rng = seed_rand(model; rng = t.rng)
+        t.st_rng = seed_rand(t.model; rng = t.rng)
 
         if (
                 train_idx == 1 || (train_idx - t.last_grid_update >= t.grid_update_frequency)
