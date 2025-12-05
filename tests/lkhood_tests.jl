@@ -29,7 +29,7 @@ optimizer = create_opt(conf)
 function test_generate()
     Random.seed!(42)
     commit!(conf, "CNN", "use_cnn_lkhood", "false")
-    dataset = randn(rng, 32, 32, 1, 50)
+    dataset = randn(rng, Float32, 32, 32, 1, 50)
     model = init_KAEM(dataset, conf, (32, 32, 1))
     x_test = first(model.train_loader) |> pu
     model, _, ps, st_kan, st_lux = prep_model(model, x_test, optimizer; MLIR = false)
@@ -44,15 +44,15 @@ end
 
 function test_logllhood()
     Random.seed!(42)
-    dataset = randn(rng, 32, 32, 1, 50)
+    dataset = randn(rng, Float32, 32, 32, 1, 50)
     model = init_KAEM(dataset, conf, (32, 32, 1))
     x_test = first(model.train_loader) |> pu
     model, _, ps, st_kan, st_lux = prep_model(model, x_test, optimizer; MLIR = false)
 
-    x = randn(rng, 32, 32, 1, b_size) |> pu
+    x = randn(rng, Float32, 32, 32, 1, b_size) |> pu
     compiled_sample_prior = Reactant.@compile model.sample_prior(model, ps, st_kan, st_lux, rng)
     z = first(compiled_sample_prior(model, ps, st_kan, st_lux, rng))
-    noise = randn(rng, 32, 32, 1, b_size, b_size) |> pu
+    noise = randn(rng, Float32, 32, 32, 1, b_size, b_size) |> pu
     compiled_log_likelihood = Reactant.@compile log_likelihood_IS(z, x, model.lkhood, ps.gen, st_kan.gen, st_lux.gen, noise)
     logllhood, _ = compiled_log_likelihood(z, x, model.lkhood, ps.gen, st_kan.gen, st_lux.gen, noise)
     @test size(logllhood) == (b_size, b_size)
@@ -62,7 +62,7 @@ end
 function test_cnn_generate()
     Random.seed!(42)
     commit!(conf, "CNN", "use_cnn_lkhood", "true")
-    dataset = randn(rng, 32, 32, out_dim, 50)
+    dataset = randn(rng, Float32, 32, 32, out_dim, 50)
     model = init_KAEM(dataset, conf, (32, 32, out_dim))
     x_test = first(model.train_loader) |> pu
     model, _, ps, st_kan, st_lux = prep_model(model, x_test, optimizer; MLIR = false)
@@ -80,7 +80,7 @@ function test_seq_generate()
     Random.seed!(42)
     commit!(conf, "SEQ", "sequence_length", "8")
 
-    dataset = randn(rng, out_dim, 8, 50)
+    dataset = randn(rng, Float32, out_dim, 8, 50)
     model = init_KAEM(dataset, conf, (out_dim, 8))
     x_test = first(model.train_loader) |> pu
     model, _, ps, st_kan, st_lux = prep_model(model, x_test, optimizer; MLIR = false)
