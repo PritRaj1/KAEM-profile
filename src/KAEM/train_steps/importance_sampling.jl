@@ -2,6 +2,7 @@ module ImportanceSampling
 
 using ComponentArrays, Random, Enzyme, Statistics, Lux, Optimisers
 using NNlib: softmax
+using MLUtils: randn_like
 
 export ImportanceLoss
 
@@ -35,11 +36,11 @@ function sample_importance(
         st_lux,
         m,
         x;
-        rng = Random.default_rng(),
+        rng = Random.MersenneTwister(1),
     )
     # Prior is proposal for importance sampling
     z_posterior, st_lux_ebm = m.sample_prior(m, ps, st_kan, st_lux, rng)
-    noise = randn(rng, Float32, m.lkhood.x_shape..., m.batch_size, m.batch_size)
+    noise = randn_like(Lux.replicate(rng), zeros(Float32, m.lkhood.x_shape..., m.batch_size, m.batch_size))
     logllhood, st_lux_gen = log_likelihood_IS(
         z_posterior,
         x,

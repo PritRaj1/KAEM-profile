@@ -2,7 +2,7 @@ module GridUpdating
 
 export update_fcn_grid
 
-using Accessors, ComponentArrays, Lux, NNlib, LinearAlgebra, Random
+using Accessors, ComponentArrays, Lux, NNlib, LinearAlgebra
 
 using ..Utils
 using ..UnivariateFunctions
