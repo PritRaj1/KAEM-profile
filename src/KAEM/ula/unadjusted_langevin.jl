@@ -169,7 +169,7 @@ function (sampler::ULA_sampler)(
                         ps.ebm,
                         st_kan.ebm,
                         st_lyrnorm.ebm,
-                        st_kan.ebm.quad,
+                        st_kan.quad,
                         st_rng;
                         ula_init = true
                     )
@@ -179,7 +179,7 @@ function (sampler::ULA_sampler)(
                         ps.ebm,
                         st_kan.ebm,
                         st_lyrnorm.ebm,
-                        st_kan.ebm.quad,
+                        st_kan.quad,
                         st_rng;
                         ula_init = true
                     )
