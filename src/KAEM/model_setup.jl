@@ -14,11 +14,12 @@ include("train_steps/langevin_mle.jl")
 include("train_steps/importance_sampling.jl")
 include("train_steps/thermodynamic.jl")
 include("ula/unadjusted_langevin.jl")
+include("rng.jl")
 using .ImportanceSampling
 using .LangevinMLE
 using .ThermodynamicIntegration
 using .ULA_sampling
-
+using .HLOrng
 
 function setup_training(
         opt_state,
@@ -43,10 +44,10 @@ function setup_training(
     max_samples = max(model.batch_size, batch_size)
     x = zeros(T, model.lkhood.x_shape..., max_samples) |> pu
 
-    swap_replica_idxs = (
-        model.N_t > 1 ?
-            rand(rng, 1:(model.N_t - 1), num_steps) |> pu :
-            nothing
+    @reset model.posterior_sampler = initialize_ULA_sampler(
+        model;
+        η = η_init,
+        N = num_steps,
     )
 
     # Prior sampling setup
@@ -62,13 +63,13 @@ function setup_training(
         )
         @reset model.log_prior = LogPriorULA(model.ε)
         @reset model.sample_prior =
-            (m, p, sk, sl, r) -> prior_sampler(p, sk, Lux.trainmode(sl), x; rng = r)
+            (m, p, sk, sl, r) -> prior_sampler(p, sk, Lux.trainmode(sl), x, r)
 
         println("Prior sampler: ULA")
     elseif model.prior.bool_config.mixture_model
         @reset model.sample_prior =
             (m, p, sk, sl, r) ->
-        sample_mixture(m.prior, p.ebm, sk.ebm, Lux.testmode(sl.ebm), sk.quad; rng = r)
+        sample_mixture(m.prior, p.ebm, sk.ebm, Lux.testmode(sl.ebm), sk.quad, r)
 
         @reset model.log_prior =
             LogPriorMix(model.ε, !model.prior.bool_config.contrastive_div)
@@ -76,17 +77,13 @@ function setup_training(
     else
         @reset model.sample_prior =
             (m, p, sk, sl, r) ->
-        sample_univariate(m.prior, p.ebm, sk.ebm, Lux.testmode(sl.ebm), sk.quad; rng = r)
+        sample_univariate(m.prior, p.ebm, sk.ebm, Lux.testmode(sl.ebm), sk.quad, r)
         @reset model.log_prior =
             LogPriorUnivariate(model.ε, !model.prior.bool_config.contrastive_div)
         println("Prior sampler: Univar ITS")
     end
 
-    @reset model.posterior_sampler = initialize_ULA_sampler(
-        model;
-        η = η_init,
-        N = num_steps,
-    )
+    st_rng = seed_rand(model; rng = rng)
 
     if model.N_t > 1
 
@@ -106,8 +103,7 @@ function setup_training(
                     st_lux,
                     x,
                     1,
-                    rng,
-                    swap_replica_idxs
+                    st_rng,
                 )
             else
                 static_loss
@@ -128,8 +124,7 @@ function setup_training(
                     st_lux,
                     x,
                     1,
-                    rng,
-                    swap_replica_idxs
+                    st_rng,
                 )
             else
                 static_loss
@@ -150,8 +145,7 @@ function setup_training(
                     st_lux,
                     x,
                     1,
-                    rng,
-                    swap_replica_idxs
+                    st_rng,
                 )
             else
                 static_loss
@@ -161,7 +155,7 @@ function setup_training(
         println("Posterior sampler: MLE IS")
     end
 
-    return model
+    return model, st_rng
 end
 
 function prep_model(
@@ -176,7 +170,7 @@ function prep_model(
     ps, st_kan, st_lux =
         ps |> ComponentArray |> Lux.f32 |> pu, st_kan |> ComponentArray |> Lux.f32 |> pu, st_lux |> Lux.f32 |> pu
     opt_state = Optimisers.setup(optimizer.rule(), ps)
-    model = setup_training(
+    model, st_rng = setup_training(
         opt_state,
         ps,
         st_kan,
@@ -186,7 +180,7 @@ function prep_model(
         rng = rng,
         MLIR = MLIR
     )
-    return model, opt_state, ps, st_kan, st_lux
+    return model, opt_state, ps, st_kan, st_lux, st_rng
 end
 
 end

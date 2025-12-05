@@ -2,8 +2,7 @@ module LangevinMLE
 
 export LangevinLoss
 
-using ComponentArrays, Random, Enzyme, Statistics, Lux, Optimisers
-using MLUtils: randn_like
+using ComponentArrays, Enzyme, Statistics, Lux, Optimisers
 
 using ..Utils
 using ..KAEM_model
@@ -16,11 +15,11 @@ function sample_langevin(
         st_kan,
         st_lux,
         model,
-        x;
-        rng = Random.MersenneTwister(1),
+        x,
+        st_rng,
     )
-    z, st_lux, = model.posterior_sampler(ps, st_kan, st_lux, x; rng = rng)
-    noise = randn_like(Lux.replicate(rng), x)
+    z, st_lux, = model.posterior_sampler(ps, st_kan, st_lux, x, st_rng)
+    noise = st_rng.train_noise
     return z[:, :, :, 1], st_lux, noise
 end
 
@@ -122,14 +121,13 @@ function (l::LangevinLoss)(
         st_lux,
         x,
         train_idx,
-        rng,
-        swap_replica_idxs,
+        st_rng,
     )
     z_posterior, st_new, noise =
-        sample_langevin(ps, st_kan, Lux.trainmode(st_lux), l.model, x; rng = rng)
+        sample_langevin(ps, st_kan, Lux.trainmode(st_lux), l.model, x, st_rng)
     st_lux_ebm, st_lux_gen = st_new.ebm, st_new.gen
     z_prior, st_lux_ebm =
-        l.model.sample_prior(l.model, ps, st_kan, st_lux, rng)
+        l.model.sample_prior(l.model, ps, st_kan, st_lux, st_rng)
 
     ∇ = grad_langevin_llhood(
         ps,

@@ -2,8 +2,7 @@ module ThermodynamicIntegration
 
 export ThermoLoss
 
-using ComponentArrays, Random, Enzyme, Statistics, Lux, Optimisers
-using MLUtils: randn_like
+using ComponentArrays, Enzyme, Statistics, Lux, Optimisers
 
 using ..Utils
 using ..KAEM_model
@@ -16,9 +15,9 @@ function sample_thermo(
         st_kan,
         st_lux,
         model,
-        x;
+        x,
+        st_rng;
         train_idx = 1,
-        rng = Random.MersenneTwister(1),
         swap_replica_idxs = nothing,
     )
     temps = collect(Float32, [(k / model.N_t)^model.p[train_idx] for k in 0:model.N_t])
@@ -26,15 +25,14 @@ function sample_thermo(
         ps,
         st_kan,
         st_lux,
-        x;
+        x,
+        st_rng;
         temps = temps[2:end],
-        rng = rng,
-        swap_replica_idxs = swap_replica_idxs,
     )
 
     Δt = temps[2:end] - temps[1:(end - 1)]
-    tempered_noise = randn_like(Lux.replicate(rng), zeros(Float32, model.lkhood.x_shape..., model.batch_size, model.N_t))
-    noise = randn_like(Lux.replicate(rng), x)
+    tempered_noise = st_rng.tempered_noise
+    noise = st_rng.train_noise
     return z, Δt, st_lux, noise, tempered_noise
 end
 
@@ -179,22 +177,20 @@ function (l::ThermoLoss)(
         st_lux,
         x,
         train_idx,
-        rng,
-        swap_replica_idxs,
+        st_rng,
     )
     z_posterior, Δt, st_lux, noise, tempered_noise = sample_thermo(
         ps,
         st_kan,
         Lux.trainmode(st_lux),
         l.model,
-        x;
+        x,
+        st_rng;
         train_idx = train_idx,
-        rng = rng,
-        swap_replica_idxs = swap_replica_idxs,
     )
     st_lux_ebm, st_lux_gen = st_lux.ebm, st_lux.gen
     z_prior, st_ebm =
-        l.model.sample_prior(l.model, ps, st_kan, st_lux, rng)
+        l.model.sample_prior(l.model, ps, st_kan, st_lux, st_rng)
 
     ∇ = grad_thermo_llhood(
         ps,

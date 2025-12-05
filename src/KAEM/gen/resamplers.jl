@@ -2,10 +2,9 @@ module WeightResamplers
 
 export ResidualResampler, SystematicResampler, StratifiedResampler, resampler_map
 
-using Random, Distributions, LinearAlgebra, Lux
+using LinearAlgebra, Lux
 using NNlib: softmax
 using Reactant: @allowscalar
-using MLUtils: rand_like
 
 using ..Utils
 
@@ -59,8 +58,8 @@ function residual_kernel(
 end
 
 function (r::ResidualResampler)(
-        weights;
-        rng = Random.MersenneTwister(1),
+        weights,
+        st_rng
     )
     """
     Residual resampling for weight filtering.
@@ -92,7 +91,7 @@ function (r::ResidualResampler)(
     )
 
     # CDF and variate for resampling
-    u = rand_like(Lux.replicate(rng), PermutedDimsArray(view(weights, :, :, :), (1, 3, 2)))
+    u = st_rng.resample_rv[:, 1:1, :]
     cdf = cumsum(residual_weights, dims = 2)
     return residual_kernel(
         ESS_bool,
@@ -128,8 +127,8 @@ function systematic_kernel(
 end
 
 function (r::SystematicResampler)(
-        weights;
-        rng = Random.MersenneTwister(1),
+        weights,
+        st_rng
     )
     """
     Systematic resampling for weight filtering.
@@ -147,7 +146,8 @@ function (r::SystematicResampler)(
     cdf = cumsum(weights, dims = 2)
 
     # Systematic thresholds
-    u = (rand_like(Lux.replicate(rng), weights[:, 1:1, :]) .+ (0:(N - 1))') ./ N
+    rv = PermutedDimsArray(st_rng.resample_rv, (1, 3, 2))
+    u = (rv .+ (0:(N - 1))') ./ N
     return systematic_kernel(ESS_bool, cdf, u, B, N)
 end
 
@@ -157,8 +157,8 @@ struct StratifiedResampler <: AbstractResampler
 end
 
 function (r::StratifiedResampler)(
-        weights;
-        rng = Random.MersenneTwister(1),
+        weights,
+        st_rng
     )
     """
     Systematic resampling for weight filtering.
@@ -176,7 +176,8 @@ function (r::StratifiedResampler)(
     cdf = cumsum(weights, dims = 2)
 
     # Stratified thresholds
-    u = (rand_like(Lux.replicate(rng), weights[:, :, :]) .+ (0:(N - 1))') ./ N
+    rv = st_rng.resample_rv
+    u = (rv .+ (0:(N - 1))') ./ N
     return systematic_kernel(ESS_bool, cdf, u, B, N)
 end
 

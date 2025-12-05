@@ -22,8 +22,7 @@ function (gu::GridUpdater)(
         st_kan,
         st_lux,
         train_idx,
-        swap_replica_idxs,
-        rng,
+        st_rng,
     )
     """
     Update the grid using samples from the prior.
@@ -53,9 +52,9 @@ function (gu::GridUpdater)(
                     ps,
                     st_kan,
                     st_lux,
-                    x;
+                    x,
+                    st_rng;
                     temps = temps,
-                    rng = rng,
                     swap_replica_idxs = swap_replica_idxs
                 ),
             )[
@@ -65,7 +64,7 @@ function (gu::GridUpdater)(
                 end,
             ]
         elseif model.prior.bool_config.ula || model.MALA
-            z = first(model.posterior_sampler(ps, st_kan, st_lux, x; rng = rng))[
+            z = first(model.posterior_sampler(ps, st_kan, st_lux, x, st_rng))[
                 :,
                 :,
                 :,
@@ -78,10 +77,10 @@ function (gu::GridUpdater)(
                     ps,
                     st_kan,
                     st_lux,
-                    rng,
+                    st_rng,
                 )
             )
-            # z = first(model.posterior_sampler(ps, st_kan, st_lux, x; rng = rng))[
+            # z = first(model.posterior_sampler(ps, st_kan, st_lux, x,  st_rng))[
             #     :,
             #     :,
             #     :,
@@ -169,9 +168,9 @@ function (gu::GridUpdater)(
                     ps,
                     st_kan,
                     st_lux,
-                    x;
+                    x,
+                    st_rng;
                     temps = temps,
-                    rng = rng,
                     swap_replica_idxs = swap_replica_idxs
                 ),
             )[
@@ -181,7 +180,7 @@ function (gu::GridUpdater)(
                 end,
             ]
         elseif model.prior.bool_config.ula || model.MALA
-            z = first(model.posterior_sampler(ps, st_kan, st_lux, x; rng = rng))[
+            z = first(model.posterior_sampler(ps, st_kan, st_lux, x, st_rng))[
                 :,
                 :,
                 :,
@@ -189,9 +188,9 @@ function (gu::GridUpdater)(
             ]
         else
             z = first(
-                model.sample_prior(model, ps, st_kan, st_lux, rng)
+                model.sample_prior(model, ps, st_kan, st_lux, st_rng)
             )
-            # z = first(model.posterior_sampler(ps, st_kan, st_lux, x; rng = rng))[
+            # z = first(model.posterior_sampler(ps, st_kan, st_lux, x st_rng))[
             #     :,
             #     :,
             #     :,

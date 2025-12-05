@@ -141,7 +141,7 @@ function init_KAEM(
 
     sample_prior =
         (m, n, p, sk, sl, r) ->
-    sample_univariate(m.prior, n, p.ebm, sk.ebm, sl.ebm, sk.quad; rng = r)
+    sample_univariate(m.prior, n, p.ebm, sk.ebm, sl.ebm, sk.quad, r)
 
     verbose && println("Using $(Threads.nthreads()) threads.")
 
@@ -211,7 +211,7 @@ function (model::KAEM{T})(
         ps,
         st_kan,
         st_lux,
-        rng,
+        st_rng,
     ) where {T <: Float32}
     """
     Inference pass to generate a batch of data from the model.
@@ -230,7 +230,7 @@ function (model::KAEM{T})(
         Lux states of the prior.
         Lux states of the likelihood.
     """
-    z, st_ebm = model.sample_prior(model, ps, st_kan, st_lux, rng)
+    z, st_ebm = model.sample_prior(model, ps, st_kan, st_lux, st_rng)
     x̂, st_gen = model.lkhood.generator(ps.gen, st_kan.gen, st_lux.gen, z)
     return model.lkhood.output_activation(x̂), st_ebm, st_gen
 end

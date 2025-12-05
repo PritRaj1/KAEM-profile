@@ -25,6 +25,9 @@ include("data_utils.jl")
 using .optimization
 using .DataUtils: get_vision_dataset, get_text_dataset
 
+include("../KAEM/rng.jl")
+using .HLOrand
+
 mutable struct KAEM_trainer{T <: Float32}
     model::Any
     grid_updater::Any
@@ -34,6 +37,7 @@ mutable struct KAEM_trainer{T <: Float32}
     ps::ComponentArray{T}
     st_kan::ComponentArray{T}
     st_lux::NamedTuple
+    st_rng::NamedTuple
     N_epochs::Int
     train_loader_state::Tuple{Any, Int}
     x::AbstractArray{T}
@@ -126,7 +130,7 @@ function init_trainer(
     x = pu(x)
     optimizer = create_opt(conf)
 
-    model, opt_state, params, st_kan, st_lux = prep_model(model, x, optimizer; rng = rng)
+    model, opt_state, params, st_kan, st_lux, st_rng = prep_model(model, x, optimizer; rng = rng)
 
     grid_update_frequency =
         parse(Int, retrieve(conf, "GRID_UPDATING", "grid_update_frequency"))
@@ -155,6 +159,7 @@ function init_trainer(
         params,
         st_kan,
         st_lux,
+        st_rng,
         N_epochs,
         loader_state,
         x,
@@ -189,28 +194,20 @@ function train!(t::KAEM_trainer; train_idx::Int = 1)
     num_param_updates = num_batches * t.N_epochs
     loss_file = t.model.file_loc * "loss.csv"
 
-    # Rand like this cannot be compiled with MLIR
-    swap_replica_idxs = (
-        t.model.N_t > 1 ?
-            rand(t.rng, 1:(t.model.N_t - 1), t.model.posterior_sampler.N) |> pu :
-            nothing
-    )
-
     grid_compiled = Reactant.@compile t.grid_updater(
         t.x,
         t.ps,
         t.st_kan,
         Lux.testmode(t.st_lux),
         train_idx,
-        swap_replica_idxs,
-        t.rng,
+        t.st_rng,
     )
 
     gen_compiled = Reactant.@compile t.model(
         t.ps,
         t.st_kan,
         Lux.testmode(t.st_lux),
-        t.rng,
+        t.st_rng,
     )
 
     test_train_step = t.gen_type == "logits" ? logit_test_loss : image_test_loss
@@ -218,20 +215,8 @@ function train!(t::KAEM_trainer; train_idx::Int = 1)
 
     # Update for a single batch
     function step!()
-        # Rand like this cannot be compiled with MLIR
-        swap_replica_idxs = (
-            t.model.N_t > 1 ?
-                rand(t.rng, 1:(t.model.N_t - 1), t.model.posterior_sampler.N) |> pu :
-                nothing
-        )
+        t.st_rng = seed_rand(model; rng = t.rng)
 
-        grid_sample_idxs = (
-            !t.model.prior.bool_config.ula && !t.model.prior.bool_config.mixture_model ?
-                rand(t.rng, 1:t.model.prior.q_size, t.model.batch_size) :
-                nothing
-        )
-
-        # Grid updating for likelihood model
         if (
                 train_idx == 1 || (train_idx - t.last_grid_update >= t.grid_update_frequency)
             ) && (t.model.update_llhood_grid || t.model.update_prior_grid)
@@ -241,8 +226,7 @@ function train!(t::KAEM_trainer; train_idx::Int = 1)
                 t.st_kan,
                 Lux.testmode(t.st_lux),
                 train_idx,
-                swap_replica_idxs,
-                t.rng,
+                t.st_rng,
             )
 
             t.grid_update_frequency =
@@ -262,8 +246,7 @@ function train!(t::KAEM_trainer; train_idx::Int = 1)
             t.st_lux,
             t.x,
             train_idx,
-            t.rng,
-            swap_replica_idxs
+            t.st_rng,
         )
         @reset t.st_lux.ebm = st_ebm
         @reset t.st_lux.gen = st_gen
@@ -283,11 +266,12 @@ function train!(t::KAEM_trainer; train_idx::Int = 1)
 
             test_loss = 0
             for x in t.model.test_loader
+                t.st_rng = seed_rand(model; rng = t.rng)
                 x_gen, st_ebm, st_gen = gen_compiled(
                     t.ps,
                     t.st_kan,
                     Lux.testmode(t.st_lux),
-                    t.rng,
+                    t.st_rng,
                 )
                 @reset t.st_lux.ebm = st_ebm
                 @reset t.st_lux.gen = st_gen
@@ -322,13 +306,14 @@ function train!(t::KAEM_trainer; train_idx::Int = 1)
             num_batches_to_save = fld(t.num_generated_samples, 10) ÷ t.model.batch_size # Save 1/10 of the samples to conserve space
             if num_batches_to_save > 0
                 concat_dim = length(t.model.lkhood.x_shape) + 1
+                t.st_rng = seed_rand(model; rng = t.rng)
 
                 # Get first batch to determine type
                 first_batch, st_ebm, st_gen = gen_compiled(
                     t.ps,
                     t.st_kan,
                     Lux.testmode(t.st_lux),
-                    t.rng,
+                    t.st_rng,
                 )
                 @reset t.st_lux.ebm = st_ebm
                 @reset t.st_lux.gen = st_gen
@@ -339,11 +324,12 @@ function train!(t::KAEM_trainer; train_idx::Int = 1)
                 push!(batches_to_cat, first_batch)
 
                 for i in 2:num_batches_to_save
+                    t.st_rng = seed_rand(model; rng = t.rng)
                     batch, st_ebm, st_gen = gen_compiled(
                         t.ps,
                         t.st_kan,
                         Lux.testmode(t.st_lux),
-                        t.rng,
+                        t.st_rng,
                     )
                     @reset t.st_lux.ebm = st_ebm
                     @reset t.st_lux.gen = st_gen
@@ -409,7 +395,7 @@ function train!(t::KAEM_trainer; train_idx::Int = 1)
         t.ps,
         t.st_kan,
         Lux.testmode(t.st_lux),
-        t.rng,
+        t.st_rng,
     )
     first_batch = Array(first_batch)
     batches_to_cat = Vector{typeof(first_batch)}()
@@ -417,11 +403,12 @@ function train!(t::KAEM_trainer; train_idx::Int = 1)
     push!(batches_to_cat, first_batch)
 
     for i in 2:num_batches
+        t.st_rng = seed_rand(model; rng = t.rng)
         batch, st_ebm, st_gen = gen_compiled(
             t.ps,
             t.st_kan,
             Lux.testmode(t.st_lux),
-            t.rng,
+            t.st_rng,
         )
         push!(batches_to_cat, Array(batch))
     end

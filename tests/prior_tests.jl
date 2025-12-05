@@ -25,7 +25,7 @@ dataset = randn(rng, Float32, 32, 32, 1, b_size * 10)
 model = init_KAEM(dataset, conf, (32, 32, 1))
 x_test = first(model.train_loader) |> pu
 optimizer = create_opt(conf)
-model, _, ps, st_kan, st_lux = prep_model(model, x_test, optimizer; MLIR = false)
+model, _, ps, st_kan, st_lux, st_rng = prep_model(model, x_test, optimizer; MLIR = false)
 
 function test_shapes()
     @test model.prior.p_size == p_size
@@ -35,8 +35,8 @@ end
 function test_uniform_prior()
     commit!(conf, "EbmModel", "π_0", "uniform")
 
-    compiled_sample = Reactant.@compile model.sample_prior(model, ps, st_kan, st_lux, rng)
-    z_test = first(compiled_sample(model, ps, st_kan, st_lux, rng))
+    compiled_sample = Reactant.@compile model.sample_prior(model, ps, st_kan, st_lux, st_rng)
+    z_test = first(compiled_sample(model, ps, st_kan, st_lux, st_rng))
 
     if model.prior.bool_config.mixture_model || model.prior.bool_config.ula
         @test size(z_test) == (q_size, 1, b_size)
@@ -54,8 +54,8 @@ end
 
 function test_gaussian_prior()
     commit!(conf, "EbmModel", "π_0", "gaussian")
-    compiled_sample = Reactant.@compile model.sample_prior(model, ps, st_kan, st_lux, rng)
-    z_test = first(compiled_sample(model, ps, st_kan, st_lux, rng))
+    compiled_sample = Reactant.@compile model.sample_prior(model, ps, st_kan, st_lux, st_rng)
+    z_test = first(compiled_sample(model, ps, st_kan, st_lux, st_rng))
 
     if model.prior.bool_config.mixture_model || model.prior.bool_config.ula
         @test all(size(z_test) .== (q_size, 1, b_size))
@@ -73,8 +73,8 @@ end
 
 function test_lognormal_prior()
     commit!(conf, "EbmModel", "π_0", "lognormal")
-    compiled_sample = Reactant.@compile model.sample_prior(model, ps, st_kan, st_lux, rng)
-    z_test = first(compiled_sample(model, ps, st_kan, st_lux, rng))
+    compiled_sample = Reactant.@compile model.sample_prior(model, ps, st_kan, st_lux, st_rng)
+    z_test = first(compiled_sample(model, ps, st_kan, st_lux, st_rng))
 
     if model.prior.bool_config.mixture_model || model.prior.bool_config.ula
         @test all(size(z_test) .== (q_size, 1, b_size))
@@ -92,8 +92,8 @@ end
 
 function test_learnable_gaussian_prior()
     commit!(conf, "EbmModel", "π_0", "learnable_gaussian")
-    compiled_sample = Reactant.@compile model.sample_prior(model, ps, st_kan, st_lux, rng)
-    z_test = first(compiled_sample(model, ps, st_kan, st_lux, rng))
+    compiled_sample = Reactant.@compile model.sample_prior(model, ps, st_kan, st_lux, st_rng)
+    z_test = first(compiled_sample(model, ps, st_kan, st_lux, st_rng))
 
     if model.prior.bool_config.mixture_model || model.prior.bool_config.ula
         @test all(size(z_test) .== (q_size, 1, b_size))
@@ -111,8 +111,8 @@ end
 
 function test_ebm_prior()
     commit!(conf, "EbmModel", "π_0", "ebm")
-    compiled_sample = Reactant.@compile model.sample_prior(model, ps, st_kan, st_lux, rng)
-    z_test = first(compiled_sample(model, ps, st_kan, st_lux, rng))
+    compiled_sample = Reactant.@compile model.sample_prior(model, ps, st_kan, st_lux, st_rng)
+    z_test = first(compiled_sample(model, ps, st_kan, st_lux, st_rng))
 
     if model.prior.bool_config.mixture_model || model.prior.bool_config.ula
         @test all(size(z_test) .== (q_size, 1, b_size))
