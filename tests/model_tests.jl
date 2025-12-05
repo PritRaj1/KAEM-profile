@@ -66,8 +66,7 @@ function test_grid_update()
         st_kan,
         Lux.testmode(st_lux),
         1,
-        nothing,
-        rng
+        st_rng
     )
     return @test !any(isnan, Array(ps))
 end
