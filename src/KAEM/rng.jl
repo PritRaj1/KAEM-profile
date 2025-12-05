@@ -1,7 +1,6 @@
 module HLOrng
 
 using Random
-using MLUtils: randn_like
 
 export seed_rand
 
@@ -16,12 +15,11 @@ function seed_rand(
     # ITS prior rng
     prior_its = (
         model.prior.bool_config.mixture_model ?
-            rand(rng, T, 1, model.prior.p_size, model.batch_size) :
-            rand(rng, T, model.prior.q_size, 1, 1, model.batch_size)
+            rand(rng, T, model.prior.q_size, 1, 1, model.batch_size) :
+            rand(rng, T, 1, model.prior.p_size, model.batch_size)
     )
 
     P = model.posterior_sampler.P
-    prior_its = model.prior.bool_config.ula ? randn(rng, T, P, 1, model.batch_size) : prior_its
     num_temps = model.posterior_sampler.num_temps
 
     mix_mask_rv = (
@@ -39,8 +37,8 @@ function seed_rand(
     # ITS ula (init)
     posterior_its = (
         model.prior.bool_config.mixture_model ?
-            rand(rng, T, 1, model.prior.p_size, model.batch_size * num_temps) :
-            rand(rng, T, model.prior.q_size, 1, 1, model.batch_size * num_temps)
+            rand(rng, T, model.prior.q_size, 1, 1, model.batch_size * num_temps) :
+            rand(rng, T, 1, model.prior.p_size, model.batch_size * num_temps)
     )
 
     posterior_its = (
@@ -48,7 +46,7 @@ function seed_rand(
             posterior_its :
             (
                 model.prior.prior_type == "uniform" ?
-                rand_like(rng, prior_its) :
+                rand(rng, T, P, 1, model.batch_size) :
                 randn(rng, T, P, 1, model.batch_size)
             )
     )
