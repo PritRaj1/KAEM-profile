@@ -266,7 +266,7 @@ function train!(t::KAEM_trainer; train_idx::Int = 1)
 
             test_loss = 0
             for x in t.model.test_loader
-                t.st_rng = seed_rand(model; rng = t.rng)
+                t.st_rng = seed_rand(t.model; rng = t.rng)
                 x_gen, st_ebm, st_gen = gen_compiled(
                     t.ps,
                     t.st_kan,
@@ -306,7 +306,7 @@ function train!(t::KAEM_trainer; train_idx::Int = 1)
             num_batches_to_save = fld(t.num_generated_samples, 10) ÷ t.model.batch_size # Save 1/10 of the samples to conserve space
             if num_batches_to_save > 0
                 concat_dim = length(t.model.lkhood.x_shape) + 1
-                t.st_rng = seed_rand(model; rng = t.rng)
+                t.st_rng = seed_rand(t.model; rng = t.rng)
 
                 # Get first batch to determine type
                 first_batch, st_ebm, st_gen = gen_compiled(
@@ -324,7 +324,7 @@ function train!(t::KAEM_trainer; train_idx::Int = 1)
                 push!(batches_to_cat, first_batch)
 
                 for i in 2:num_batches_to_save
-                    t.st_rng = seed_rand(model; rng = t.rng)
+                    t.st_rng = seed_rand(t.model; rng = t.rng)
                     batch, st_ebm, st_gen = gen_compiled(
                         t.ps,
                         t.st_kan,
@@ -403,7 +403,7 @@ function train!(t::KAEM_trainer; train_idx::Int = 1)
     push!(batches_to_cat, first_batch)
 
     for i in 2:num_batches
-        t.st_rng = seed_rand(model; rng = t.rng)
+        t.st_rng = seed_rand(t.model; rng = t.rng)
         batch, st_ebm, st_gen = gen_compiled(
             t.ps,
             t.st_kan,
