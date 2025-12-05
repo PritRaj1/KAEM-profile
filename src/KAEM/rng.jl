@@ -102,7 +102,7 @@ function seed_rand(
         ula_noise = ula_noise,
         log_swap = log_swap,
         xchange_ll_noise = xchange_ll_noise,
-    )
+    ) |> pu
 end
 
 end
