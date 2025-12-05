@@ -58,8 +58,6 @@ function IS_loss(
         x̂,
         ε,
         scale,
-        B,
-        S,
         SEQ,
     )
     loss_fcn = (SEQ ? cross_entropy_IS : (ndims(x) == 3 ? l2_IS_PCA : l2_IS))
@@ -184,7 +182,6 @@ function MALA_loss(
         x̂,
         ε,
         scale,
-        B,
         SEQ,
         perceptual_scale,
     )

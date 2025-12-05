@@ -118,7 +118,7 @@ function sample_mixture(
     rand_vals = rand(rng, Float32, ebm.q_size, 1, 1, ebm.s_size) .* cdf[:, :, end:end, :]
     z = interpolate_kernel(
         cdf,
-        reshape(grid, :, 1, ebm.N_quad),
+        PermutedDimsArray(view(grid, :, :, :), (1, 3, 2)),
         rand_vals,
         ebm.q_size,
         1, # Single component chosen already
