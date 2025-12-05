@@ -2,9 +2,10 @@ module WeightResamplers
 
 export ResidualResampler, SystematicResampler, StratifiedResampler, resampler_map
 
-using Random, Distributions, LinearAlgebra
+using Random, Distributions, LinearAlgebra, Lux
 using NNlib: softmax
 using Reactant: @allowscalar
+using MLUtils: rand_like
 
 using ..Utils
 
@@ -59,7 +60,7 @@ end
 
 function (r::ResidualResampler)(
         weights;
-        rng = Random.default_rng(),
+        rng = Random.MersenneTwister(1),
     )
     """
     Residual resampling for weight filtering.
@@ -91,7 +92,7 @@ function (r::ResidualResampler)(
     )
 
     # CDF and variate for resampling
-    u = rand(rng, Float32, B, 1, N)
+    u = rand_like(Lux.replicate(rng), PermutedDimsArray(view(weights, :, :, :), (1, 3, 2)))
     cdf = cumsum(residual_weights, dims = 2)
     return residual_kernel(
         ESS_bool,
@@ -128,7 +129,7 @@ end
 
 function (r::SystematicResampler)(
         weights;
-        rng = Random.default_rng(),
+        rng = Random.MersenneTwister(1),
     )
     """
     Systematic resampling for weight filtering.
@@ -146,7 +147,7 @@ function (r::SystematicResampler)(
     cdf = cumsum(weights, dims = 2)
 
     # Systematic thresholds
-    u = (rand(rng, Float32, B, 1, 1) .+ (0:(N - 1))') ./ N
+    u = (rand_like(Lux.replicate(rng), weights[:, 1:1, :]) .+ (0:(N - 1))') ./ N
     return systematic_kernel(ESS_bool, cdf, u, B, N)
 end
 
@@ -157,7 +158,7 @@ end
 
 function (r::StratifiedResampler)(
         weights;
-        rng = Random.default_rng(),
+        rng = Random.MersenneTwister(1),
     )
     """
     Systematic resampling for weight filtering.
@@ -175,7 +176,7 @@ function (r::StratifiedResampler)(
     cdf = cumsum(weights, dims = 2)
 
     # Stratified thresholds
-    u = (rand(rng, Float32, B, N, 1) .+ (0:(N - 1))') ./ N
+    u = (rand_like(Lux.replicate(rng), weights[:, :, :]) .+ (0:(N - 1))') ./ N
     return systematic_kernel(ESS_bool, cdf, u, B, N)
 end
 

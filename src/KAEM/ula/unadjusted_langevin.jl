@@ -3,6 +3,7 @@ module ULA_sampling
 export initialize_ULA_sampler, ULA_sampler
 
 using Reactant: @trace
+using MLUtils: randn_like
 using LinearAlgebra,
     Random,
     Lux,
@@ -18,10 +19,10 @@ include("updates.jl")
 using .LangevinUpdates
 
 π_dist = Dict(
-    "uniform" => (p, b, rng) -> rand(rng, Float32, p, 1, b),
-    "gaussian" => (p, b, rng) -> randn(rng, Float32, p, 1, b),
-    "lognormal" => (p, b, rng) -> rand(rng, LogNormal(0.0f0, 1.0f0), p, 1, b),
-    "ebm" => (p, b, rng) -> randn(rng, Float32, p, 1, b),
+    "uniform" => (p, b, rng) -> rand_like(Lux.replicate(rng), zeros(Float32, p, 1, b)),
+    "gaussian" => (p, b, rng) -> randn_like(Lux.replicate(rng), zeros(Float32, p, 1, b)),
+    "lognormal" => (p, b, rng) -> rand_like(Lux.replicate(rng), zeros(Float32, p, 1, b)) .|> exp,
+    "ebm" => (p, b, rng) -> randn_like(Lux.replicate(rng), zeros(Float32, p, 1, b)),
 )
 
 struct ULA_sampler
@@ -123,7 +124,7 @@ function (sampler::ULA_sampler)(
         st_lux,
         x;
         temps = [1.0f0],
-        rng = Random.default_rng(),
+        rng = Random.MersenneTwister(1),
         swap_replica_idxs = nothing,
     )
     """
@@ -201,9 +202,9 @@ function (sampler::ULA_sampler)(
         ) : nothing
 
     # Pre-allocate noise
-    noise = randn(rng, Float32, Q, P, S * num_temps, N_steps)
-    log_u_swap = log.(rand(rng, Float32, num_temps, N_steps))
-    ll_noise = randn(rng, Float32, model.lkhood.x_shape..., S, 2, num_temps, N_steps)
+    noise = randn_like(Lux.replicate(rng), zeros(Float32, Q, P, S * num_temps, N_steps))
+    log_u_swap = log.(rand_like(Lux.replicate(rng), zeros(Float32, num_temps, N_steps)))
+    ll_noise = randn_like(Lux.replicate(rng), zeros(Float32, model.lkhood.x_shape..., S, 2, num_temps, N_steps))
     swap_replica_idxs_plus = isnothing(swap_replica_idxs) ? nothing : swap_replica_idxs .+ 1
 
     # Traced HLO does not support int arrays, so handle mask outside

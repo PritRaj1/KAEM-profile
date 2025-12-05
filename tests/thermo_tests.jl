@@ -20,6 +20,7 @@ parse_conf!(conf)
 commit!(conf, "THERMODYNAMIC_INTEGRATION", "num_temps", "4")
 out_dim = parse(Int, retrieve(conf, "GeneratorModel", "output_dim"))
 optimizer = create_opt(conf)
+rng = Random.MersenneTwister(1)
 
 function test_model_derivative()
     Random.seed!(42)
@@ -31,7 +32,7 @@ function test_model_derivative()
 
     ps_before = Array(ps)
     loss, ps, _, st_ebm, st_gen =
-        model.train_step(opt_state, ps, st_kan, st_lux, x_test, 1, Random.default_rng(), swap_replica_idxs)
+        model.train_step(opt_state, ps, st_kan, st_lux, x_test, 1, rng, swap_replica_idxs)
 
     ps_after = Array(ps)
     @test any(ps_before .!= ps_after)

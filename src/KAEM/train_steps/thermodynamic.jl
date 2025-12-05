@@ -3,6 +3,7 @@ module ThermodynamicIntegration
 export ThermoLoss
 
 using ComponentArrays, Random, Enzyme, Statistics, Lux, Optimisers
+using MLUtils: randn_like
 
 using ..Utils
 using ..KAEM_model
@@ -17,7 +18,7 @@ function sample_thermo(
         model,
         x;
         train_idx = 1,
-        rng = Random.default_rng(),
+        rng = Random.MersenneTwister(1),
         swap_replica_idxs = nothing,
     )
     temps = collect(Float32, [(k / model.N_t)^model.p[train_idx] for k in 0:model.N_t])
@@ -32,8 +33,8 @@ function sample_thermo(
     )
 
     Δt = temps[2:end] - temps[1:(end - 1)]
-    tempered_noise = randn(rng, Float32, model.lkhood.x_shape..., model.batch_size, model.N_t)
-    noise = randn(rng, Float32, model.lkhood.x_shape..., model.batch_size)
+    tempered_noise = randn_like(Lux.replicate(rng), zeros(Float32, model.lkhood.x_shape..., model.batch_size, model.N_t))
+    noise = randn_like(Lux.replicate(rng), x)
     return z, Δt, st_lux, noise, tempered_noise
 end
 

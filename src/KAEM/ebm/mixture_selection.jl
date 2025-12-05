@@ -4,6 +4,7 @@ export choose_component
 
 using NNlib: softmax
 using LinearAlgebra, Random, Lux
+using MLUtils: rand_like
 
 using ..Utils
 
@@ -25,7 +26,7 @@ function choose_component(
         num_samples,
         q_size,
         p_size;
-        rng = Random.default_rng(),
+        rng = Random.MersenneTwister(1),
     )
     """
     Creates a one-hot mask for mixture model, q, to select one component, p.
@@ -39,7 +40,7 @@ function choose_component(
     Returns:
         chosen_components: The one-hot mask for each mixture model, (num_samples, q, p).    
     """
-    rand_vals = rand(rng, Float32, q_size, 1, num_samples)
+    rand_vals = rand_like(Lux.replicate(rng), zeros(Float32, q_size, 1, num_samples))
     α = cumsum(softmax(α; dims = 2); dims = 2)
     return mask_kernel(α, rand_vals, q_size, p_size)
 end
