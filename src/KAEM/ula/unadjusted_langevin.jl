@@ -221,8 +221,8 @@ function (sampler::ULA_sampler)(
     swap_replica_idxs_plus = swap_replica_idxs .+ 1
 
     # Traced HLO does not support int arrays, so handle mask outside
-    mask_swap_1 = Lux.f32(1:num_temps .== swap_replica_idxs') .* 1.0f0
-    mask_swap_2 = Lux.f32(1:num_temps .== swap_replica_idxs_plus') .* 1.0f0
+    mask_swap_1 = num_temps > 1 ? Lux.f32(1:num_temps .== swap_replica_idxs') .* 1.0f0 : nothing
+    mask_swap_2 = num_temps > 1 ? Lux.f32(1:num_temps .== swap_replica_idxs_plus') .* 1.0f0 : nothing
 
     state = (1, z_flat)
     @trace while first(state) <= N_steps
