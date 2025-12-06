@@ -268,7 +268,7 @@ function train!(t::KAEM_trainer; train_idx::Int = 1)
         train_loss += t.loss
 
         # After one epoch, calculate test loss and log to CSV
-        if (train_idx % num_batches == 0 || train_idx == 1) && !img_tuning
+	if (train_idx % num_batches == 0) || (train_idx == 1) && !t.img_tuning
 
             test_loss = 0
             for x in t.model.test_loader
@@ -313,7 +313,7 @@ function train!(t::KAEM_trainer; train_idx::Int = 1)
             grid_updated = 0
 
             # Save images - collect batches first then concatenate once to avoid O(n²) allocations
-            if (t.gen_every > 0 && epoch % t.gen_every == 0) && !t.img_tuning
+	    if (t.gen_every > 0) && (epoch % t.gen_every == 0) && !t.img_tuning
                 num_batches_to_save = fld(t.num_generated_samples, 10) ÷ t.model.batch_size # Save 1/10 of the samples to conserve space
                 if num_batches_to_save > 0
                     concat_dim = length(t.model.lkhood.x_shape) + 1

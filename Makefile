@@ -113,7 +113,7 @@ tune:
 	@echo "Starting hyperparameter tuning for dataset: $(DATASET)"
 	@tmux kill-session -t kaem_tune 2>/dev/null || true
 	@tmux new-session -d -s kaem_tune -n tuning
-	@tmux send-keys -t kaem_tune:tuning "export LD_LIBRARY_PATH=$(LD_LIB_PATH) && if [ -f '$(CONDA_ACTIVATE)' ]; then . '$(CONDA_ACTIVATE)' && conda activate $(ENV_NAME) && DATASET=$(DATASET) julia --project=. --threads=auto tuning.jl 2>&1 | tee logs/tune_$(DATASET)_$(shell date +%Y%m%d_%H%M%S).log; else conda activate $(ENV_NAME) && DATASET=$(DATASET) julia --project=. --threads=auto tuning.jl 2>&1 | tee logs/tune_$(DATASET)_$(shell date +%Y%m%d_%H%M%S).log; fi && tmux kill-session -t kaem_tune" Enter
+	@tmux send-keys -t kaem_tune:tuning "export LD_LIBRARY_PATH=$(LD_LIB_PATH) && if [ -f '$(CONDA_ACTIVATE)' ]; then . '$(CONDA_ACTIVATE)' && conda activate $(ENV_NAME) && DATASET=$(DATASET) julia --project=. --threads=1 tuning.jl 2>&1 | tee logs/tune_$(DATASET)_$(shell date +%Y%m%d_%H%M%S).log; else conda activate $(ENV_NAME) && DATASET=$(DATASET) julia --project=. --threads=1 tuning.jl 2>&1 | tee logs/tune_$(DATASET)_$(shell date +%Y%m%d_%H%M%S).log; fi && tmux kill-session -t kaem_tune" Enter
 	@echo "Tuning session started in tmux. Attach with: tmux attach-session -t kaem_tune"
 	@echo "Log file: logs/tune_$(DATASET)_$(shell date +%Y%m%d_%H%M%S).log"
 
