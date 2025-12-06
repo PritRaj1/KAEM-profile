@@ -84,7 +84,7 @@ scenario = Scenario(
         "selu",
         "tanh",
     ],
-    max_trials = num_trial,
+    max_trials = num_trials,
     pruner = MedianPruner(),
     sampler = sampler()
 )
