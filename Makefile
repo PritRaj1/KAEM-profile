@@ -1,4 +1,4 @@
-.PHONY: install uninstall clean test bench train train-thermo train-vanilla plot plot-results format lint logs clear-logs julia-setup help
+.PHONY: install uninstall clean test bench train train-thermo train-vanilla tune plot plot-results format lint logs clear-logs julia-setup help
 
 ENV_NAME = KAEM
 CONDA_BASE := $(shell conda info --base 2>/dev/null || echo "")
@@ -28,6 +28,7 @@ help:
 	@echo "  train-thermo- Start thermodynamic training (use: make train-thermo DATASET=SVHN)"
 	@echo "  train-vanilla- Start vanilla training (use: make train-vanilla DATASET=SVHN)"
 	@echo "  train-sequential- Schedule multiple training jobs sequentially (use: make train-sequential CONFIG=jobs.txt)"
+	@echo "  tune        - Run hyperparameter tuning in vanilla mode (use: make tune DATASET=MNIST)"
 	@echo "  plot        - Run all plotting scripts"
 	@echo "  plot-results- Run only results plotting scripts"
 	@echo "  logs        - View latest test log"
@@ -106,6 +107,15 @@ train-thermo:
 
 train-vanilla:
 	@$(MAKE) train DATASET=$(DATASET) MODE=vanilla
+
+tune:
+	@mkdir -p logs
+	@echo "Starting hyperparameter tuning for dataset: $(DATASET)"
+	@tmux kill-session -t kaem_tune 2>/dev/null || true
+	@tmux new-session -d -s kaem_tune -n tuning
+	@tmux send-keys -t kaem_tune:tuning "export LD_LIBRARY_PATH=$(LD_LIB_PATH) && if [ -f '$(CONDA_ACTIVATE)' ]; then . '$(CONDA_ACTIVATE)' && conda activate $(ENV_NAME) && DATASET=$(DATASET) julia --project=. --threads=auto tuning.jl 2>&1 | tee logs/tune_$(DATASET)_$(shell date +%Y%m%d_%H%M%S).log; else conda activate $(ENV_NAME) && DATASET=$(DATASET) julia --project=. --threads=auto tuning.jl 2>&1 | tee logs/tune_$(DATASET)_$(shell date +%Y%m%d_%H%M%S).log; fi && tmux kill-session -t kaem_tune" Enter
+	@echo "Tuning session started in tmux. Attach with: tmux attach-session -t kaem_tune"
+	@echo "Log file: logs/tune_$(DATASET)_$(shell date +%Y%m%d_%H%M%S).log"
 
 train-sequential:
 	@mkdir -p logs
