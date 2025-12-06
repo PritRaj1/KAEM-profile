@@ -101,7 +101,7 @@ display(top_parameters(scenario))
     noise_var,
     basis_act,
     cnn_act,
-) = trial
+) = scenario
 
 commit!(conf, "OPTIMIZER", "learning_rate", string(LR))
 commit!(conf, "EbmModel", "π_0", prior_type)
