@@ -257,6 +257,10 @@ function train!(t::KAEM_trainer; train_idx::Int = 1)
         @reset t.st_lux.ebm = st_ebm
         @reset t.st_lux.gen = st_gen
 
+        if isnan(Float32(t.loss))
+            train_idx = Inf
+        end
+
         t.model.verbose && println("Iter: $(train_idx), Loss: $(t.loss)")
         return nothing
     end
@@ -268,7 +272,7 @@ function train!(t::KAEM_trainer; train_idx::Int = 1)
         train_loss += t.loss
 
         # After one epoch, calculate test loss and log to CSV
-	if (train_idx % num_batches == 0) || (train_idx == 1) && !t.img_tuning
+        if (train_idx % num_batches == 0) || (train_idx == 1) && !t.img_tuning
 
             test_loss = 0
             for x in t.model.test_loader
@@ -313,7 +317,7 @@ function train!(t::KAEM_trainer; train_idx::Int = 1)
             grid_updated = 0
 
             # Save images - collect batches first then concatenate once to avoid O(n²) allocations
-	    if (t.gen_every > 0) && (epoch % t.gen_every == 0) && !t.img_tuning
+            if (t.gen_every > 0) && (epoch % t.gen_every == 0) && !t.img_tuning
                 num_batches_to_save = fld(t.num_generated_samples, 10) ÷ t.model.batch_size # Save 1/10 of the samples to conserve space
                 if num_batches_to_save > 0
                     concat_dim = length(t.model.lkhood.x_shape) + 1
@@ -413,7 +417,6 @@ function train!(t::KAEM_trainer; train_idx::Int = 1)
     push!(batches_to_cat, first_batch)
 
     # For ssim
-    first_batch = Array(first(t.model.train_loader))
     real_batches_to_cat = Vector{typeof(first_batch)}()
     sizehint!(real_batches_to_cat, num_batches)
 
@@ -426,14 +429,23 @@ function train!(t::KAEM_trainer; train_idx::Int = 1)
             t.st_rng,
         )
         push!(batches_to_cat, Array(batch))
+    end
 
-        if t.img_tuning
+    if t.img_tuning
+        for i in 1:num_batches
+            x = nothing
+            try
+                x, t.train_loader_state = iterate(t.model.train_loader, t.train_loader_state)
+            catch
+                x, t.train_loader_state = iterate(t.model.train_loader)
+            end
             push!(
                 real_batches_to_cat,
-                Array(t.model.train_loader[i])
+                Array(x)
             )
         end
     end
+
     gen_data = cat(batches_to_cat..., dims = concat_dim)
     real_data = t.img_tuning ? cat(real_batches_to_cat..., dims = concat_dim) : nothing
 
