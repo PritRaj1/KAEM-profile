@@ -20,7 +20,7 @@ ENV["THERMO"] = "false"
 ENV["GPU"] = retrieve(conf, "TRAINING", "use_gpu")
 ENV["PERCEPTUAL"] = retrieve(conf, "TRAINING", "use_perceptual_loss")
 
-num_trials = parse(Int, retrieve(conf, "TUNING", "num_trial"))
+num_trials = parse(Int, retrieve(conf, "TUNING", "num_trials"))
 sampler_type = retrieve(conf, "TUNING", "sampler")
 
 include("src/pipeline/trainer.jl")

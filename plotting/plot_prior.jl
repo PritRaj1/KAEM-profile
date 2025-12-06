@@ -3,8 +3,7 @@ using JLD2,
     ComponentArrays,
     ConfParser,
     LaTeXStrings,
-    Makie,
-    GLMakie,
+    CairoMakie,
     Random,
     Accessors
 
@@ -19,6 +18,7 @@ using .KAEM_model
 include("../src/pipeline/trainer.jl")
 using .trainer
 
+CairoMakie.activate!()
 
 for fcn_type in ["RBF", "FFT"]
     for prior_type in ["gaussian", "lognormal", "uniform", "ebm"]
