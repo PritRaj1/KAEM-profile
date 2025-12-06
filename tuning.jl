@@ -1,0 +1,119 @@
+using ConfParser, Random, HyperTuning
+
+dataset = get(ENV, "DATASET", "MNIST")
+
+println("=== XLA Environment Config ===")
+println("XLA_REACTANT_GPU_MEM_FRACTION: ", get(ENV, "XLA_REACTANT_GPU_MEM_FRACTION", "not set"))
+println("XLA_REACTANT_GPU_PREALLOCATE: ", get(ENV, "XLA_REACTANT_GPU_PREALLOCATE", "not set"))
+xla_flags = get(ENV, "XLA_FLAGS", "")
+println("XLA_FLAGS: ", isempty(xla_flags) ? "not set" : xla_flags)
+println("===================================")
+println()
+
+conf = Dict(
+    "MNIST" => ConfParse("config/nist_tuning_config.ini"),
+    "SVHN" => ConfParse("config/svhn_tuning_config.ini"),
+)[dataset]
+parse_conf!(conf)
+
+ENV["THERMO"] = "false"
+ENV["GPU"] = retrieve(conf, "TRAINING", "use_gpu")
+ENV["PERCEPTUAL"] = retrieve(conf, "TRAINING", "use_perceptual_loss")
+
+num_trials = parse(Int, retrieve(conf, "TUNING", "num_trial"))
+sampler_type = retrieve(conf, "TUNING", "sampler")
+
+include("src/pipeline/trainer.jl")
+using .trainer
+
+commit!(conf, "THERMODYNAMIC_INTEGRATION", "num_temps", "-1")
+
+rng = Random.MersenneTwister(1)
+
+function objective(trial)
+    @unpack (
+        LR,
+        prior_type,
+        langevin_step,
+        generator_var,
+        noise_var,
+        basis_act,
+        cnn_act,
+    ) = trial
+
+    commit!(conf, "OPTIMIZER", "learning_rate", string(LR))
+    commit!(conf, "EbmModel", "π_0", prior_type)
+    commit!(conf, "POST_LANGEVIN", "initial_step_size", string(langevin_step))
+    commit!(conf, "GeneratorModel", "generator_variance", string(generator_var))
+    commit!(conf, "GeneratorModel", "generator_noise", string(noise_var))
+    commit!(conf, "EbmModel", "base_activation ", basis_act)
+    commit!(conf, "GeneratorModel", "base_activation ", basis_act)
+    commit!(conf, "CNN", "activation ", cnn_act)
+
+    t = init_trainer(rng, conf, dataset; img_tuning = true)
+    return 1 - train!(t)
+end
+
+const sampler = Dict(
+    "bcap" => BCAPSampler,
+    "grid" => GridSampler,
+    "random" => RandomSampler,
+)[sampler_type]
+
+scenario = Scenario(
+    LR = (1.0f-5 .. 1.0f-2),
+    prior_type = ["ebm", "gaussian"],
+    langevin_step = 1.0f-3 .. 1.0f-1,
+    generator_var = 1.0f-2 .. 1.0f0,
+    noise_var = 1.0f-2 .. 1.0f0,
+    basis_act = [
+        "relu",
+        "leakyrelu",
+        "swish",
+        "sigmoid",
+        "gelu",
+        "selu",
+        "tanh",
+    ],
+    cnn_act = [
+        "relu",
+        "leakyrelu",
+        "swish",
+        "sigmoid",
+        "gelu",
+        "selu",
+        "tanh",
+    ],
+    max_trials = num_trial,
+    pruner = MedianPruner(),
+    sampler = sampler()
+)
+
+HyperTuning.optimize(objective, scenario)
+
+display(top_parameters(scenario))
+
+@unpack (
+    LR,
+    prior_type,
+    langevin_step,
+    generator_var,
+    noise_var,
+    basis_act,
+    cnn_act,
+) = trial
+
+commit!(conf, "OPTIMIZER", "learning_rate", string(LR))
+commit!(conf, "EbmModel", "π_0", prior_type)
+commit!(conf, "POST_LANGEVIN", "initial_step_size", string(langevin_step))
+commit!(conf, "GeneratorModel", "generator_variance", string(generator_var))
+commit!(conf, "GeneratorModel", "generator_noise", string(noise_var))
+commit!(conf, "EbmModel", "base_activation ", basis_act)
+commit!(conf, "GeneratorModel", "base_activation ", basis_act)
+commit!(conf, "CNN", "activation ", cnn_act)
+
+if dataset == MNIST
+    save!(conf, "config/nist_tuning_config.ini")
+else
+    save!(conf, "config/svhn_tuning_config.ini")
+end
