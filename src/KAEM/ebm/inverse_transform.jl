@@ -9,20 +9,28 @@ using ..Utils
 include("mixture_selection.jl")
 using .MixtureChoice: choose_component
 
-function interpolate_kernel(cdf, grid, rand_vals, Q, P, G, S; mix_bool = false)
+function interpolate_kernel(cdf, grid, rand_vals, G; mix_bool = false)
     grid_idxs = reshape(1:(G + 1), 1, 1, G + 1, 1)
     grid = cat(grid, view(grid, :, :, G:G); dims = 3) # Repeat end, so G + 1 indexes final
 
     # First index, i, such that cdf[i] >= rand_vals
-    indices = sum(1 .+ (cdf .< reshape(rand_vals, Q, P, 1, S)); dims = 3)
+    indices = sum(1 .+ (cdf .< rand_vals); dims = 3)
     first_bool = indices .== 1 |> Lux.f32
     mask2 = indices .== grid_idxs |> Lux.f32
     mask1 = mask2 .- 1.0f0
 
-    z1 = dropdims((first_bool .* grid[:, :, 1]) .+ (1.0f0 .- first_bool) .* sum(mask1 .* grid; dims = 3); dims = 3)
+    z1 = dropdims(
+        (first_bool .* grid[:, :, 1]) .+
+            (1.0f0 .- first_bool) .*
+            sum(mask1 .* grid; dims = 3); dims = 3
+    )
     z2 = dropdims(sum(mask2 .* grid; dims = 3); dims = 3)
 
-    c1 = dropdims((first_bool .* 0.0f0) .+ (1.0f0 .- first_bool) .* sum(mask1 .* cdf; dims = 3); dims = 3)
+    c1 = dropdims(
+        (first_bool .* 0.0f0) .+
+            (1.0f0 .- first_bool) .*
+            sum(mask1 .* cdf; dims = 3); dims = 3
+    )
     c2 = dropdims(sum(mask2 .* cdf; dims = 3); dims = 3)
     rv = mix_bool ? dropdims(rand_vals; dims = 3) : rand_vals
 
@@ -60,10 +68,7 @@ function sample_univariate(
         cdf,
         PermutedDimsArray(view(grid, :, :, :), (3, 1, 2)),
         rand_vals,
-        ebm.q_size,
-        ebm.p_size,
         ebm.N_quad,
-        ebm.s_size
     )
     return z, st_lyrnorm_new
 end
@@ -131,10 +136,7 @@ function sample_mixture(
         cdf,
         PermutedDimsArray(view(grid, :, :, :), (1, 3, 2)),
         rand_vals,
-        ebm.q_size,
-        ebm.p_size,
         ebm.N_quad,
-        ebm.s_size;
         mix_bool = true
     )
     return z, st_lyrnorm_new
