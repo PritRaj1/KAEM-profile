@@ -112,7 +112,7 @@ commit!(conf, "EbmModel", "base_activation ", basis_act)
 commit!(conf, "GeneratorModel", "base_activation ", basis_act)
 commit!(conf, "CNN", "activation ", cnn_act)
 
-if dataset == MNIST
+if dataset == "MNIST"
     save!(conf, "config/nist_tuning_config.ini")
 else
     save!(conf, "config/svhn_tuning_config.ini")
