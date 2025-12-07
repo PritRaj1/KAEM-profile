@@ -9,9 +9,9 @@ using ..Utils
 include("mixture_selection.jl")
 using .MixtureChoice: choose_component
 
-
 function interpolate_kernel(cdf, grid, rand_vals, Q, P, G, S; mix_bool = false)
-    grid_idxs = reshape(1:G, 1, 1, G, 1)
+    grid_idxs = reshape(1:(G + 1), 1, 1, G + 1, 1)
+    grid = cat(grid, view(grid, :, :, G:G); dims = 3) # Repeat end, so G + 1 indexes final
 
     # First index, i, such that cdf[i] >= rand_vals
     indices = sum(1 .+ (cdf .< reshape(rand_vals, Q, P, 1, S)); dims = 3)
@@ -25,12 +25,18 @@ function interpolate_kernel(cdf, grid, rand_vals, Q, P, G, S; mix_bool = false)
     c1 = dropdims((first_bool .* 0.0f0) .+ (1.0f0 .- first_bool) .* sum(mask1 .* cdf; dims = 3); dims = 3)
     c2 = dropdims(sum(mask2 .* cdf; dims = 3); dims = 3)
     rv = mix_bool ? dropdims(rand_vals; dims = 3) : rand_vals
-    length = c2 - c1
+
+    z_length = z2 - z1
+    cdf_length = c2 - c1
+    logical_or = (
+        (z_length .== 0) .+
+            (cdf_length .== 0) .> 0
+    )
 
     return ifelse.(
-        length .== 0,
+        logical_or,
         z1,
-        z1 .+ (z2 .- z1) .* ((rv .- c1) ./ length)
+        z1 .+ (z2 .- z1) .* ((rv .- c1) ./ cdf_length)
     )
 end
 
@@ -46,6 +52,7 @@ function sample_univariate(
 
     cdf, grid, st_lyrnorm_new = ebm.quad(ebm, ps, st_kan, st_lyrnorm, st_quad)
     cdf = cumsum(cdf; dims = 3) # Cumulative trapezium = CDF
+    cdf = cat(view(zero(cdf), :, :, 1:1), cdf; dims = 3) # Prepend 0
 
     rv = ula_init ? st_rng.posterior_its : st_rng.prior_its
     rand_vals = rv .* cdf[:, :, end]
@@ -116,6 +123,7 @@ function sample_mixture(
         ebm.quad(ebm, ps, st_kan, st_lyrnorm, st_quad; component_mask = mask, mix_bool = true)
     cdf = cumsum(cdf; dims = 3) # Cumulative trapezium = CDF
     cdf = PermutedDimsArray(view(cdf, :, :, :, :), (1, 4, 3, 2))
+    cdf = cat(view(zero(cdf), :, :, 1:1, :), cdf; dims = 3) # Prepend 0
 
     rv = ula_init ? st_rng.posterior_its : st_rng.prior_its
     rand_vals = rv .* cdf[:, :, end:end, :]
