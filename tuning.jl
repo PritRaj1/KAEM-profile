@@ -13,6 +13,7 @@ println()
 conf = Dict(
     "MNIST" => ConfParse("config/nist_tuning_config.ini"),
     "SVHN" => ConfParse("config/svhn_tuning_config.ini"),
+    "CELEBA" => ConfParse("config/celeba_tuning_config.ini"),
 )[dataset]
 parse_conf!(conf)
 
@@ -29,6 +30,7 @@ using .trainer
 commit!(conf, "THERMODYNAMIC_INTEGRATION", "num_temps", "-1")
 
 rng = Random.MersenneTwister(1)
+im_resize = dataset == "CELEBA" ? (64, 64) : (32, 32)
 
 function objective(trial)
     @unpack (
@@ -50,7 +52,7 @@ function objective(trial)
     commit!(conf, "GeneratorModel", "base_activation ", basis_act)
     commit!(conf, "CNN", "activation ", cnn_act)
 
-    t = init_trainer(rng, conf, dataset; img_tuning = true)
+    t = init_trainer(rng, conf, dataset; img_tuning = true, im_resize = im_resize)
     return 1 - train!(t)
 end
 
