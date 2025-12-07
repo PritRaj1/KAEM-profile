@@ -52,7 +52,7 @@ function objective(trial)
     commit!(conf, "GeneratorModel", "base_activation ", basis_act)
     commit!(conf, "CNN", "activation ", cnn_act)
 
-    t = init_trainer(rng, conf, dataset; img_tuning = true, im_resize = im_resize)
+    t = init_trainer(rng, conf, dataset; img_tuning = true, img_resize = im_resize)
     return 1 - train!(t)
 end
 
