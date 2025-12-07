@@ -132,7 +132,7 @@ function sample_mixture(
         PermutedDimsArray(view(grid, :, :, :), (1, 3, 2)),
         rand_vals,
         ebm.q_size,
-        1, # Single component chosen already
+        ebm.p_size,
         ebm.N_quad,
         ebm.s_size;
         mix_bool = true
