@@ -109,7 +109,7 @@ display(top_parameters(space))
 ) = space
 
 commit!(conf, "OPTIMIZER", "learning_rate", string(learning_rate))
-commit!(conf, "LR_SCHEDULE", "decay" string(decay))
+commit!(conf, "LR_SCHEDULE", "decay", string(decay))
 commit!(conf, "EbmModel", "π_0", prior_type)
 commit!(conf, "POST_LANGEVIN", "initial_step_size", string(langevin_step))
 commit!(conf, "GeneratorModel", "generator_variance", string(generator_var))
