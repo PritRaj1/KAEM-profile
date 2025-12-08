@@ -44,7 +44,7 @@ function create_opt(conf::ConfParse)
     milestones = parse.(Float32, retrieve(conf, "LR_SCHEDULE", "milestone_epochs"))
 
     b_size = parse(Int, retrieve(conf, "TRAINING", "batch_size"))
-    dataset_size = parse(Int, retrieve(conf, "TRAINING", "N_train "))
+    dataset_size = parse(Int, retrieve(conf, "TRAINING", "N_train"))
     num_params_updates = ceil(dataset_size / b_size)
     milestones .*= num_params_updates
 
