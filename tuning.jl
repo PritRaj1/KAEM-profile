@@ -33,16 +33,15 @@ rng = Random.MersenneTwister(1)
 im_resize = dataset == "CELEBA" ? (64, 64) : (32, 32)
 
 function objective(trial)
-    @unpack (
-        learning_rate,
+    @unpack learning_rate,
         decay,
         prior_type,
         langevin_step,
         generator_var,
         noise_var,
         basis_act,
-        cnn_act,
-    ) = trial
+        cnn_act
+     = trial
 
     commit!(conf, "OPTIMIZER", "learning_rate", string(learning_rate))
     commit!(conf, "LR_SCHEDULE", string(decay))
@@ -55,7 +54,7 @@ function objective(trial)
     commit!(conf, "CNN", "activation ", cnn_act)
 
     t = init_trainer(rng, conf, dataset; img_tuning = true, img_resize = im_resize)
-    return 1 - train!(t)
+    return train!(t; trial = trial)
 end
 
 const sampler = Dict(
@@ -66,7 +65,7 @@ const sampler = Dict(
 
 scenario = Scenario(
     learning_rate = (1.0f-5 .. 1.0f-2),
-    decay = 0.0f0 .. 6.0f-1,
+    decay = 0.0f0 .. 0.6f0,
     prior_type = ["ebm", "gaussian"],
     langevin_step = 1.0f-3 .. 1.0f-1,
     generator_var = 1.0f-2 .. 1.0f0,
@@ -98,8 +97,7 @@ HyperTuning.optimize(objective, scenario)
 
 display(top_parameters(scenario))
 
-@unpack (
-    learning_rate,
+@unpack learning_rate,
     decay,
     prior_type,
     langevin_step,
@@ -107,7 +105,7 @@ display(top_parameters(scenario))
     noise_var,
     basis_act,
     cnn_act,
-) = scenario
+ = scenario
 
 commit!(conf, "OPTIMIZER", "learning_rate", string(learning_rate))
 commit!(conf, "LR_SCHEDULE", string(decay))

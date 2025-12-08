@@ -9,7 +9,7 @@ using MultivariateStats: reconstruct
 using MLDataDevices: cpu_device
 using ParameterSchedulers: next!
 using Optimisers: adjust!
-using Hypertuning: report_value!, should_prune
+using HyperTuning: report_value!, should_prune
 
 include("../utils.jl")
 using .Utils
@@ -222,8 +222,17 @@ function train!(t::KAEM_trainer; train_idx::Int = 1, trial = nothing)
         t.st_rng,
     )
 
-    test_train_step = t.gen_type == "logits" ? logit_test_loss : image_test_loss
-    test_loss_compiled = Reactant.@compile test_train_step(t.x, t.x)
+    test_step = t.gen_type == "logits" ? logit_test_loss : image_test_loss
+    x_gen = first(
+        gen_compiled(
+            t.ps,
+            t.st_kan,
+            Lux.testmode(t.st_lux),
+            t.st_rng
+        )
+    )
+
+    test_step = Reactant.@compile test_step(t.x, x_gen)
 
     # Update for a single batch
     function step!()
@@ -280,7 +289,7 @@ function train!(t::KAEM_trainer; train_idx::Int = 1, trial = nothing)
         # After one epoch, calculate test loss and log to CSV
         if (train_idx % num_batches == 0) || (train_idx == 1) || t.img_tuning
 
-            test_loss = 0
+            test_loss = 0.0e0
             for x in t.model.test_loader
                 t.st_rng = seed_rand(t.model; rng = t.rng)
                 x_gen, st_ebm, st_gen = gen_compiled(
@@ -291,7 +300,7 @@ function train!(t::KAEM_trainer; train_idx::Int = 1, trial = nothing)
                 )
                 @reset t.st_lux.ebm = st_ebm
                 @reset t.st_lux.gen = st_gen
-                test_loss += test_loss_compiled(pu(x), x_gen) |> Float32
+                test_loss += test_step(pu(x), x_gen) |> Float64
             end
 
             train_loss = train_loss / num_batches
@@ -465,7 +474,7 @@ function train!(t::KAEM_trainer; train_idx::Int = 1, trial = nothing)
         train_idx = train_idx,
     )
 
-    test_loss = 0
+    test_loss = 0.0e0
 
     if t.img_tuning
         for x in t.model.test_loader
@@ -478,7 +487,7 @@ function train!(t::KAEM_trainer; train_idx::Int = 1, trial = nothing)
             )
             @reset t.st_lux.ebm = st_ebm
             @reset t.st_lux.gen = st_gen
-            test_loss += test_loss_compiled(pu(x), x_gen) |> Float32
+            test_loss = test_step(pu(x), x_gen) |> Float64
         end
     end
 
