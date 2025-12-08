@@ -3,13 +3,13 @@ module trainer
 export KAEM_trainer, init_trainer, train!
 
 using Flux: onecold, mse
-using ImageQualityIndexes: assess_msssim
 using Random, ComponentArrays, CSV, HDF5, JLD2, ConfParser, Reactant
 using Lux, LinearAlgebra, Accessors
 using MultivariateStats: reconstruct
 using MLDataDevices: cpu_device
 using ParameterSchedulers: next!
 using Optimisers: adjust!
+using Hypertuning: report_value!, should_prune
 
 include("../utils.jl")
 using .Utils
@@ -198,11 +198,13 @@ function image_test_loss(x, x_gen)
     return mse(x, x_gen)
 end
 
-function train!(t::KAEM_trainer; train_idx::Int = 1)
+function train!(t::KAEM_trainer; train_idx::Int = 1, trial = nothing)
     num_batches = length(t.model.train_loader)
     grid_updated = 0
     num_param_updates = num_batches * t.N_epochs
     loss_file = t.model.file_loc * "loss.csv"
+
+    (isnothing(trial) && t.img_tuning) && error("Must provide trial when tuning")
 
     grid_compiled = Reactant.@compile t.grid_updater(
         t.x,
@@ -276,7 +278,7 @@ function train!(t::KAEM_trainer; train_idx::Int = 1)
         train_loss += t.loss
 
         # After one epoch, calculate test loss and log to CSV
-        if (train_idx % num_batches == 0) || (train_idx == 1) && !t.img_tuning
+        if (train_idx % num_batches == 0) || (train_idx == 1) || t.img_tuning
 
             test_loss = 0
             for x in t.model.test_loader
@@ -305,30 +307,52 @@ function train!(t::KAEM_trainer; train_idx::Int = 1)
                 open(loss_file, "a") do file
                     write(file, "$now_time,$(epoch),$train_loss,$test_loss,$grid_updated\n")
                 end
-            end
-
-            if (t.checkpoint_every > 0) && (epoch % t.checkpoint_every == 0) && !t.img_tuning
-                jldsave(
-                    t.model.file_loc * "ckpt_epoch_$(epoch).jld2";
-                    params = Array(t.ps),
-                    kan_state = Array(t.st_kan),
-                    lux_state = t.st_lux |> cpu_device(),
-                    rng = t.rng,
-                )
+            else
+                report_value!(trial, test_loss)
+                if should_prune(trial)
+                    train_idx = Inf
+                end
             end
 
             train_loss = 0
             grid_updated = 0
+        end
 
-            # Save images - collect batches first then concatenate once to avoid O(n²) allocations
-            if (t.gen_every > 0) && (epoch % t.gen_every == 0) && !t.img_tuning
-                num_batches_to_save = fld(t.num_generated_samples, 10) ÷ t.model.batch_size # Save 1/10 of the samples to conserve space
-                if num_batches_to_save > 0
-                    concat_dim = length(t.model.lkhood.x_shape) + 1
+        if (t.checkpoint_every > 0) && (epoch % t.checkpoint_every == 0) && !t.img_tuning
+            jldsave(
+                t.model.file_loc * "ckpt_epoch_$(epoch).jld2";
+                params = Array(t.ps),
+                kan_state = Array(t.st_kan),
+                lux_state = t.st_lux |> cpu_device(),
+                rng = t.rng,
+            )
+        end
+
+        # Save images - collect batches first then concatenate once to avoid O(n²) allocations
+        if (t.gen_every > 0) && (epoch % t.gen_every == 0) && !t.img_tuning
+            num_batches_to_save = fld(t.num_generated_samples, 10) ÷ t.model.batch_size # Save 1/10 of the samples to conserve space
+            if num_batches_to_save > 0
+                concat_dim = length(t.model.lkhood.x_shape) + 1
+                t.st_rng = seed_rand(t.model; rng = t.rng)
+
+                # Get first batch to determine type
+                first_batch, st_ebm, st_gen = gen_compiled(
+                    t.ps,
+                    t.st_kan,
+                    Lux.testmode(t.st_lux),
+                    t.st_rng,
+                )
+                @reset t.st_lux.ebm = st_ebm
+                @reset t.st_lux.gen = st_gen
+                first_batch = Array(first_batch)
+
+                batches_to_cat = Vector{typeof(first_batch)}()
+                sizehint!(batches_to_cat, num_batches_to_save)
+                push!(batches_to_cat, first_batch)
+
+                for i in 2:num_batches_to_save
                     t.st_rng = seed_rand(t.model; rng = t.rng)
-
-                    # Get first batch to determine type
-                    first_batch, st_ebm, st_gen = gen_compiled(
+                    batch, st_ebm, st_gen = gen_compiled(
                         t.ps,
                         t.st_kan,
                         Lux.testmode(t.st_lux),
@@ -336,54 +360,37 @@ function train!(t::KAEM_trainer; train_idx::Int = 1)
                     )
                     @reset t.st_lux.ebm = st_ebm
                     @reset t.st_lux.gen = st_gen
-                    first_batch = Array(first_batch)
-
-                    batches_to_cat = Vector{typeof(first_batch)}()
-                    sizehint!(batches_to_cat, num_batches_to_save)
-                    push!(batches_to_cat, first_batch)
-
-                    for i in 2:num_batches_to_save
-                        t.st_rng = seed_rand(t.model; rng = t.rng)
-                        batch, st_ebm, st_gen = gen_compiled(
-                            t.ps,
-                            t.st_kan,
-                            Lux.testmode(t.st_lux),
-                            t.st_rng,
-                        )
-                        @reset t.st_lux.ebm = st_ebm
-                        @reset t.st_lux.gen = st_gen
-                        push!(batches_to_cat, Array(batch))
-                    end
-                    gen_data = cat(batches_to_cat..., dims = concat_dim)
-                else
-                    gen_data = zeros(Float32, t.model.lkhood.x_shape..., 0)
+                    push!(batches_to_cat, Array(batch))
                 end
+                gen_data = cat(batches_to_cat..., dims = concat_dim)
+            else
+                gen_data = zeros(Float32, t.model.lkhood.x_shape..., 0)
+            end
 
-                if !t.model.lkhood.SEQ && !t.model.lkhood.CNN && t.model.use_pca
-                    gen_data = reconstruct(t.model.PCA_model, gen_data)
-                    gen_data = (
-                        reshape(
-                            gen_data,
-                            t.model.original_data_size...,
-                            size(gen_data)[end],
-                        ),
-                    )
-                end
-
-                try
-                    h5write(
-                        t.model.file_loc * "generated_$(t.gen_type)_epoch_$(epoch).h5",
-                        "samples",
+            if !t.model.lkhood.SEQ && !t.model.lkhood.CNN && t.model.use_pca
+                gen_data = reconstruct(t.model.PCA_model, gen_data)
+                gen_data = (
+                    reshape(
                         gen_data,
-                    )
-                catch
-                    rm(t.model.file_loc * "generated_$(t.gen_type)_epoch_$(epoch).h5")
-                    h5write(
-                        t.model.file_loc * "generated_$(t.gen_type)_epoch_$(epoch).h5",
-                        "samples",
-                        gen_data,
-                    )
-                end
+                        t.model.original_data_size...,
+                        size(gen_data)[end],
+                    ),
+                )
+            end
+
+            try
+                h5write(
+                    t.model.file_loc * "generated_$(t.gen_type)_epoch_$(epoch).h5",
+                    "samples",
+                    gen_data,
+                )
+            catch
+                rm(t.model.file_loc * "generated_$(t.gen_type)_epoch_$(epoch).h5")
+                h5write(
+                    t.model.file_loc * "generated_$(t.gen_type)_epoch_$(epoch).h5",
+                    "samples",
+                    gen_data,
+                )
             end
         end
 
@@ -422,10 +429,6 @@ function train!(t::KAEM_trainer; train_idx::Int = 1)
     sizehint!(batches_to_cat, num_batches)
     push!(batches_to_cat, first_batch)
 
-    # For ssim
-    real_batches_to_cat = Vector{typeof(first_batch)}()
-    sizehint!(real_batches_to_cat, num_batches)
-
     for i in 2:num_batches
         t.st_rng = seed_rand(t.model; rng = t.rng)
         batch, st_ebm, st_gen = gen_compiled(
@@ -437,35 +440,12 @@ function train!(t::KAEM_trainer; train_idx::Int = 1)
         push!(batches_to_cat, Array(batch))
     end
 
-    if t.img_tuning
-        for i in 1:num_batches
-            x = nothing
-            try
-                x, t.train_loader_state = iterate(t.model.train_loader, t.train_loader_state)
-            catch
-                x, t.train_loader_state = iterate(t.model.train_loader)
-            end
-            push!(
-                real_batches_to_cat,
-                Array(x)
-            )
-        end
-    end
-
     gen_data = cat(batches_to_cat..., dims = concat_dim)
-    real_data = t.img_tuning ? cat(real_batches_to_cat..., dims = concat_dim) : nothing
 
     if !t.model.lkhood.SEQ && !t.model.lkhood.CNN && t.model.use_pca
         gen_data = reconstruct(t.model.PCA_model, gen_data)
         gen_data =
             (reshape(gen_data, t.model.original_data_size..., size(gen_data)[end]))
-
-        if t.img_tuning
-            real_data = reconstruct(t.model.PCA_model, real_data)
-
-            real_data =
-                (reshape(real_data, t.model.original_data_size..., size(real_data)[end]))
-        end
     end
 
     if !t.img_tuning
@@ -485,9 +465,26 @@ function train!(t::KAEM_trainer; train_idx::Int = 1)
         train_idx = train_idx,
     )
 
+    test_loss = 0
+
+    if t.img_tuning
+        for x in t.model.test_loader
+            t.st_rng = seed_rand(t.model; rng = t.rng)
+            x_gen, st_ebm, st_gen = gen_compiled(
+                t.ps,
+                t.st_kan,
+                Lux.testmode(t.st_lux),
+                t.st_rng,
+            )
+            @reset t.st_lux.ebm = st_ebm
+            @reset t.st_lux.gen = st_gen
+            test_loss += test_loss_compiled(pu(x), x_gen) |> Float32
+        end
+    end
+
     return (
         t.img_tuning ?
-            assess_msssim(gen_data, real_data) :
+            test_loss / length(t.model.test_loader) :
             nothing
     )
 end
