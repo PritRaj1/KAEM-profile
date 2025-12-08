@@ -33,17 +33,26 @@ rng = Random.MersenneTwister(1)
 im_resize = dataset == "CELEBA" ? (64, 64) : (32, 32)
 
 function objective(trial)
-    @unpack learning_rate, decay, prior_type, langevin_step, generator_var, noise_var, basis_act, cnn_act = trial
+    @unpack (
+        learning_rate,
+        decay,
+        prior_type,
+        langevin_step,
+        generator_var,
+        noise_var,
+        basis_act,
+        cnn_act,
+    ) = trial
 
     commit!(conf, "OPTIMIZER", "learning_rate", string(learning_rate))
-    commit!(conf, "LR_SCHEDULE", string(decay))
+    commit!(conf, "LR_SCHEDULE", "decay", string(decay))
     commit!(conf, "EbmModel", "π_0", prior_type)
     commit!(conf, "POST_LANGEVIN", "initial_step_size", string(langevin_step))
     commit!(conf, "GeneratorModel", "generator_variance", string(generator_var))
     commit!(conf, "GeneratorModel", "generator_noise", string(noise_var))
-    commit!(conf, "EbmModel", "base_activation ", basis_act)
+    commit!(conf, "EbmModel", "base_activation", basis_act)
     commit!(conf, "GeneratorModel", "base_activation ", basis_act)
-    commit!(conf, "CNN", "activation ", cnn_act)
+    commit!(conf, "CNN", "activation", cnn_act)
 
     t = init_trainer(rng, conf, dataset; img_tuning = true, img_resize = im_resize)
     return train!(t; trial = trial)
@@ -55,7 +64,7 @@ const sampler = Dict(
     "random" => RandomSampler,
 )[sampler_type]
 
-scenario = Scenario(
+space = Scenario(
     learning_rate = (1.0f-5 .. 1.0f-2),
     decay = 0.0f0 .. 0.6f0,
     prior_type = ["ebm", "gaussian"],
@@ -85,19 +94,28 @@ scenario = Scenario(
     sampler = sampler()
 )
 
-HyperTuning.optimize(objective, scenario)
+HyperTuning.optimize(objective, space)
 
-display(top_parameters(scenario))
-@unpack learning_rate, decay, prior_type, langevin_step, generator_var, noise_var, basis_act, cnn_act = scenario
+display(top_parameters(space))
+@unpack (
+    learning_rate,
+    decay,
+    prior_type,
+    langevin_step,
+    generator_var,
+    noise_var,
+    basis_act,
+    cnn_act,
+) = space
 
 commit!(conf, "OPTIMIZER", "learning_rate", string(learning_rate))
-commit!(conf, "LR_SCHEDULE", string(decay))
+commit!(conf, "LR_SCHEDULE", "decay" string(decay))
 commit!(conf, "EbmModel", "π_0", prior_type)
 commit!(conf, "POST_LANGEVIN", "initial_step_size", string(langevin_step))
 commit!(conf, "GeneratorModel", "generator_variance", string(generator_var))
 commit!(conf, "GeneratorModel", "generator_noise", string(noise_var))
-commit!(conf, "EbmModel", "base_activation ", basis_act)
-commit!(conf, "GeneratorModel", "base_activation ", basis_act)
+commit!(conf, "EbmModel", "base_activation", basis_act)
+commit!(conf, "GeneratorModel", "base_activation", basis_act)
 commit!(conf, "CNN", "activation ", cnn_act)
 
 if dataset == "MNIST"
