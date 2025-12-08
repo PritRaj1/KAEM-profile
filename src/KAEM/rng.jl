@@ -16,7 +16,7 @@ function seed_rand(
     prior_its = (
         model.prior.bool_config.mixture_model ?
             rand(rng, T, model.prior.q_size, 1, 1, model.batch_size) :
-            rand(rng, T, 1, model.prior.p_size, 1, model.batch_size)
+            rand(rng, T, 1, model.prior.p_size, model.batch_size)
     )
 
     P = model.posterior_sampler.P
@@ -44,7 +44,7 @@ function seed_rand(
     posterior_its = (
         model.prior.bool_config.mixture_model ?
             rand(rng, T, model.prior.q_size, 1, 1, model.batch_size * num_temps) :
-            rand(rng, T, 1, model.prior.p_size, 1, model.batch_size * num_temps)
+            rand(rng, T, 1, model.prior.p_size, model.batch_size * num_temps)
     )
 
     posterior_its = (
