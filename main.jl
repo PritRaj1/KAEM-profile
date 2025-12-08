@@ -43,8 +43,8 @@ end
 
 prior_type = Dict(1 => "lognormal", 2 => "gaussian", 3 => "uniform", 4 => "ebm")
 bases = Dict(5 => "RBF", 6 => "Cheby", 7 => "FFT")
-acts = Dict(5 => "silu", 6 => "none", 7 => "silu")
-grid_sizes = Dict(5 => "20", 6 => "1", 7 => "30")
+acts = Dict(5 => "leakyrelu", 6 => "none", 7 => "leakyrelu")
+grid_sizes = Dict(5 => "20", 6 => "1", 7 => "50")
 
 rng = Random.MersenneTwister(1)
 im_resize = dataset == "CELEBA" || dataset == "CELEBAPANG" ? (64, 64) : (32, 32)
