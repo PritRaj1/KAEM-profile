@@ -2,8 +2,7 @@ module trainer
 
 export KAEM_trainer, init_trainer, train!
 
-using Flux: onecold
-using ImageQualityIndexes: assess_msssim
+using Flux: onecold, mse
 using Random, ComponentArrays, CSV, HDF5, JLD2, ConfParser, Reactant
 using Lux, LinearAlgebra, Accessors
 using MultivariateStats: reconstruct
@@ -196,7 +195,7 @@ function logit_test_loss(x, x_gen)
 end
 
 function image_test_loss(x, x_gen)
-    return assess_msssim(x, x_gen)
+    return mse(x, x_gen)
 end
 
 function train!(t::KAEM_trainer; train_idx::Int = 1, trial = nothing)
