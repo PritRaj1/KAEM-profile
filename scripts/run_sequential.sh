@@ -42,7 +42,17 @@ wait_for_training_completion() {
     print_success "Training session completed"
 }
 
-run_training_job() {
+wait_for_tuning_completion() {
+    print_status "Waiting for current tuning session to complete..."
+    
+    while session_exists "kaem_tune"; do
+        sleep 10
+    done
+    
+    print_success "Tuning session completed"
+}
+
+run_job() {
     local dataset="$1"
     local mode="$2"
     local job_num="$3"
@@ -53,18 +63,33 @@ run_training_job() {
     print_status "Starting Job $job_num/$total_jobs: $dataset - $mode"
     echo "============================================================"
     
-    # Kill existing sessions
-    if session_exists "kaem_train"; then
-        print_warning "Killing existing training session."
-        tmux kill-session -t kaem_train 2>/dev/null || true
-        sleep 2
+    if [[ "$mode" == "tune" ]]; then
+        # Kill existing tuning sessions
+        if session_exists "kaem_tune"; then
+            print_warning "Killing existing tuning session."
+            tmux kill-session -t kaem_tune 2>/dev/null || true
+            sleep 2
+        fi
+        
+        print_status "Running: make tune DATASET=$dataset"
+        
+        make tune DATASET="$dataset"
+        
+        wait_for_tuning_completion
+    else
+        # Kill existing training sessions
+        if session_exists "kaem_train"; then
+            print_warning "Killing existing training session."
+            tmux kill-session -t kaem_train 2>/dev/null || true
+            sleep 2
+        fi
+        
+        print_status "Running: make train DATASET=$dataset MODE=$mode"
+        
+        make train DATASET="$dataset" MODE="$mode"
+        
+        wait_for_training_completion
     fi
-    
-    print_status "Running: make train DATASET=$dataset MODE=$mode"
-    
-    make train DATASET="$dataset" MODE="$mode"
-    
-    wait_for_training_completion
     
     print_success "Job $job_num/$total_jobs completed: $dataset - $mode"
 }
@@ -107,7 +132,7 @@ load_config() {
         esac
         
         case "$mode" in
-            thermo|vanilla)
+            thermo|vanilla|tune)
                 ;;
             *)
                 print_warning "Unknown mode '$mode' on line $line_num (skipping)"
@@ -141,10 +166,10 @@ main() {
         exit 1
     fi
     
-    print_status "Found $total_jobs training jobs to run sequentially"
+    print_status "Found $total_jobs jobs to run sequentially"
     
     # Signal handler
-    trap 'print_warning "Interrupted by user. Stopping training sequence."; tmux kill-session -t kaem_train 2>/dev/null || true; exit 0' INT TERM
+    trap 'print_warning "Interrupted by user. Stopping job sequence."; tmux kill-session -t kaem_train 2>/dev/null || true; tmux kill-session -t kaem_tune 2>/dev/null || true; exit 0' INT TERM
     
     for i in "${!jobs[@]}"; do
         local job_num=$((i + 1))
@@ -152,14 +177,14 @@ main() {
         
         print_status "Preparing job $job_num/$total_jobs: $dataset - $mode"
         
-        run_training_job "$dataset" "$mode" "$job_num" "$total_jobs"
+        run_job "$dataset" "$mode" "$job_num" "$total_jobs"
         
         sleep 5
     done
     
     echo
     echo "============================================================"
-    print_success "All training jobs completed."
+    print_success "All jobs completed."
     print_status "$total_jobs jobs finished"
     echo "============================================================"
 }
