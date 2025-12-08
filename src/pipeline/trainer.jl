@@ -8,6 +8,8 @@ using Random, ComponentArrays, CSV, HDF5, JLD2, ConfParser, Reactant
 using Lux, LinearAlgebra, Accessors
 using MultivariateStats: reconstruct
 using MLDataDevices: cpu_device
+using ParameterSchedulers: next!
+using Optimisers: adjust!
 
 include("../utils.jl")
 using .Utils
@@ -34,6 +36,7 @@ mutable struct KAEM_trainer{T <: Float32}
     grid_updater::Any
     cnn::Bool
     opt_state::Any
+    schedule::Any
     dataset_name::AbstractString
     ps::ComponentArray{T}
     st_kan::ComponentArray{T}
@@ -160,6 +163,7 @@ function init_trainer(
         GridUpdater(model),
         cnn,
         opt_state,
+        optimizer.schedule,
         dataset_name,
         params,
         st_kan,
@@ -397,6 +401,8 @@ function train!(t::KAEM_trainer; train_idx::Int = 1)
     start_time = time()
 
     while train_idx <= num_param_updates
+        η = next!(t.schedule)
+        adjust!(t.opt_state, η)
         step!()
         opt_loss!()
         GC.gc()

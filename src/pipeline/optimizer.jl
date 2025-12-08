@@ -2,10 +2,11 @@ module optimization
 
 export opt, create_opt
 
-using Lux, ConfParser, Optimisers
+using Lux, ConfParser, Optimisers, ParameterSchedulers
 
 struct opt
     rule
+    schedule
 end
 
 function create_opt(conf::ConfParse)
@@ -37,7 +38,18 @@ function create_opt(conf::ConfParse)
         "rmsprop" => () -> Optimisers.RMSProp(LR, ρ, ε)
     )
 
-    return opt(get(opt_mapping, opt_type, () -> Optimisers.Adam(LR, β, ε)))
+    optimizer = get(opt_mapping, opt_type, () -> Optimisers.Adam(LR, β, ε))
+
+    gamma = parse(Float32, retrieve(conf, "LR_SCHEDULE", "decay"))
+    milestones = parse.(Float32, retrieve(conf, "LR_SCHEDULE", "milestone_epochs"))
+
+    b_size = parse(Int, retrieve(conf, "TRAINING", "batch_size"))
+    dataset_size = parse(Int, retrieve(conf, "TRAINING", "N_train "))
+    num_params_updates = ceil(dataset_size / b_size)
+    milestones .*= num_params_updates
+
+    schedule = ParameterSchedulers.Step(LR, gamma, milestones)
+    return opt(optimizer, schedule)
 end
 
 end
