@@ -60,10 +60,11 @@ function sample_univariate(
 
     cdf, grid, st_lyrnorm_new = ebm.quad(ebm, ps, st_kan, st_lyrnorm, st_quad)
     cdf = cumsum(cdf; dims = 3) # Cumulative trapezium = CDF
-    cdf = cat(view(zero(cdf), :, :, 1:1), cdf; dims = 3) # Prepend 0
+    cdf = PermutedDimsArray(view(cdf, :, :, :, :), (1, 4, 3, 2))
+    cdf = cat(view(zero(cdf), :, :, 1:1, :), cdf; dims = 3) # Prepend 0
 
     rv = ula_init ? st_rng.posterior_its : st_rng.prior_its
-    rand_vals = rv .* cdf[:, :, end]
+    rand_vals = rv .* cdf[:, :, end:end, :]
     z = interpolate_kernel(
         cdf,
         PermutedDimsArray(view(grid, :, :, :), (3, 1, 2)),
