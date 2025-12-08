@@ -33,15 +33,7 @@ rng = Random.MersenneTwister(1)
 im_resize = dataset == "CELEBA" ? (64, 64) : (32, 32)
 
 function objective(trial)
-    @unpack learning_rate,
-        decay,
-        prior_type,
-        langevin_step,
-        generator_var,
-        noise_var,
-        basis_act,
-        cnn_act
-     = trial
+    @unpack learning_rate, decay, prior_type, langevin_step, generator_var, noise_var, basis_act, cnn_act = trial
 
     commit!(conf, "OPTIMIZER", "learning_rate", string(learning_rate))
     commit!(conf, "LR_SCHEDULE", string(decay))
@@ -96,16 +88,7 @@ scenario = Scenario(
 HyperTuning.optimize(objective, scenario)
 
 display(top_parameters(scenario))
-
-@unpack learning_rate,
-    decay,
-    prior_type,
-    langevin_step,
-    generator_var,
-    noise_var,
-    basis_act,
-    cnn_act,
- = scenario
+@unpack learning_rate, decay, prior_type, langevin_step, generator_var, noise_var, basis_act, cnn_act = scenario
 
 commit!(conf, "OPTIMIZER", "learning_rate", string(learning_rate))
 commit!(conf, "LR_SCHEDULE", string(decay))
