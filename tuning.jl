@@ -120,6 +120,8 @@ commit!(conf, "CNN", "activation ", cnn_act)
 
 if dataset == "MNIST"
     save!(conf, "config/nist_tuning_config.ini")
-else
+elseif dataset == "SVHN"
     save!(conf, "config/svhn_tuning_config.ini")
+else
+    save!(conf, "config/celeba_tuning_config.ini")
 end
