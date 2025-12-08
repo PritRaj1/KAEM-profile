@@ -14,7 +14,12 @@ function interpolate_kernel(cdf, grid, rand_vals, G; mix_bool = false)
     grid = cat(grid, view(grid, :, :, G:G); dims = 3) # Repeat end, so G + 1 indexes final
 
     # First index, i, such that cdf[i] >= rand_vals
-    indices = sum(1 .+ (cdf .< rand_vals); dims = 3)
+    rv = (
+        mix_bool ?
+            rand_vals :
+            PermutedDimsArray(view(rand_vals, :, :, :, :), (1, 2, 4, 3))
+    )
+    indices = sum(1 .+ (cdf .< rv); dims = 3)
     first_bool = indices .== 1 |> Lux.f32
     mask2 = indices .== grid_idxs |> Lux.f32
     mask1 = mask2 .- 1.0f0
@@ -61,7 +66,7 @@ function sample_univariate(
     z = interpolate_kernel(
         cdf,
         PermutedDimsArray(view(grid, :, :, :), (3, 1, 2)),
-        PermutedDimsArray(view(rand_vals, :, :, :, :), (1, 2, 4, 3)),
+        rand_vals,
         ebm.N_quad,
     )
     return z, st_lyrnorm_new
