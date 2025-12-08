@@ -39,15 +39,9 @@ function interpolate_kernel(cdf, grid, rand_vals, G; mix_bool = false)
     c2 = dropdims(sum(mask2 .* cdf; dims = 3); dims = 3)
     rv = mix_bool ? dropdims(rand_vals; dims = 3) : rand_vals
 
-    z_length = z2 - z1
     cdf_length = c2 - c1
-    logical_or = (
-        (z_length .== 0) .+
-            (cdf_length .== 0) .> 0
-    )
-
     return ifelse.(
-        logical_or,
+        cdf_length .== 0,
         z1,
         z1 .+ (z2 .- z1) .* ((rv .- c1) ./ cdf_length)
     )
