@@ -34,7 +34,7 @@ im_resize = dataset == "CELEBA" ? (64, 64) : (32, 32)
 
 function objective(trial)
     @unpack (
-        LR,
+        learning_rate,
         prior_type,
         langevin_step,
         generator_var,
@@ -43,7 +43,7 @@ function objective(trial)
         cnn_act,
     ) = trial
 
-    commit!(conf, "OPTIMIZER", "learning_rate", string(LR))
+    commit!(conf, "OPTIMIZER", "learning_rate", string(learning_rate))
     commit!(conf, "EbmModel", "π_0", prior_type)
     commit!(conf, "POST_LANGEVIN", "initial_step_size", string(langevin_step))
     commit!(conf, "GeneratorModel", "generator_variance", string(generator_var))
@@ -63,7 +63,7 @@ const sampler = Dict(
 )[sampler_type]
 
 scenario = Scenario(
-    LR = (1.0f-5 .. 1.0f-2),
+    learning_rate = (1.0f-5 .. 1.0f-2),
     prior_type = ["ebm", "gaussian"],
     langevin_step = 1.0f-3 .. 1.0f-1,
     generator_var = 1.0f-2 .. 1.0f0,
@@ -96,7 +96,7 @@ HyperTuning.optimize(objective, scenario)
 display(top_parameters(scenario))
 
 @unpack (
-    LR,
+    learning_rate,
     prior_type,
     langevin_step,
     generator_var,
@@ -105,7 +105,7 @@ display(top_parameters(scenario))
     cnn_act,
 ) = scenario
 
-commit!(conf, "OPTIMIZER", "learning_rate", string(LR))
+commit!(conf, "OPTIMIZER", "learning_rate", string(learning_rate))
 commit!(conf, "EbmModel", "π_0", prior_type)
 commit!(conf, "POST_LANGEVIN", "initial_step_size", string(langevin_step))
 commit!(conf, "GeneratorModel", "generator_variance", string(generator_var))
