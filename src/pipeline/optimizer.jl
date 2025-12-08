@@ -49,7 +49,7 @@ function create_opt(conf::ConfParse)
     milestones .*= num_params_updates
 
     schedule = ParameterSchedulers.Step(LR, gamma, milestones)
-    return opt(optimizer, schedule)
+    return opt(optimizer, ParameterSchedulers.Stateful(schedule))
 end
 
 end
