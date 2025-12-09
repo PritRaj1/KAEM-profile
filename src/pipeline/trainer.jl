@@ -305,7 +305,7 @@ function train!(t::KAEM_trainer; train_idx::Int = 1, trial = nothing)
                 if !t.img_tuning
                     test_loss += test_step(pu(x), x_gen) |> Float64
                 else
-                    ssim += assess_msssim(x, Array(x_gen)) |> Float64
+                    ssim += 1.0f0 - assess_msssim(x, Array(x_gen)) |> Float64
                 end
             end
 
@@ -496,7 +496,7 @@ function train!(t::KAEM_trainer; train_idx::Int = 1, trial = nothing)
             )
             @reset t.st_lux.ebm = st_ebm
             @reset t.st_lux.gen = st_gen
-            test_loss = test_step(pu(x), x_gen) |> Float64
+            test_loss = 1.0f0 - assess_msssim(x, Array(x_gen)) |> Float64
         end
     end
 
