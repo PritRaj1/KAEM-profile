@@ -297,7 +297,8 @@ function train!(t::KAEM_trainer; train_idx::Int = 1, trial = nothing)
         epoch = train_idx == 1 ? 0 : fld(train_idx, num_batches)
 
         # After one epoch, calculate test loss and log to CSV
-        if !t.img_tuning && (train_idx % num_batches == 0) || train_idx == 1
+        first_bool = !t.img_tuning && train_idx == 1
+        if !t.img_tuning && (train_idx % num_batches == 0) || first_bool
             test_loss = 0.0e0
             for x in t.model.test_loader
                 t.st_rng = seed_rand(t.model; rng = t.rng)
