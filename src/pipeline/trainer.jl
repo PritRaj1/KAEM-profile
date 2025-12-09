@@ -294,6 +294,7 @@ function train!(t::KAEM_trainer; train_idx::Int = 1, trial = nothing)
     # Train and test loss with logging
     function opt_loss!()
         train_loss += t.loss
+        epoch = train_idx == 1 ? 0 : fld(train_idx, num_batches)
 
         # After one epoch, calculate test loss and log to CSV
         tuning_bool = t.img_tuning && (t.gen_every > 0) && (epoch % t.gen_every == 0)
@@ -326,7 +327,6 @@ function train!(t::KAEM_trainer; train_idx::Int = 1, trial = nothing)
             test_loss /= length(t.model.test_loader)
 
             now_time = time() - start_time
-            epoch = train_idx == 1 ? 0 : fld(train_idx, num_batches)
 
             t.model.verbose && println(
                 "Epoch: $(epoch), Train Loss: $(train_loss), Test Loss: $(test_loss)",
