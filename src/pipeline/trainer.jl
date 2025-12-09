@@ -296,16 +296,8 @@ function train!(t::KAEM_trainer; train_idx::Int = 1, trial = nothing)
         train_loss += t.loss
 
         # After one epoch, calculate test loss and log to CSV
-        if (
-                (train_idx % num_batches == 0) ||
-                    (train_idx == 1) ||
-                    (
-                    t.img_tuning &&
-                        (t.gen_every > 0) &&
-                        (epoch % t.gen_every == 0)
-                )
-            )
-
+        tuning_bool = t.img_tuning && (t.gen_every > 0) && (epoch % t.gen_every == 0)
+        if (train_idx % num_batches == 0) || (train_idx == 1) || tuning_bool
             test_loss = 0.0e0
             gen_ssim_x = zeros(Float32, t.model.lkhood.x_shape..., 0)
             for x in t.model.test_loader
