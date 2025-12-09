@@ -915,13 +915,14 @@ version = "0.8.5"
 
 [[deps.Flux]]
 deps = ["Adapt", "ChainRulesCore", "Compat", "EnzymeCore", "Functors", "LinearAlgebra", "MLCore", "MLDataDevices", "MLUtils", "MacroTools", "NNlib", "OneHotArrays", "Optimisers", "Preferences", "ProgressLogging", "Random", "Reexport", "Setfield", "SparseArrays", "SpecialFunctions", "Statistics", "Zygote"]
-git-tree-sha1 = "e795af96d2f18d40f3ab87663c452cae42c3f77d"
+git-tree-sha1 = "efa66783e2ad06bfd4c148cb34648e24c99f7626"
 uuid = "587475ba-b771-5e3f-ad9e-33799f191a9c"
-version = "0.16.6"
+version = "0.16.7"
 
     [deps.Flux.extensions]
     FluxAMDGPUExt = "AMDGPU"
-    FluxCUDAcuDNNExt = ["CUDA"]
+    FluxCUDAExt = "CUDA"
+    FluxCUDAcuDNNExt = ["CUDA", "cuDNN"]
     FluxEnzymeExt = "Enzyme"
     FluxMPIExt = "MPI"
     FluxMPINCCLExt = ["CUDA", "MPI", "NCCL"]
