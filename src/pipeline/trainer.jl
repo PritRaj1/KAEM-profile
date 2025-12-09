@@ -235,6 +235,14 @@ function train!(t::KAEM_trainer; train_idx::Int = 1, trial = nothing)
 
     test_step = Reactant.@compile test_step(t.x, x_gen)
 
+    real_ssim_x = zeros(Float32, t.model.lkhood.x_shape..., 0)
+    if t.img_tuning
+        for x in t.model.test_loader
+            real_ssim_x = cat(real_ssim_x, x; dims = length(t.model.lkhood.x_shape) + 1)
+        end
+    end
+
+
     # Update for a single batch
     function step!()
         t.st_rng = seed_rand(t.model; rng = t.rng)
@@ -297,7 +305,9 @@ function train!(t::KAEM_trainer; train_idx::Int = 1, trial = nothing)
                         (epoch % t.gen_every == 0)
                 )
             )
-            test_loss, ssim = 0.0e0, 0.0e0
+
+            test_loss = 0.0e0
+            gen_ssim_x = zeros(Float32, t.model.lkhood.x_shape..., 0) |> pu
             for x in t.model.test_loader
                 t.st_rng = seed_rand(t.model; rng = t.rng)
                 x_gen, st_ebm, st_gen = gen_compiled(
@@ -312,13 +322,16 @@ function train!(t::KAEM_trainer; train_idx::Int = 1, trial = nothing)
                 if !t.img_tuning
                     test_loss += test_step(pu(x), x_gen) |> Float64
                 else
-                    ssim += 1.0f0 - assess_msssim(x, Array(x_gen)) |> Float64
+                    gen_ssim_x = cat(
+                        gen_ssim_x,
+                        x_gen;
+                        dims = length(t.model.lkhood.x_shape) + 1
+                    )
                 end
             end
 
             train_loss = train_loss / num_batches
             test_loss /= length(t.model.test_loader)
-            ssim /= length(t.model.test_loader)
 
             now_time = time() - start_time
             epoch = train_idx == 1 ? 0 : fld(train_idx, num_batches)
@@ -332,7 +345,8 @@ function train!(t::KAEM_trainer; train_idx::Int = 1, trial = nothing)
                     write(file, "$now_time,$(epoch),$train_loss,$test_loss,$grid_updated\n")
                 end
             else
-                report_value!(trial, test_loss)
+                ssim = (1.0f0 - assess_msssim(real_ssim_x, Array(gen_ssim_x))) |> Float64
+                report_value!(trial, ssim / length(t.model.test_loader))
                 if should_prune(trial)
                     train_idx = Inf
                 end
@@ -490,9 +504,9 @@ function train!(t::KAEM_trainer; train_idx::Int = 1, trial = nothing)
         train_idx = train_idx,
     )
 
-    test_loss = 0.0e0
-
+    ssim = 0.0e0
     if t.img_tuning
+        gen_ssim_x = zeros(Float32, t.model.lkhood.x_shape..., 0) |> pu
         for x in t.model.test_loader
             t.st_rng = seed_rand(t.model; rng = t.rng)
             x_gen, st_ebm, st_gen = gen_compiled(
@@ -503,15 +517,17 @@ function train!(t::KAEM_trainer; train_idx::Int = 1, trial = nothing)
             )
             @reset t.st_lux.ebm = st_ebm
             @reset t.st_lux.gen = st_gen
-            test_loss = 1.0f0 - assess_msssim(x, Array(x_gen)) |> Float64
+            gen_ssim_x = cat(
+                gen_ssim_x,
+                x_gen;
+                dims = length(t.model.lkhood.x_shape) + 1
+            )
         end
+        ssim = (1.0f0 - assess_msssim(real_ssim_x, Array(gen_ssim_x))) |> Float64
+        ssim /= length(t.model.test_loader)
     end
 
-    return (
-        t.img_tuning ?
-            test_loss / length(t.model.test_loader) :
-            nothing
-    )
+    return ssim
 end
 
 end
