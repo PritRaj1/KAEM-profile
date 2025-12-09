@@ -156,8 +156,8 @@ function (gu::GridUpdater)(
     end
 
     new_nodes, new_weights = get_gausslegendre(model.prior, st_kan.ebm)
-    @reset st_kan.quad.nodes = new_nodes
-    @reset st_kan.quad.weights = new_weights
+    @reset st_kan.quad.nodes = new_nodes + zero(st_kan.quad.nodes)
+    @reset st_kan.quad.weights = new_weights + zero(st_kan.quad.weights)
 
     # Only update if KAN-type generator requires
     if (model.update_llhood_grid && !model.lkhood.CNN && !model.lkhood.SEQ)
