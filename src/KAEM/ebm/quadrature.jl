@@ -2,7 +2,7 @@ module Quadrature
 
 export GaussLegendreQuadrature, get_gausslegendre
 
-using LinearAlgebra, Random, ComponentArrays, FastGaussQuadrature, Accessors
+using LinearAlgebra, Random, ComponentArrays, Accessors
 
 using ..Utils
 

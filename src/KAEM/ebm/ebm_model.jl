@@ -9,7 +9,8 @@ using ConfParser,
     Accessors,
     Statistics,
     LinearAlgebra,
-    ComponentArrays
+    ComponentArrays,
+    FastGaussQuadrature
 
 using ..Utils
 using ..UnivariateFunctions
