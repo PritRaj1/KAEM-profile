@@ -57,7 +57,7 @@ function get_gausslegendre(
         b = zero(b) .+ st_kan[:a].max
     end
 
-    nodes, weights = gausslegendre(ebm.N_quad)
+    nodes, weights = ebm.init_nodes, ebm.init_weights
     nodes = ((a .+ b) ./ 2 .+ (b .- a) ./ 2) * nodes'
     weights = ((b .- a) ./ 2) * weights'
     return nodes, weights

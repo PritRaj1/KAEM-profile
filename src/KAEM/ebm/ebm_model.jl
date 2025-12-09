@@ -40,6 +40,8 @@ struct EbmModel{T <: Float32, A <: AbstractActivation} <: Lux.AbstractLuxLayer
     quad::AbstractQuadrature
     N_quad::Int
     λ::T
+    init_nodes
+    init_weights
 end
 
 function init_EbmModel(conf::ConfParse; rng::AbstractRNG = Random.default_rng())
@@ -143,6 +145,8 @@ function init_EbmModel(conf::ConfParse; rng::AbstractRNG = Random.default_rng())
 
     A = length(functions) > 0 ? typeof(functions[1].base_activation) : AbstractActivation
 
+    init_nodes, init_weights = gausslegendre(N_quad)
+
     return EbmModel{Float32, A}(
         Tuple(functions),
         Tuple(layernorms),
@@ -163,6 +167,8 @@ function init_EbmModel(conf::ConfParse; rng::AbstractRNG = Random.default_rng())
         quad_fcn,
         N_quad,
         reg,
+        Float32.(init_nodes),
+        Float32.(init_weights)
     )
 end
 
