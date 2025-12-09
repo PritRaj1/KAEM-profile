@@ -65,12 +65,12 @@ const sampler = Dict(
 )[sampler_type]
 
 space = Scenario(
-    learning_rate = (1.0f-5 .. 1.0f-2),
-    decay = 0.0f0 .. 0.6f0,
+    learning_rate = (1.0e-5 .. 1.0e-2),
+    decay = 0.0e0 .. 0.6e0,
     prior_type = ["ebm", "gaussian"],
-    langevin_step = 1.0f-3 .. 1.0f-1,
-    generator_var = 1.0f-2 .. 1.0f0,
-    noise_var = 1.0f-2 .. 1.0f0,
+    langevin_step = 1.0e-3 .. 1.0e-1,
+    generator_var = 1.0e-2 .. 1.0e0,
+    noise_var = 1.0e-2 .. 1.0e0,
     basis_act = [
         "relu",
         "leakyrelu",
