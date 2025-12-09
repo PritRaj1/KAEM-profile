@@ -297,10 +297,40 @@ function train!(t::KAEM_trainer; train_idx::Int = 1, trial = nothing)
         epoch = train_idx == 1 ? 0 : fld(train_idx, num_batches)
 
         # After one epoch, calculate test loss and log to CSV
-        tuning_bool = t.img_tuning && (t.gen_every > 0) && (epoch % t.gen_every == 0)
-        testing_bool = !t.img_tuning && (train_idx % num_batches == 0)
-        if testing_bool || tuning_bool || train_idx == 1
+        if !t.img_tuning && (train_idx % num_batches == 0) || train_idx == 1
             test_loss = 0.0e0
+            for x in t.model.test_loader
+                t.st_rng = seed_rand(t.model; rng = t.rng)
+                x_gen, st_ebm, st_gen = gen_compiled(
+                    t.ps,
+                    t.st_kan,
+                    Lux.testmode(t.st_lux),
+                    t.st_rng,
+                )
+                @reset t.st_lux.ebm = st_ebm
+                @reset t.st_lux.gen = st_gen
+
+                test_loss += test_step(pu(x), x_gen) |> Float64
+            end
+
+            train_loss = train_loss / num_batches
+            test_loss /= length(t.model.test_loader)
+
+            now_time = time() - start_time
+
+            t.model.verbose && println(
+                "Epoch: $(epoch), Train Loss: $(train_loss), Test Loss: $(test_loss)",
+            )
+
+            open(loss_file, "a") do file
+                write(file, "$now_time,$(epoch),$train_loss,$test_loss,$grid_updated\n")
+            end
+
+            train_loss = 0.0f0
+            grid_updated = 0
+        end
+
+        if t.img_tuning && (t.gen_every > 0) && (epoch % t.gen_every == 0)
             gen_ssim_x = zeros(Float32, t.model.lkhood.x_shape..., 0)
             for x in t.model.test_loader
                 t.st_rng = seed_rand(t.model; rng = t.rng)
@@ -313,41 +343,18 @@ function train!(t::KAEM_trainer; train_idx::Int = 1, trial = nothing)
                 @reset t.st_lux.ebm = st_ebm
                 @reset t.st_lux.gen = st_gen
 
-                if !t.img_tuning
-                    test_loss += test_step(pu(x), x_gen) |> Float64
-                else
-                    gen_ssim_x = cat(
-                        gen_ssim_x,
-                        Array(x_gen);
-                        dims = length(t.model.lkhood.x_shape) + 1
-                    )
-                end
+                gen_ssim_x = cat(
+                    gen_ssim_x,
+                    Array(x_gen);
+                    dims = length(t.model.lkhood.x_shape) + 1
+                )
             end
 
-            train_loss = train_loss / num_batches
-            test_loss /= length(t.model.test_loader)
-
-            now_time = time() - start_time
-
-            t.model.verbose && println(
-                "Epoch: $(epoch), Train Loss: $(train_loss), Test Loss: $(test_loss)",
-            )
-
-            if !t.img_tuning
-                open(loss_file, "a") do file
-                    write(file, "$now_time,$(epoch),$train_loss,$test_loss,$grid_updated\n")
-                end
-            else
-                ssim = (1.0f0 - assess_msssim(real_ssim_x, gen_ssim_x)) |> Float64
-                report_value!(trial, ssim / length(t.model.test_loader))
-                if should_prune(trial)
-                    train_idx = Inf
-                end
+            ssim = (1.0f0 - assess_msssim(real_ssim_x, gen_ssim_x)) |> Float64
+            report_value!(trial, ssim / length(t.model.test_loader))
+            if should_prune(trial)
+                train_idx = Inf
             end
-
-            train_loss = 0
-            ssim = 0
-            grid_updated = 0
         end
 
         if (t.checkpoint_every > 0) && (epoch % t.checkpoint_every == 0) && !t.img_tuning
