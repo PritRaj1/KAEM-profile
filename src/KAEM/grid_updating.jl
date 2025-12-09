@@ -132,7 +132,7 @@ function (gu::GridUpdater)(
                     st_kan.ebm[symbol_map[i]],
                     z,
                 )
-                ps.ebm.fcn[symbol_map[i]].coef = new_coef
+                @views ps[:ebm][:fcn][symbol_map[i]][:coef] .= new_coef
                 @reset st_kan.ebm[symbol_map[i]].grid = new_grid
 
                 if prior_copy.fcns_qp[i].spline_string == "RBF"
@@ -221,7 +221,7 @@ function (gu::GridUpdater)(
                     st_kan.gen[symbol_map[i]],
                     z,
                 )
-                ps.gen.fcn[symbol_map[i]].coef = new_coef
+                @views ps[:gen][:fcn][symbol_map[i]][:coef] .= new_coef
                 @reset st_kan.gen[symbol_map[i]].grid = new_grid
 
                 if model.lkhood.generator.Φ_fcns[i].spline_string == "RBF"
