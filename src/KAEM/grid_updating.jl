@@ -139,7 +139,7 @@ function (gu::GridUpdater)(
                     scale = (maximum(new_grid) - minimum(new_grid)) /
                         (size(new_grid, 2) - 1) |> Lux.f32
 
-                    @reset st_kan.ebm[symbol_map[i]].scale = [scale]
+                    @reset st_kan.ebm[symbol_map[i]].scale = scale .+ zero(st_kan.ebm[symbol_map[i]].scale)
                 end
 
                 z = Lux.apply(
@@ -228,7 +228,7 @@ function (gu::GridUpdater)(
                     scale = (maximum(new_grid) - minimum(new_grid)) /
                         (size(new_grid, 2) - 1) |> Lux.f32
 
-                    @reset st_kan.gen[symbol_map[i]].scale = [scale]
+                    @reset st_kan.gen[symbol_map[i]].scale = scale .+ zero(st_kan.gen[symbol_map[i]].scale)
                 end
             end
 
