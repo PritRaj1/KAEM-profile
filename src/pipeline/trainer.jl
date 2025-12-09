@@ -288,8 +288,15 @@ function train!(t::KAEM_trainer; train_idx::Int = 1, trial = nothing)
         train_loss += t.loss
 
         # After one epoch, calculate test loss and log to CSV
-        if (train_idx % num_batches == 0) || (train_idx == 1) || t.img_tuning
-
+        if (
+                (train_idx % num_batches == 0) ||
+                    (train_idx == 1) ||
+                    (
+                    t.img_tuning &&
+                        (t.gen_every > 0) &&
+                        (epoch % t.gen_every == 0)
+                )
+            )
             test_loss, ssim = 0.0e0, 0.0e0
             for x in t.model.test_loader
                 t.st_rng = seed_rand(t.model; rng = t.rng)
