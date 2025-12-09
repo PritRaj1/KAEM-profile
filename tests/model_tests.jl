@@ -60,7 +60,7 @@ function test_grid_update()
         st_rng,
     )
 
-    before = Array(st_kan.gen[:a].grid)
+    before = st_kan |> cpu_device() |> ComponentArray
     ps_before = Array(ps)
 
     ps, st_kan, st_lux = compiled_update(
@@ -72,7 +72,9 @@ function test_grid_update()
         st_rng
     )
 
-    @test !all(iszero, Array(st_kan.gen[:a].grid) - before)
+    grid = st_kan |> cpu_device() |> ComponentArray
+    @test !all(iszero, grid - before)
+    @test !any(isnan, grid)
     @test !all(iszero, Array(ps) - ps_before)
     return @test !any(isnan, Array(ps))
 end
