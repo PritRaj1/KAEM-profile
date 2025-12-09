@@ -3,6 +3,7 @@ module trainer
 export KAEM_trainer, init_trainer, train!
 
 using Flux: onecold, mse
+using ImageQualityIndexes: assess_msssim
 using Random, ComponentArrays, CSV, HDF5, JLD2, ConfParser, Reactant
 using Lux, LinearAlgebra, Accessors
 using MultivariateStats: reconstruct
@@ -39,7 +40,7 @@ mutable struct KAEM_trainer{T <: Float32}
     schedule::Any
     dataset_name::AbstractString
     ps::ComponentArray{T}
-    st_kan::ComponentArray{T}
+    st_kan::NamedTuple
     st_lux::NamedTuple
     st_rng::NamedTuple
     N_epochs::Int
@@ -289,7 +290,7 @@ function train!(t::KAEM_trainer; train_idx::Int = 1, trial = nothing)
         # After one epoch, calculate test loss and log to CSV
         if (train_idx % num_batches == 0) || (train_idx == 1) || t.img_tuning
 
-            test_loss = 0.0e0
+            test_loss, ssim = 0.0e0, 0.0e0
             for x in t.model.test_loader
                 t.st_rng = seed_rand(t.model; rng = t.rng)
                 x_gen, st_ebm, st_gen = gen_compiled(
@@ -300,11 +301,18 @@ function train!(t::KAEM_trainer; train_idx::Int = 1, trial = nothing)
                 )
                 @reset t.st_lux.ebm = st_ebm
                 @reset t.st_lux.gen = st_gen
-                test_loss += test_step(pu(x), x_gen) |> Float64
+
+                if !t.img_tuning
+                    test_loss += test_step(pu(x), x_gen) |> Float64
+                else
+                    ssim += assess_msssim(x, Array(x_gen)) |> Float64
+                end
             end
 
             train_loss = train_loss / num_batches
             test_loss /= length(t.model.test_loader)
+            ssim /= length(t.model.test_loader)
+
             now_time = time() - start_time
             epoch = train_idx == 1 ? 0 : fld(train_idx, num_batches)
 
@@ -324,6 +332,7 @@ function train!(t::KAEM_trainer; train_idx::Int = 1, trial = nothing)
             end
 
             train_loss = 0
+            ssim = 0
             grid_updated = 0
         end
 

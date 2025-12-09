@@ -91,8 +91,8 @@ function (gu::GridUpdater)(
         # Must update domain for inverse transform sampling
         if (model.MALA || model.N_t > 1 || model.prior.bool_config.ula)
             min_z, max_z = minimum(z), maximum(z)
-            st_kan.ebm[:a].min = zero(st_kan.ebm[:a].min) .+ 0.9f0 .* min_z
-            st_kan.ebm[:a].max = zero(st_kan.ebm[:a].max) .+ 1.1f0 .* max_z
+            @reset st_kan.ebm[:a].min = zero(st_kan.ebm[:a].min) .+ 0.9f0 .* min_z
+            @reset st_kan.ebm[:a].max = zero(st_kan.ebm[:a].max) .+ 1.1f0 .* max_z
         end
 
         if !(
@@ -133,13 +133,13 @@ function (gu::GridUpdater)(
                     z,
                 )
                 ps.ebm.fcn[symbol_map[i]].coef = new_coef
-                st_kan.ebm[symbol_map[i]].grid = new_grid
+                @reset st_kan.ebm[symbol_map[i]].grid = new_grid
 
                 if prior_copy.fcns_qp[i].spline_string == "RBF"
                     scale = (maximum(new_grid) - minimum(new_grid)) /
                         (size(new_grid, 2) - 1) |> Lux.f32
 
-                    st_kan.ebm[symbol_map[i]].scale = [scale]
+                    @reset st_kan.ebm[symbol_map[i]].scale = [scale]
                 end
 
                 z = Lux.apply(
@@ -156,8 +156,8 @@ function (gu::GridUpdater)(
     end
 
     new_nodes, new_weights = get_gausslegendre(model.prior, st_kan.ebm)
-    st_kan.quad.nodes = new_nodes
-    st_kan.quad.weights = new_weights
+    @reset st_kan.quad.nodes = new_nodes
+    @reset st_kan.quad.weights = new_weights
 
     # Only update if KAN-type generator requires
     if (model.update_llhood_grid && !model.lkhood.CNN && !model.lkhood.SEQ)
@@ -222,13 +222,13 @@ function (gu::GridUpdater)(
                     z,
                 )
                 ps.gen.fcn[symbol_map[i]].coef = new_coef
-                st_kan.gen[symbol_map[i]].grid = new_grid
+                @reset st_kan.gen[symbol_map[i]].grid = new_grid
 
                 if model.lkhood.generator.Φ_fcns[i].spline_string == "RBF"
                     scale = (maximum(new_grid) - minimum(new_grid)) /
                         (size(new_grid, 2) - 1) |> Lux.f32
 
-                    st_kan.gen[symbol_map[i]].scale = [scale]
+                    @reset st_kan.gen[symbol_map[i]].scale = [scale]
                 end
             end
 

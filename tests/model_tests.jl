@@ -60,6 +60,9 @@ function test_grid_update()
         st_rng,
     )
 
+    before = Array(st_kan.gen[:a].grid)
+    ps_before = Array(ps)
+
     ps, st_kan, st_lux = compiled_update(
         x,
         ps,
@@ -68,6 +71,9 @@ function test_grid_update()
         1,
         st_rng
     )
+
+    @test !all(iszero, Array(st_kan.gen[:a].grid) - before)
+    @test !all(iszero, Array(ps) - ps_before)
     return @test !any(isnan, Array(ps))
 end
 

@@ -195,14 +195,14 @@ end
 function Lux.initialstates(
         rng::AbstractRNG,
         model::KAEM{T},
-    )::Tuple{ComponentArray, NamedTuple} where {T <: Float32}
+    )::Tuple{NamedTuple, NamedTuple} where {T <: Float32}
 
     ebm_kan, ebm_lux = Lux.initialstates(rng, model.prior)
     gen_kan, gen_lux = Lux.initialstates(rng, model.lkhood)
     n, w = get_gausslegendre(model.prior, ebm_kan)
     st_quad = (nodes = n, weights = w)
     return (
-        ComponentArray(ebm = ebm_kan, gen = gen_kan, quad = st_quad),
+        (ebm = ebm_kan, gen = gen_kan, quad = st_quad),
         (ebm = ebm_lux, gen = gen_lux),
     )
 end
