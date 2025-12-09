@@ -307,7 +307,7 @@ function train!(t::KAEM_trainer; train_idx::Int = 1, trial = nothing)
             )
 
             test_loss = 0.0e0
-            gen_ssim_x = zeros(Float32, t.model.lkhood.x_shape..., 0) |> pu
+            gen_ssim_x = zeros(Float32, t.model.lkhood.x_shape..., 0)
             for x in t.model.test_loader
                 t.st_rng = seed_rand(t.model; rng = t.rng)
                 x_gen, st_ebm, st_gen = gen_compiled(
@@ -324,7 +324,7 @@ function train!(t::KAEM_trainer; train_idx::Int = 1, trial = nothing)
                 else
                     gen_ssim_x = cat(
                         gen_ssim_x,
-                        x_gen;
+                        Array(x_gen);
                         dims = length(t.model.lkhood.x_shape) + 1
                     )
                 end
@@ -345,7 +345,7 @@ function train!(t::KAEM_trainer; train_idx::Int = 1, trial = nothing)
                     write(file, "$now_time,$(epoch),$train_loss,$test_loss,$grid_updated\n")
                 end
             else
-                ssim = (1.0f0 - assess_msssim(real_ssim_x, Array(gen_ssim_x))) |> Float64
+                ssim = (1.0f0 - assess_msssim(real_ssim_x, gen_ssim_x)) |> Float64
                 report_value!(trial, ssim / length(t.model.test_loader))
                 if should_prune(trial)
                     train_idx = Inf
@@ -506,7 +506,7 @@ function train!(t::KAEM_trainer; train_idx::Int = 1, trial = nothing)
 
     ssim = 0.0e0
     if t.img_tuning
-        gen_ssim_x = zeros(Float32, t.model.lkhood.x_shape..., 0) |> pu
+        gen_ssim_x = zeros(Float32, t.model.lkhood.x_shape..., 0)
         for x in t.model.test_loader
             t.st_rng = seed_rand(t.model; rng = t.rng)
             x_gen, st_ebm, st_gen = gen_compiled(
@@ -519,11 +519,11 @@ function train!(t::KAEM_trainer; train_idx::Int = 1, trial = nothing)
             @reset t.st_lux.gen = st_gen
             gen_ssim_x = cat(
                 gen_ssim_x,
-                x_gen;
+                Array(x_gen);
                 dims = length(t.model.lkhood.x_shape) + 1
             )
         end
-        ssim = (1.0f0 - assess_msssim(real_ssim_x, Array(gen_ssim_x))) |> Float64
+        ssim = (1.0f0 - assess_msssim(real_ssim_x, gen_ssim_x)) |> Float64
         ssim /= length(t.model.test_loader)
     end
 
