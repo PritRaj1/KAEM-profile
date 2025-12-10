@@ -298,7 +298,8 @@ function train!(t::KAEM_trainer; train_idx::Int = 1, trial = nothing)
 
         # After one epoch, calculate test loss and log to CSV
         first_bool = !t.img_tuning && train_idx == 1
-        if !t.img_tuning && (train_idx % num_batches == 0) || first_bool
+        epoch_done = train_idx % num_batches == 0
+        if !t.img_tuning && epoch_done || first_bool
             test_loss = 0.0e0
             for x in t.model.test_loader
                 t.st_rng = seed_rand(t.model; rng = t.rng)
@@ -331,7 +332,7 @@ function train!(t::KAEM_trainer; train_idx::Int = 1, trial = nothing)
             grid_updated = 0
         end
 
-        if (t.gen_every > 0) && (epoch % t.gen_every == 0) && t.img_tuning
+        if (t.gen_every > 0) && (epoch % t.gen_every == 0) && epoch_done && t.img_tuning
             gen_ssim_x = zeros(Float32, t.model.lkhood.x_shape..., 0)
             for x in t.model.test_loader
                 t.st_rng = seed_rand(t.model; rng = t.rng)
@@ -352,15 +353,16 @@ function train!(t::KAEM_trainer; train_idx::Int = 1, trial = nothing)
             end
 
             ssim = (1.0f0 - assess_msssim(real_ssim_x, gen_ssim_x)) |> Float64
-	    ssim /= length(t.model.test_loader)
-	    println("Epoch: ", epoch, "MS-SSIM: ", ssim)
-	    report_value!(trial, ssim)
+            ssim /= length(t.model.test_loader)
+
+            println("Epoch: ", epoch, " MS-SSIM: ", ssim)
+            report_value!(trial, ssim)
             if should_prune(trial)
                 train_idx = Inf
             end
         end
 
-        if (t.checkpoint_every > 0) && (epoch % t.checkpoint_every == 0) && !t.img_tuning
+        if (t.checkpoint_every > 0) && (epoch % t.checkpoint_every == 0) && epoch_done && !t.img_tuning
             jldsave(
                 t.model.file_loc * "ckpt_epoch_$(epoch).jld2";
                 params = Array(t.ps),
@@ -371,7 +373,7 @@ function train!(t::KAEM_trainer; train_idx::Int = 1, trial = nothing)
         end
 
         # Save images - collect batches first then concatenate once to avoid O(n²) allocations
-        if (t.gen_every > 0) && (epoch % t.gen_every == 0) && !t.img_tuning
+        if (t.gen_every > 0) && (epoch % t.gen_every == 0) && epoch_done && !t.img_tuning
             num_batches_to_save = fld(t.num_generated_samples, 10) ÷ t.model.batch_size # Save 1/10 of the samples to conserve space
             if num_batches_to_save > 0
                 concat_dim = length(t.model.lkhood.x_shape) + 1
