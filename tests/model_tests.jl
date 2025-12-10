@@ -76,7 +76,15 @@ function test_grid_update()
     @test !all(iszero, grid - before)
     @test !any(isnan, grid)
     @test !all(iszero, Array(ps) - ps_before)
-    return @test !any(isnan, Array(ps))
+    @test !any(isnan, Array(ps))
+
+    ps_before = Array(ps)
+    loss, ps, _, st_ebm, st_gen =
+        model.train_step(opt_state, ps, st_kan, st_lux, x_test, 1, st_rng)
+
+    ps_after = Array(ps)
+    @test any(ps_before .!= ps_after)
+    return @test !any(isnan, ps_after)
 end
 
 function test_pca()

@@ -307,7 +307,7 @@ function curve2coef(
 
     A, b_vec = forward_elimination(A, b_vec, b)
     coef = dropdims(backward_substitution(A, b_vec, b); dims = 2)
-    return PermutedDimsArray(coef, (3, 2, 1))
+    return PermutedDimsArray(coef, (3, 2, 1)) .* 1.0f0
 end
 
 ## FFT basis functions ###
