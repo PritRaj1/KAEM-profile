@@ -362,7 +362,7 @@ function train!(t::KAEM_trainer; train_idx::Int = 1, trial = nothing)
             jldsave(
                 t.model.file_loc * "ckpt_epoch_$(epoch).jld2";
                 params = Array(t.ps),
-                kan_state = Array(t.st_kan),
+                kan_state = t.st_kan |> cpu_device(),
                 lux_state = t.st_lux |> cpu_device(),
                 rng = t.rng,
             )
@@ -500,7 +500,7 @@ function train!(t::KAEM_trainer; train_idx::Int = 1, trial = nothing)
     (t.save_model && !t.img_tuning) && jldsave(
         t.model.file_loc * "saved_model.jld2";
         params = Array(t.ps),
-        kan_state = Array(t.st_kan),
+        kan_state = t.st_kan |> cpu_device(),
         lux_state = t.st_lux |> cpu_device(),
         train_idx = train_idx,
     )
