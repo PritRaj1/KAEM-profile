@@ -331,7 +331,7 @@ function train!(t::KAEM_trainer; train_idx::Int = 1, trial = nothing)
             grid_updated = 0
         end
 
-        if t.img_tuning && (t.gen_every > 0) && (epoch % t.gen_every == 0)
+        if (t.gen_every > 0) && (epoch % t.gen_every == 0) && t.img_tuning
             gen_ssim_x = zeros(Float32, t.model.lkhood.x_shape..., 0)
             for x in t.model.test_loader
                 t.st_rng = seed_rand(t.model; rng = t.rng)
@@ -352,7 +352,9 @@ function train!(t::KAEM_trainer; train_idx::Int = 1, trial = nothing)
             end
 
             ssim = (1.0f0 - assess_msssim(real_ssim_x, gen_ssim_x)) |> Float64
-            report_value!(trial, ssim / length(t.model.test_loader))
+	    ssim /= length(t.model.test_loader)
+	    println("Epoch: ", epoch, "MS-SSIM: ", ssim)
+	    report_value!(trial, ssim)
             if should_prune(trial)
                 train_idx = Inf
             end
