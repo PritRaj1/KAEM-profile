@@ -47,7 +47,6 @@ mutable struct KAEM_trainer{T <: Float32}
     train_loader_state::Tuple{Any, Int}
     x::AbstractArray{T}
     num_generated_samples::Int
-    grid_update_frequency::Int
     last_grid_update::Int
     save_model::Bool
     img_tuning::Bool
@@ -139,8 +138,6 @@ function init_trainer(
 
     model, opt_state, params, st_kan, st_lux, st_rng = prep_model(model, x, optimizer; rng = rng)
 
-    grid_update_frequency =
-        parse(Int, retrieve(conf, "GRID_UPDATING", "grid_update_frequency"))
 
     N_epochs = parse(Int, retrieve(conf, "TRAINING", "N_epochs"))
     checkpoint_every = parse(Int, retrieve(conf, "TRAINING", "checkpoint_every"))
@@ -161,7 +158,7 @@ function init_trainer(
 
     return KAEM_trainer(
         model,
-        GridUpdater(model),
+        GridUpdater(model, conf),
         cnn,
         opt_state,
         optimizer.schedule,
@@ -174,7 +171,6 @@ function init_trainer(
         loader_state,
         x,
         num_generated_samples,
-        grid_update_frequency,
         1,
         save_model,
         img_tuning,
@@ -248,8 +244,8 @@ function train!(t::KAEM_trainer; train_idx::Int = 1, trial = nothing)
         t.st_rng = seed_rand(t.model; rng = t.rng)
 
         if (
-                train_idx == 1 || (train_idx - t.last_grid_update >= t.grid_update_frequency)
-            ) && (t.model.update_llhood_grid || t.model.update_prior_grid)
+                train_idx == 1 || (train_idx - t.last_grid_update >= t.grid_updater.update_frequency)
+            ) && (t.grid_updater.update_llhood_grid || t.grid_updater.update_prior_grid)
             t.ps, t.st_kan, t.st_lux = grid_compiled(
                 t.x,
                 t.ps,
@@ -259,12 +255,16 @@ function train!(t::KAEM_trainer; train_idx::Int = 1, trial = nothing)
                 t.st_rng,
             )
 
-            t.grid_update_frequency =
-                train_idx > 1 ?
-                floor(t.grid_update_frequency * (2 - t.model.grid_update_decay)^train_idx) :
-                t.grid_update_frequency
-            t.last_grid_update = train_idx
             grid_updated = 1
+            t.last_grid_update = train_idx
+            if train_idx > 1
+                @reset t.grid_updater.update_frequency = (
+                    floor(
+                        t.grid_updater.update_frequency *
+                            (2 - t.grid_updater.update_decay)^train_idx
+                    )
+                )
+            end
 
             t.model.verbose && println("Iter: $(train_idx), Grid updated")
         end

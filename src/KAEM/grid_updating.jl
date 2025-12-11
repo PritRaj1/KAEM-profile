@@ -2,7 +2,7 @@ module ModelGridUpdating
 
 export GridUpdater
 
-using Accessors, ComponentArrays, Lux, NNlib, LinearAlgebra, Random
+using Accessors, Lux, ComponentArrays, ConfParser
 
 using ..Utils
 using ..KAEM_model
@@ -14,6 +14,26 @@ using .GridUpdating
 
 struct GridUpdater
     model
+    update_frequency
+    update_decay
+    update_prior_grid
+    update_llhood_grid
+end
+
+function GridUpdater(model, conf::ConfParse)
+    grid_update_frequency =
+        parse(Int, retrieve(conf, "GRID_UPDATING", "grid_update_frequency"))
+    grid_update_decay =
+        parse(Float32, retrieve(conf, "GRID_UPDATING", "grid_update_decay"))
+    update_prior_grid = parse(Bool, retrieve(conf, "GRID_UPDATING", "update_prior_grid"))
+    update_llhood_grid = parse(Bool, retrieve(conf, "GRID_UPDATING", "update_llhood_grid"))
+    return GridUpdater(
+        model,
+        grid_update_frequency,
+        grid_update_decay,
+        update_prior_grid,
+        update_llhood_grid && !model.lkhood.CNN && !model.lkhood.SEQ
+    )
 end
 
 function (gu::GridUpdater)(
@@ -43,7 +63,7 @@ function (gu::GridUpdater)(
 
     model = gu.model
     z = nothing
-    if model.update_prior_grid
+    if gu.update_prior_grid
 
         if model.N_t > 1
             temps = collect(Float32, [(k / model.N_t)^model.p[train_idx] for k in 1:model.N_t])
@@ -160,7 +180,7 @@ function (gu::GridUpdater)(
     @reset st_kan.quad.weights = new_weights
 
     # Only update if KAN-type generator requires
-    if (model.update_llhood_grid && !model.lkhood.CNN && !model.lkhood.SEQ)
+    if gu.update_llhood_grid
         if model.N_t > 1
             temps = collect(Float32, [(k / model.N_t)^model.p[train_idx] for k in 1:model.N_t])
             z = first(

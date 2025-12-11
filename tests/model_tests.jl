@@ -50,7 +50,7 @@ function test_grid_update()
 
     x = first(model.train_loader) |> pu
 
-    updater = GridUpdater(model)
+    updater = GridUpdater(model, conf)
     compiled_update = Reactant.@compile updater(
         x,
         ps,
