@@ -30,7 +30,8 @@ using .trainer
 commit!(conf, "THERMODYNAMIC_INTEGRATION", "num_temps", "-1")
 
 rng = Random.MersenneTwister(1)
-im_resize = dataset == "CELEBA" ? (64, 64) : (32, 32)
+im_resize = dataset == "CELEBA" ? (64, 64) : nothing
+im_resize = dataset == "SVHN" ? (32, 32) : im_resize
 
 function objective(trial)
     @unpack (
@@ -120,8 +121,32 @@ commit!(conf, "CNN", "activation ", cnn_act)
 
 if dataset == "MNIST"
     save!(conf, "config/nist_tuning_config.ini")
+    conf = ConfParse("config/nist_config.ini")
+    parse!(conf)
 elseif dataset == "SVHN"
     save!(conf, "config/svhn_tuning_config.ini")
+    conf = ConfParse("config/svhn_config.ini")
+    parse!(conf)
 else
     save!(conf, "config/celeba_tuning_config.ini")
+    conf = ConfParse("config/celeba_config.ini")
+    parse!(conf)
+end
+
+commit!(conf, "OPTIMIZER", "learning_rate", string(learning_rate))
+commit!(conf, "LR_SCHEDULE", "decay", string(decay))
+commit!(conf, "EbmModel", "π_0", prior_type)
+commit!(conf, "POST_LANGEVIN", "initial_step_size", string(langevin_step))
+commit!(conf, "GeneratorModel", "generator_variance", string(generator_var))
+commit!(conf, "GeneratorModel", "generator_noise", string(noise_var))
+commit!(conf, "EbmModel", "base_activation", basis_act)
+commit!(conf, "GeneratorModel", "base_activation", basis_act)
+commit!(conf, "CNN", "activation ", cnn_act)
+
+if dataset == "MNIST"
+    save!(conf, "config/nist_config.ini")
+elseif dataset == "SVHN"
+    save!(conf, "config/svhn_config.ini")
+else
+    save!(conf, "config/celeba_config.ini")
 end
