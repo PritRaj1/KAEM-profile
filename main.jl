@@ -41,9 +41,11 @@ if !use_thermo || N_t <= 1
     commit!(conf, "THERMODYNAMIC_INTEGRATION", "num_temps", "-1")
 end
 
+default_act = retrieve(conf, "EbmModel", "base_activation")
+
 prior_type = Dict(1 => "lognormal", 2 => "gaussian", 3 => "uniform", 4 => "ebm")
 bases = Dict(5 => "RBF", 6 => "Cheby", 7 => "FFT")
-acts = Dict(5 => "leakyrelu", 6 => "none", 7 => "leakyrelu")
+acts = Dict(5 => default_act, 6 => "none", 7 => default_act)
 grid_sizes = Dict(5 => "20", 6 => "1", 7 => "50")
 
 rng = Random.MersenneTwister(1)
