@@ -5,15 +5,15 @@
 # Available modes: thermo, vanilla, tune
 
 MNIST tune
-SVHN tune
-CELEBA tune
 MNIST vanilla
 FMNIST vanilla
-# DARCY_FLOW vanilla
+SVHN tune
 SVHN vanilla
-CELEBA vanilla
 SVHN thermo
+CELEBA tune
+CELEBA vanilla
 CELEBA thermo
+# DARCY_FLOW vanilla
 # CIFAR10 vanilla
 # CIFAR10 thermo
 # SVHNPANG vanilla
