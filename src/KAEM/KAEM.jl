@@ -29,14 +29,14 @@ using .LogPriorFCNs
 include("ula/population_xchange.jl")
 using .PopulationXchange
 
+include("symbolic/reg.jl")
+using .Reg
+
 struct KAEM{T <: Float32} <: Lux.AbstractLuxLayer
     prior::EbmModel
     lkhood::GenModel
     train_loader::DataLoader
     test_loader::DataLoader
-    update_prior_grid::Bool
-    update_llhood_grid::Bool
-    grid_update_decay::T
     batch_size::Int
     verbose::Bool
     p::AbstractArray{T}
@@ -53,6 +53,7 @@ struct KAEM{T <: Float32} <: Lux.AbstractLuxLayer
     use_pca::Bool
     PCA_model::Union{PCA, Nothing}
     original_data_size::Tuple
+    kan_regularizer::Any
 end
 
 function init_KAEM(
@@ -68,8 +69,6 @@ function init_KAEM(
     N_test = parse(Int, retrieve(conf, "TRAINING", "N_test"))
     verbose = parse(Bool, retrieve(conf, "TRAINING", "verbose"))
     eps = parse(Float32, retrieve(conf, "TRAINING", "eps"))
-    update_prior_grid = parse(Bool, retrieve(conf, "GRID_UPDATING", "update_prior_grid"))
-    update_llhood_grid = parse(Bool, retrieve(conf, "GRID_UPDATING", "update_llhood_grid"))
     cnn = parse(Bool, retrieve(conf, "CNN", "use_cnn_lkhood"))
     seq = parse(Int, retrieve(conf, "SEQ", "sequence_length")) > 1
 
@@ -116,9 +115,6 @@ function init_KAEM(
     prior_model = init_EbmModel(conf; rng = rng)
     lkhood_model = init_GenModel(conf, x_shape; rng = rng)
 
-    grid_update_decay =
-        parse(Float32, retrieve(conf, "GRID_UPDATING", "grid_update_decay"))
-
     η_init = parse(Float32, retrieve(conf, "POST_LANGEVIN", "initial_step_size"))
     N_t = parse(Int, retrieve(conf, "THERMODYNAMIC_INTEGRATION", "num_temps"))
     num_steps = parse(Int, retrieve(conf, "POST_LANGEVIN", "iters"))
@@ -150,9 +146,6 @@ function init_KAEM(
         lkhood_model,
         train_loader,
         test_loader,
-        update_prior_grid,
-        update_llhood_grid,
-        grid_update_decay,
         batch_size,
         verbose,
         p,
@@ -169,6 +162,7 @@ function init_KAEM(
         use_pca,
         M,
         original_data_size,
+        Regularizer(conf, lkhood_model.CNN, lkhood_model.SEQ)
     )
 end
 

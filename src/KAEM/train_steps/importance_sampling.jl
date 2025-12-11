@@ -106,7 +106,16 @@ function marginal_llhood(
         m.log_prior(z_prior, m.prior, ps.ebm, st_kan.ebm, st_ebm)
     ex_prior = m.prior.bool_config.contrastive_div ? mean(logprior_prior) : 0.0f0
 
-    return -(marginal_llhood - ex_prior), st_ebm, st_gen
+    reg, st_ebm, st_gen = m.kan_regularizer(
+        z_posterior,
+        m,
+        ps,
+        st_kan,
+        st_ebm,
+        st_gen
+    )
+
+    return reg - (marginal_llhood - ex_prior), st_ebm, st_gen
 end
 
 function closure(

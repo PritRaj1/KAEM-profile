@@ -99,7 +99,17 @@ function marginal_llhood(
         ε = model.ε,
     )
     steppingstone_loss = Δt[1] * mean(logllhood) + log_ss
-    return -(steppingstone_loss + mean(logprior_pos) - ex_prior),
+
+    reg, st_ebm, st_gen = model.kan_regularizer(
+        z_posterior[:, :, :, num_temps],
+        model,
+        ps,
+        st_kan,
+        st_ebm,
+        st_gen
+    )
+
+    return reg - (steppingstone_loss + mean(logprior_pos) - ex_prior),
         st_ebm,
         st_gen
 end
