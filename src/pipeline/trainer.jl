@@ -285,7 +285,10 @@ function train!(t::KAEM_trainer; train_idx::Int = 1, trial = nothing)
             train_idx = Inf
         end
 
-        t.model.verbose && println("Iter: $(train_idx), Loss: $(t.loss)")
+        if t.model.verbose && !t.img_tuning
+            println("Iter: $(train_idx), Loss: $(t.loss)")
+        end
+
         return nothing
     end
 
