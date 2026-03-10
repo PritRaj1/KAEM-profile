@@ -12,3 +12,5 @@ logs/RealSamples/
 logs/Pretrained/**/*.h5
 **/*.h5
 **/*.jld2
+**/*.jld1
+PDE_data/
