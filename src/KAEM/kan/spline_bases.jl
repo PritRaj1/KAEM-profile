@@ -38,25 +38,6 @@ struct B_spline_basis <: AbstractBasis
     O
     G
     S
-    k_mask
-    lower_mask
-    upper_mask
-end
-
-function B_spline_basis(degree::Int, I::Int, O::Int, G::Int, S::Int)
-    k_mask = Lux.f32((1:G) .== (1:G)')
-    lower_mask = Lux.f32((1:G) .> (1:G)')
-    upper_mask = Lux.f32((1:G) .>= (1:G)')
-    return B_spline_basis(
-        degree,
-        I,
-        O,
-        G,
-        S,
-        k_mask,
-        lower_mask,
-        upper_mask,
-    )
 end
 
 struct RBF_basis <: AbstractBasis
@@ -64,24 +45,6 @@ struct RBF_basis <: AbstractBasis
     O
     G
     S
-    k_mask
-    lower_mask
-    upper_mask
-end
-
-function RBF_basis(I::Int, O::Int, G::Int, S::Int)
-    k_mask = Lux.f32((1:G) .== (1:G)')
-    lower_mask = Lux.f32((1:G) .> (1:G)')
-    upper_mask = Lux.f32((1:G) .>= (1:G)')
-    return RBF_basis(
-        I,
-        O,
-        G,
-        S,
-        k_mask,
-        lower_mask,
-        upper_mask,
-    )
 end
 
 struct RSWAF_basis <: AbstractBasis
@@ -89,24 +52,6 @@ struct RSWAF_basis <: AbstractBasis
     O
     G
     S
-    k_mask
-    lower_mask
-    upper_mask
-end
-
-function RSWAF_basis(I::Int, O::Int, G::Int, S::Int)
-    k_mask = Lux.f32((1:G) .== (1:G)')
-    lower_mask = Lux.f32((1:G) .> (1:G)')
-    upper_mask = Lux.f32((1:G) .>= (1:G)')
-    return RSWAF_basis(
-        I,
-        O,
-        G,
-        S,
-        k_mask,
-        lower_mask,
-        upper_mask,
-    )
 end
 
 struct Cheby_basis <: AbstractBasis
@@ -116,17 +61,11 @@ struct Cheby_basis <: AbstractBasis
     O
     G
     S
-    k_mask
-    lower_mask
-    upper_mask
 end
 
 function Cheby_basis(degree::Int, I::Int, O::Int, S::Int)
     G = degree + 1
     lin = Lux.f32((0:degree)')
-    k_mask = Lux.f32((1:G) .== (1:G)')
-    lower_mask = Lux.f32((1:G) .> (1:G)')
-    upper_mask = Lux.f32((1:G) .>= (1:G)')
     return Cheby_basis(
         degree,
         lin,
@@ -134,9 +73,6 @@ function Cheby_basis(degree::Int, I::Int, O::Int, S::Int)
         O,
         G,
         S,
-        k_mask,
-        lower_mask,
-        upper_mask,
     )
 end
 
@@ -248,7 +184,7 @@ function curve2coef(
         init = init
     )
 
-    coef = dropdims(cholesky_solve(A, b_vec, b); dims = 2)
+    coef = cholesky_solve(A, b_vec)
     return PermutedDimsArray(coef, (3, 2, 1)) .* 1.0f0
 end
 
