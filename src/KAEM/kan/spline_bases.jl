@@ -38,25 +38,6 @@ struct B_spline_basis <: AbstractBasis
     O
     G
     S
-    k_mask
-    lower_mask
-    upper_mask
-end
-
-function B_spline_basis(degree::Int, I::Int, O::Int, G::Int, S::Int)
-    k_mask = Lux.f32((1:G) .== (1:G)')
-    lower_mask = Lux.f32((1:G) .> (1:G)')
-    upper_mask = Lux.f32((1:G) .>= (1:G)')
-    return B_spline_basis(
-        degree,
-        I,
-        O,
-        G,
-        S,
-        k_mask,
-        lower_mask,
-        upper_mask,
-    )
 end
 
 struct RBF_basis <: AbstractBasis
@@ -64,24 +45,6 @@ struct RBF_basis <: AbstractBasis
     O
     G
     S
-    k_mask
-    lower_mask
-    upper_mask
-end
-
-function RBF_basis(I::Int, O::Int, G::Int, S::Int)
-    k_mask = Lux.f32((1:G) .== (1:G)')
-    lower_mask = Lux.f32((1:G) .> (1:G)')
-    upper_mask = Lux.f32((1:G) .>= (1:G)')
-    return RBF_basis(
-        I,
-        O,
-        G,
-        S,
-        k_mask,
-        lower_mask,
-        upper_mask,
-    )
 end
 
 struct RSWAF_basis <: AbstractBasis
@@ -89,24 +52,6 @@ struct RSWAF_basis <: AbstractBasis
     O
     G
     S
-    k_mask
-    lower_mask
-    upper_mask
-end
-
-function RSWAF_basis(I::Int, O::Int, G::Int, S::Int)
-    k_mask = Lux.f32((1:G) .== (1:G)')
-    lower_mask = Lux.f32((1:G) .> (1:G)')
-    upper_mask = Lux.f32((1:G) .>= (1:G)')
-    return RSWAF_basis(
-        I,
-        O,
-        G,
-        S,
-        k_mask,
-        lower_mask,
-        upper_mask,
-    )
 end
 
 struct Cheby_basis <: AbstractBasis
@@ -116,17 +61,11 @@ struct Cheby_basis <: AbstractBasis
     O
     G
     S
-    k_mask
-    lower_mask
-    upper_mask
 end
 
 function Cheby_basis(degree::Int, I::Int, O::Int, S::Int)
     G = degree + 1
     lin = Lux.f32((0:degree)')
-    k_mask = Lux.f32((1:G) .== (1:G)')
-    lower_mask = Lux.f32((1:G) .> (1:G)')
-    upper_mask = Lux.f32((1:G) .>= (1:G)')
     return Cheby_basis(
         degree,
         lin,
@@ -134,9 +73,6 @@ function Cheby_basis(degree::Int, I::Int, O::Int, S::Int)
         O,
         G,
         S,
-        k_mask,
-        lower_mask,
-        upper_mask,
     )
 end
 
@@ -145,8 +81,7 @@ function (b::B_spline_basis)(
         x,
         grid,
         σ,
-        scale;
-        init::Bool = false,
+        scale,
     )
     I, G, S = b.I, b.G - 1, b.S
     x = PermutedDimsArray(view(x, :, :, :), (1, 3, 2))
@@ -185,8 +120,7 @@ function (b::RBF_basis)(
         x,
         grid,
         σ,
-        scale;
-        init::Bool = false,
+        scale,
     )
     x_3d = PermutedDimsArray(view(x, :, :, :), (1, 3, 2))
     return exp.(-((x_3d .- grid) ./ (scale .* σ)) .^ 2 ./ 2)
@@ -196,8 +130,7 @@ function (b::RSWAF_basis)(
         x,
         grid,
         σ,
-        scale;
-        init::Bool = false,
+        scale,
     )
     x_3d = PermutedDimsArray(view(x, :, :, :), (1, 3, 2))
     diff = tanh_fast((x_3d .- grid) ./ σ)
@@ -209,8 +142,7 @@ function (b::Cheby_basis)(
         x,
         grid,
         σ,
-        scale;
-        init::Bool = false,
+        scale,
     )
     x_3d = PermutedDimsArray(view(x, :, :, :), (1, 3, 2))
     x_3d = (tanh_fast(x_3d) ./ σ)
@@ -223,8 +155,7 @@ function coef2curve_Spline(
         grid,
         coef,
         σ,
-        scale;
-        init::Bool = false,
+        scale,
     )
     spl = b(x_eval, grid, σ, scale)
     spl_4d = PermutedDimsArray(view(spl, :, :, :, :), (1, 4, 3, 2))
@@ -243,7 +174,7 @@ function curve2coef(
         init = false,
         ε = 1.0f-4
     )
-    B = b(x, grid, σ, scale; init = init)
+    B = b(x, grid, σ, scale)
 
     A, b_vec = regularize(
         PermutedDimsArray(B, (2, 3, 1)),
@@ -253,8 +184,7 @@ function curve2coef(
         init = init
     )
 
-    A, b_vec, P = forward_elimination(A, b_vec, b; ε = ε)
-    coef = dropdims(backward_substitution(A, b_vec, b, P); dims = 2)
+    coef = cholesky_solve(A, b_vec)
     return PermutedDimsArray(coef, (3, 2, 1)) .* 1.0f0
 end
 
