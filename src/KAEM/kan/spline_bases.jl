@@ -253,8 +253,7 @@ function curve2coef(
         init = init
     )
 
-    A, b_vec, P = forward_elimination(A, b_vec, b; ε = ε)
-    coef = dropdims(backward_substitution(A, b_vec, b, P); dims = 2)
+    coef = dropdims(cholesky_solve(A, b_vec, b); dims = 2)
     return PermutedDimsArray(coef, (3, 2, 1)) .* 1.0f0
 end
 

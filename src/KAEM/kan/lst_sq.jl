@@ -1,8 +1,8 @@
 module LstSqSolver
 
-export regularize, forward_elimination, backward_substitution
+export regularize, cholesky_solve, forward_elimination, backward_substitution
 
-using Lux
+using Lux, LinearAlgebra
 
 function eyeG(G)
     return 1:G .== (1:G)' |> Lux.f32
@@ -29,6 +29,35 @@ function regularize(B_i, y_i, basis; ε = 1.0f-4, init = false)
 
     A = A .+ ε .* eyeG(G)
     return A .* 1.0f0, b .* 1.0f0
+end
+
+function _batched_cholesky_solve(A::Array{T, 3}, b::Array{T, 3}) where {T}
+    """Batched solve for init array using multiple dispatch"""
+    J = size(A, 3)
+    coef = similar(b)
+    for j in 1:J
+        F = cholesky(Symmetric(@view A[:, :, j]))
+        coef[:, :, j] = F \ @view b[:, :, j]
+    end
+    return coef
+end
+
+function _batched_cholesky_solve(A_3d, b_3d)
+    """HLO cholesky + triangular solve"""
+    F = cholesky(A_3d)
+    return F \ b_3d
+end
+
+function cholesky_solve(A, b, basis)
+    G = basis.G
+    O = basis.O
+    J = basis.I
+
+    A_sq = dropdims(A; dims = 3) .* 1.0f0
+    b_sq = dropdims(b; dims = 2) .* 1.0f0
+    coef_sq = _batched_cholesky_solve(A_sq, b_sq)
+
+    return reshape(coef_sq, G, 1, O, J) .* 1.0f0
 end
 
 function eliminator(
