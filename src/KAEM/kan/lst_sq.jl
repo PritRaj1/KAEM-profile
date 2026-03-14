@@ -42,10 +42,10 @@ function _batched_cholesky_solve(A::Array{T, 3}, b::Array{T, 3}) where {T}
     return coef
 end
 
-function _batched_cholesky_solve(A_3d, b_3d)
+function _batched_cholesky_solve(A, b)
     """HLO cholesky + triangular solve"""
-    F = cholesky(A_3d)
-    return F \ b_3d
+    F = cholesky(A)
+    return F \ b
 end
 
 function cholesky_solve(A, b, basis)
