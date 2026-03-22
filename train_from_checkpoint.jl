@@ -31,15 +31,15 @@ include("src/utils.jl")
 include("src/pipeline/trainer.jl")
 using .Utils: pu
 using .trainer
+using .trainer.KAEM_model: load_params
 
 rng = Random.MersenneTwister(1)
 t = init_trainer(rng, conf, dataset)
 
 saved_data = load(file_loc * "ckpt_epoch_$ckpt.jld2")
-ps_flat = saved_data["params"] .|> Float32
-ps_template = Lux.initialparameters(rng, t.model)
-t.ps = ComponentArray(ps_flat, getaxes(ps_template)) |> pu
+t.ps = load_params(saved_data) |> pu
 t.st_kan = saved_data["kan_state"] |> pu
 t.st_lux = saved_data["lux_state"] |> pu
+t.opt_state = saved_data["opt_state"] |> pu
 
 train!(t)

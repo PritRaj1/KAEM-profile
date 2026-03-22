@@ -1,6 +1,6 @@
 module KAEM_model
 
-export KAEM, init_KAEM, generate_new
+export KAEM, init_KAEM, generate_new, load_params
 
 using ConfParser, Random, Lux, Accessors, ComponentArrays, Statistics, FastGaussQuadrature
 using Flux: DataLoader
@@ -182,14 +182,10 @@ function init_KAEM(
     )
 end
 
-function init_from_file(file_loc::AbstractString, ckpt::Int)
-    """Load model from checkpoint."""
-    saved_data = load(file_loc * "ckpt_epoch_$ckpt.jld2")
-    model = saved_data["model"] |> deepcopy
-    ps = convert(ComponentArray, saved_data["params"])
-    st_kan = convert(NamedTuple, saved_data["kan_state"])
-    st_lux = convert(NamedTuple, saved_data["lux_state"])
-    return model, ps, st_kan, st_lux
+function load_params(saved_data::Dict)
+    ps_flat = saved_data["params_data"] .|> Float32
+    axes = saved_data["params_axes"]
+    return ComponentArray(ps_flat, axes...)
 end
 
 function Lux.initialparameters(

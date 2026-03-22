@@ -5,6 +5,12 @@ export load_saved_model, setup_symbolic_config!, fit_symbolic_prior, DATASET_CON
 using JLD2, Lux, ConfParser, Random, ComponentArrays
 using MLDataDevices: cpu_device
 
+function load_params(saved_data::Dict)
+    ps_flat = saved_data["params_data"] .|> Float32
+    axes = saved_data["params_axes"]
+    return ComponentArray(ps_flat, axes...)
+end
+
 const DATASET_CONFIGS = Dict(
     "MNIST" => "config/nist_config.ini",
     "FMNIST" => "config/nist_config.ini",
@@ -41,11 +47,10 @@ function load_saved_model(
     println("  Loading: $saved_file")
     saved_data = load(saved_file)
 
-    ps_flat = saved_data["params"] .|> Float32
     st_kan = saved_data["kan_state"]
     st_lux = saved_data["lux_state"]
 
-    # Model structure
+    # Model structure (needed for prior/lkhood references, and as fallback for legacy saves)
     t = init_trainer_fn(
         rng, conf, dataset;
         file_loc = "garbage/",
@@ -54,9 +59,7 @@ function load_saved_model(
     model = t.model
     prior = model.prior
 
-    # Reconstruct ComponentArray from flat array using model structure
-    ps_template = Lux.initialparameters(rng, model)
-    ps = ComponentArray(ps_flat, getaxes(ps_template))
+    ps = load_params(saved_data)
 
     # Extract EBM-specific parts
     ps_ebm = ps.ebm

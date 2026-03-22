@@ -18,21 +18,18 @@ using .Utils
 include("src/pipeline/trainer.jl")
 using .trainer
 using .trainer: seed_rand
+using .trainer.KAEM_model: load_params
 
 # Load saved params/states FIRST
 saved_data = load(file_loc * "saved_model.jld2")
-ps_flat = saved_data["params"] .|> Float32
-st_kan_saved = saved_data["kan_state"]
-st_lux_saved = saved_data["lux_state"]
 
 # Init trainer — this creates a fresh model with fresh params
 rng = Random.MersenneTwister(1)
 t = init_trainer(rng, conf, dataset; img_resize = (64, 64), file_loc = file_loc, save_model = false)
 
-# Reconstruct ComponentArray with correct axes from the model, then swap in saved values
-t.ps = ComponentArray(ps_flat, getaxes(t.ps)) |> pu
-t.st_kan = st_kan_saved |> pu
-t.st_lux = st_lux_saved |> pu
+t.ps = load_params(saved_data) |> pu
+t.st_kan = saved_data["kan_state"] |> pu
+t.st_lux = saved_data["lux_state"] |> pu
 
 # Compile gen AFTER loading saved params/states
 println("Compiling gen...")

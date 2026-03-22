@@ -390,9 +390,11 @@ function train!(t::KAEM_trainer; train_idx::Int = 1, trial = nothing)
         if (t.checkpoint_every > 0) && (epoch % t.checkpoint_every == 0) && epoch_done && !t.img_tuning
             jldsave(
                 t.model.file_loc * "ckpt_epoch_$(epoch).jld2";
-                params = Array(t.ps),
+                params_data = Array(getdata(t.ps)),
+                params_axes = getaxes(t.ps),
                 kan_state = t.st_kan |> cpu_device(),
                 lux_state = t.st_lux |> cpu_device(),
+                opt_state = t.opt_state |> cpu_device(),
                 rng = t.rng,
             )
         end
@@ -524,9 +526,11 @@ function train!(t::KAEM_trainer; train_idx::Int = 1, trial = nothing)
 
     (t.save_model && !t.img_tuning) && jldsave(
         t.model.file_loc * "saved_model.jld2";
-        params = Array(t.ps),
+        params_data = Array(getdata(t.ps)),
+        params_axes = getaxes(t.ps),
         kan_state = t.st_kan |> cpu_device(),
         lux_state = t.st_lux |> cpu_device(),
+        opt_state = t.opt_state |> cpu_device(),
         train_idx = train_idx,
     )
 
