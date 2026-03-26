@@ -2,7 +2,6 @@ using JLD2, Lux, ConfParser, Random, ComponentArrays, Accessors, FastGaussQuadra
 using MLDataDevices: cpu_device
 
 ENV["DEVICE"] = "cpu"
-ENV["GPU"] = "false"
 
 include("src/utils.jl")
 using .Utils
