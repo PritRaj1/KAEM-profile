@@ -34,7 +34,7 @@ CIFAR10 thermo
 
 # ==================== Baseline Jobs ====================
 # CIFAR-10 baselines
-# CIFAR10 baseline-vae
+CIFAR10 baseline-vae
 # CIFAR10 baseline-gan
 # CIFAR10 baseline-ddpm
 
