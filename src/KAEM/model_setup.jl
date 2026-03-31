@@ -83,11 +83,7 @@ function setup_training(
 
     @reset model.posterior_sampler = begin
         if model.sampler_type == "pcnl"
-            δ = (
-                haskey(conf, "POST_LANGEVIN", "pcnl_delta") ?
-                    parse(Float32, retrieve(conf, "POST_LANGEVIN", "pcnl_delta")) :
-                    0.5f0
-            )
+            δ = parse(Float32, retrieve(conf, "POST_LANGEVIN", "pcnl_delta"))
             initialize_pCNL_sampler(model; δ = δ, N = num_steps)
         else
             initialize_ULA_sampler(model; η = η_init, N = num_steps)
