@@ -25,20 +25,18 @@ struct pCNL_sampler
     z_coeff     # (2 - δ) / (2 + δ)
     grad_coeff  # 2δ / (2 + δ)
     noise_coeff # √(8δ) / (2 + δ)
-    inv_2σ2     # 1 / (2 · noise_coeff²)
     model
     Q
     P
     S
     num_temps
     thermo_bool
-    log_dist    # summed log-posterior (for gradient)
-    eval_dist   # per-sample log-posterior (for MH)
+    log_dist
 end
 
 function initialize_pCNL_sampler(
         model::KAEM{T};
-        δ::T = 0.5f0,
+        δ::T = 0.01f0,
         N::Int = 20,
     ) where {T}
 
@@ -50,15 +48,13 @@ function initialize_pCNL_sampler(
     thermo_bool = num_temps > 1
 
     denom = 2.0f0 + δ
-    nc = sqrt(8.0f0 * δ) / denom
 
     return pCNL_sampler(
         N,
         δ,
         (2.0f0 - δ) / denom,
         2.0f0 * δ / denom,
-        nc,
-        1.0f0 / (2.0f0 * nc^2),
+        sqrt(8.0f0 * δ) / denom,
         model,
         Q,
         P,
@@ -66,7 +62,6 @@ function initialize_pCNL_sampler(
         num_temps,
         thermo_bool,
         unadjusted_logpos,
-        per_sample_logpos,
     )
 end
 
@@ -83,7 +78,6 @@ function step(
         st_kan,
         st_lux,
         noise,
-        log_u_mh,
         log_u_swap,
         mask_swap_1,
         mask_swap_2,
@@ -93,51 +87,21 @@ function step(
     )
 
     ξ = noise[:, :, :, i]
-    zero_vector = zero(x_t)
 
     # Dℓ(u) = ∇log_posterior(u) + u  (gradient w.r.t. Gaussian reference)
     ∇z = unadjusted_grad(
         z_i, x_t, temps_gpu, model, ps, st_kan, st_lux,
         component_mask, sampler.log_dist,
     )
-    Dell_old = ∇z .+ z_i
+    Dell = ∇z .+ z_i
 
-    # pCNL proposal (Pezzetti 2024 eq. 8)
-    m_old = sampler.z_coeff .* z_i .+ sampler.grad_coeff .* Dell_old
-    z_prop = m_old .+ sampler.noise_coeff .* ξ
-
-    # Dℓ(v) for reverse proposal mean
-    ∇z_prop = unadjusted_grad(
-        z_prop, x_t, temps_gpu, model, ps, st_kan, st_lux,
-        component_mask, sampler.log_dist,
-    )
-    Dell_new = ∇z_prop .+ z_prop
-    m_new = sampler.z_coeff .* z_prop .+ sampler.grad_coeff .* Dell_new
-
-    # Per-sample log-posterior
-    logpos_old = sampler.eval_dist(
-        z_i, x_t, temps_gpu, model, ps, st_kan, st_lux, component_mask, zero_vector,
-    )
-    logpos_new = sampler.eval_dist(
-        z_prop, x_t, temps_gpu, model, ps, st_kan, st_lux, component_mask, zero_vector,
-    )
-
-    # Proposal density correction: log q(u|v) - log q(v|u)
-    fwd_sq = dropdims(sum((z_prop .- m_old) .^ 2; dims = (1, 2)); dims = (1, 2))
-    bwd_sq = dropdims(sum((z_i .- m_new) .^ 2; dims = (1, 2)); dims = (1, 2))
-    log_proposal_ratio = sampler.inv_2σ2 .* (fwd_sq .- bwd_sq)
-
-    # MH accept/reject (HLO-compatible)
-    log_alpha = logpos_new .- logpos_old .+ log_proposal_ratio
-    log_u = log_u_mh[:, i]
-    accept = max.(sign.(log_alpha .- log_u), 0.0f0)
-    accept_z = reshape(accept, 1, 1, :)
-    z_mh = accept_z .* z_prop .+ (1.0f0 .- accept_z) .* z_i
+    # Unadjusted pCNL proposal (Pezzetti 2024 eq. 8, no MH)
+    new_z = sampler.z_coeff .* z_i .+ sampler.grad_coeff .* Dell .+ sampler.noise_coeff .* ξ
 
     # Replica exchange
     return model.xchange_func(
         i,
-        z_mh,
+        new_z,
         x_t,
         temps,
         model,
@@ -161,7 +125,7 @@ function (sampler::pCNL_sampler)(
         st_rng;
         temps = [1.0f0],
     )
-    """pCNL posterior sampler. Returns z ~ p(z|x)."""
+    """Unadjusted pCNL posterior sampler. Returns z ~ p(z|x)."""
     model = sampler.model
     Q, P, S, num_temps = sampler.Q, sampler.P, sampler.S, sampler.num_temps
 
@@ -232,7 +196,6 @@ function (sampler::pCNL_sampler)(
 
     # Pre-allocate noise
     noise = st_rng.ula_noise
-    log_u_mh = st_rng.log_mh
     log_u_swap = st_rng.log_swap
 
     # DEO masks + shift matrices
@@ -257,7 +220,6 @@ function (sampler::pCNL_sampler)(
             st_kan,
             st_lux,
             noise,
-            log_u_mh,
             log_u_swap,
             mask_swap_1,
             mask_swap_2,
