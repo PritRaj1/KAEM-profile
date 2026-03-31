@@ -21,22 +21,24 @@ using .MixtureChoice: choose_component
 
 struct pCNL_sampler
     N
-    β
-    coeff_z # √(1 - β²) + β²
-    β2 # β²
+    δ
+    z_coeff     # (2 - δ) / (2 + δ)
+    grad_coeff  # 2δ / (2 + δ)
+    noise_coeff # √(8δ) / (2 + δ)
+    inv_2σ2     # 1 / (2 · noise_coeff²)
     model
     Q
     P
     S
     num_temps
     thermo_bool
-    log_dist # summed log-posterior (for gradient)
-    eval_dist # per-sample log-posterior (for MH)
+    log_dist    # summed log-posterior (for gradient)
+    eval_dist   # per-sample log-posterior (for MH)
 end
 
 function initialize_pCNL_sampler(
         model::KAEM{T};
-        β::T = 0.1f0,
+        δ::T = 0.5f0,
         N::Int = 20,
     ) where {T}
 
@@ -45,11 +47,16 @@ function initialize_pCNL_sampler(
     num_temps = model.N_t > 1 ? model.N_t : 1
     thermo_bool = num_temps > 1
 
+    denom = 2.0f0 + δ
+    nc = sqrt(8.0f0 * δ) / denom
+
     return pCNL_sampler(
         N,
-        β,
-        sqrt(1.0f0 - β^2) + β^2,
-        β^2,
+        δ,
+        (2.0f0 - δ) / denom,
+        2.0f0 * δ / denom,
+        nc,
+        1.0f0 / (2.0f0 * nc^2),
         model,
         Q,
         P,
@@ -86,23 +93,26 @@ function step(
     ξ = noise[:, :, :, i]
     zero_vector = zero(x_t)
 
-    # Gradient of log-posterior (same kernel as ULA)
+    # Dℓ(u) = ∇log_posterior(u) + u  (gradient w.r.t. Gaussian reference)
     ∇z = unadjusted_grad(
-        z_i,
-        x_t,
-        temps_gpu,
-        model,
-        ps,
-        st_kan,
-        st_lux,
-        component_mask,
-        sampler.log_dist,
+        z_i, x_t, temps_gpu, model, ps, st_kan, st_lux,
+        component_mask, sampler.log_dist,
     )
+    Dell_old = ∇z .+ z_i
 
-    # pCNL proposal: z' = (√(1-β²) + β²)·z + β²·∇log_pos + β·ξ
-    z_prop = sampler.coeff_z .* z_i .+ sampler.β2 .* ∇z .+ sampler.β .* ξ
+    # pCNL proposal: v = z_coeff·u + grad_coeff·Dℓ(u) + noise_coeff·ξ
+    m_old = sampler.z_coeff .* z_i .+ sampler.grad_coeff .* Dell_old
+    z_prop = m_old .+ sampler.noise_coeff .* ξ
 
-    # MH accept/reject (Metropolis ratio, HLO-compatible)
+    # Dℓ(v) for reverse proposal mean
+    ∇z_prop = unadjusted_grad(
+        z_prop, x_t, temps_gpu, model, ps, st_kan, st_lux,
+        component_mask, sampler.log_dist,
+    )
+    Dell_new = ∇z_prop .+ z_prop
+    m_new = sampler.z_coeff .* z_prop .+ sampler.grad_coeff .* Dell_new
+
+    # Per-sample log-posterior
     logpos_old = sampler.eval_dist(
         z_i, x_t, temps_gpu, model, ps, st_kan, st_lux, component_mask, zero_vector,
     )
@@ -110,7 +120,13 @@ function step(
         z_prop, x_t, temps_gpu, model, ps, st_kan, st_lux, component_mask, zero_vector,
     )
 
-    log_alpha = logpos_new .- logpos_old
+    # Proposal density correction: log q(u|v) - log q(v|u)
+    fwd_sq = dropdims(sum((z_prop .- m_old) .^ 2; dims = (1, 2)); dims = (1, 2))
+    bwd_sq = dropdims(sum((z_i .- m_new) .^ 2; dims = (1, 2)); dims = (1, 2))
+    log_proposal_ratio = sampler.inv_2σ2 .* (fwd_sq .- bwd_sq)
+
+    # MH accept/reject (HLO-compatible)
+    log_alpha = logpos_new .- logpos_old .+ log_proposal_ratio
     log_u = log_u_mh[:, i]
     accept = max.(sign.(log_alpha .- log_u), 0.0f0)
     accept_z = reshape(accept, 1, 1, :)
