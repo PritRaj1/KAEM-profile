@@ -61,7 +61,7 @@ else
         t = init_trainer(rng, conf, dataset; img_resize = im_resize)
         train!(t)
     else
-        commit!(conf, "POST_LANGEVIN", "use_langevin", "false")
+        commit!(conf, "POST_LANGEVIN", "sampler", "importance")
         for prior_idx in [4, 2, 3, 1]
             commit!(conf, "EbmModel", "π_0", prior_type[prior_idx])
             for base_idx in [5]

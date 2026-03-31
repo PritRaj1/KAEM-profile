@@ -1,6 +1,6 @@
 module LangevinUpdates
 
-export unadjusted_logpos, unadjusted_logprior, unadjusted_grad
+export unadjusted_logpos, unadjusted_logprior, unadjusted_grad, per_sample_logpos
 
 using ComponentArrays, Statistics, Lux, LinearAlgebra, Random, Enzyme
 
@@ -10,8 +10,8 @@ using ..KAEM_model
 include("../gen/loglikelihoods.jl")
 using .LogLikelihoods: log_likelihood_MALA
 
-### ULA ###
-function unadjusted_logpos(
+# Per-sample log-densities
+function per_sample_logpos(
         z,
         x,
         temps,
@@ -23,65 +23,78 @@ function unadjusted_logpos(
         zero_vector,
     )
 
-    logpos = sum(
-        first(
-            model.log_prior(
-                z,
-                model.prior,
-                ps.ebm,
-                st_kan.ebm,
-                st_lux.ebm,
-                st_kan.quad;
-                ula = true,
-                component_mask = component_mask
-            )
+    logprior = first(
+        model.log_prior(
+            z,
+            model.prior,
+            ps.ebm,
+            st_kan.ebm,
+            st_lux.ebm,
+            st_kan.quad;
+            ula = true,
+            component_mask = component_mask,
         )
     )
 
-    logpos += sum(
-        temps .* (
-            first(
-                log_likelihood_MALA(
-                    z,
-                    x,
-                    model.lkhood,
-                    ps.gen,
-                    st_kan.gen,
-                    st_lux.gen,
-                    zero_vector;
-                    ε = model.ε,
-                )
-            )
+    ll = first(
+        log_likelihood_MALA(
+            z,
+            x,
+            model.lkhood,
+            ps.gen,
+            st_kan.gen,
+            st_lux.gen,
+            zero_vector;
+            ε = model.ε,
         )
     )
 
-    return logpos
+    return logprior .+ temps .* ll
+end
+
+function per_sample_logprior(
+        z,
+        x,
+        temps,
+        model,
+        ps,
+        st_kan,
+        st_lux,
+        component_mask,
+        zero_vector,
+    )
+
+    return first(
+        model.log_prior(
+            z,
+            model.prior,
+            ps.ebm,
+            st_kan.ebm,
+            st_lux.ebm,
+            st_kan.quad;
+            ula = true,
+            component_mask = component_mask,
+        )
+    )
+end
+
+# For autodiff
+function unadjusted_logpos(
+        z, x, temps, model, ps, st_kan, st_lux, component_mask, zero_vector,
+    )
+    return sum(
+        per_sample_logpos(
+            z, x, temps, model, ps, st_kan, st_lux, component_mask, zero_vector,
+        )
+    )
 end
 
 function unadjusted_logprior(
-        z,
-        x,
-        temps,
-        model,
-        ps,
-        st_kan,
-        st_lux,
-        component_mask,
-        zero_vector,
+        z, x, temps, model, ps, st_kan, st_lux, component_mask, zero_vector,
     )
-
     return sum(
-        first(
-            model.log_prior(
-                z,
-                model.prior,
-                ps.ebm,
-                st_kan.ebm,
-                st_lux.ebm,
-                st_kan.quad;
-                ula = true,
-                component_mask = component_mask
-            )
+        per_sample_logprior(
+            z, x, temps, model, ps, st_kan, st_lux, component_mask, zero_vector,
         )
     )
 end

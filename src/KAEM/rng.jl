@@ -48,7 +48,7 @@ function seed_rand(
     )
 
     posterior_its = (
-        num_temps > 1 || model.MALA ?
+        num_temps > 1 || model.sampler_type != "importance" ?
             posterior_its :
             (
                 model.prior.prior_type == "uniform" ?
@@ -59,7 +59,7 @@ function seed_rand(
 
     # Lkhood noise
     train_noise = (
-        num_temps > 1 || model.MALA ?
+        num_temps > 1 || model.sampler_type != "importance" ?
             randn(rng, T, model.lkhood.x_shape..., model.batch_size) :
             randn(rng, T, model.lkhood.x_shape..., model.batch_size, model.batch_size)
     )
@@ -73,7 +73,7 @@ function seed_rand(
     # Resampler uniform noise
     systematic_bool = model.lkhood.resampler_type == "systematic"
     resample_rv = (
-        (num_temps > 1 || model.MALA) ?
+        (num_temps > 1 || model.sampler_type != "importance") ?
             [0.0f0] :
             (
                 systematic_bool ?
@@ -85,6 +85,7 @@ function seed_rand(
     Q, N, S = model.posterior_sampler.Q, model.posterior_sampler.N, model.batch_size
     ula_noise = randn(rng, T, Q, P, S * num_temps, N)
     log_swap = log.(rand(rng, T, S, num_temps, N))
+    log_mh = log.(rand(rng, T, S * num_temps, N))
 
     # Replica exchange masks and shift matrices
     exchange_type = (
@@ -152,6 +153,7 @@ function seed_rand(
         resample_rv = resample_rv,
         ula_noise = ula_noise,
         log_swap = log_swap,
+        log_mh = log_mh,
         swap_mask_1 = swap_mask_1,
         swap_mask_2 = swap_mask_2,
         shift_down = shift_down,

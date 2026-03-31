@@ -56,7 +56,7 @@ struct KAEM{T <: Float32} <: Lux.AbstractLuxLayer
     train_step::Any
     ε::T
     file_loc::AbstractString
-    MALA::Bool
+    sampler_type::String
     conf::ConfParse
     log_prior::AbstractLogPrior
     use_pca::Bool
@@ -135,7 +135,7 @@ function init_KAEM(
     η_init = parse(Float32, retrieve(conf, "POST_LANGEVIN", "initial_step_size"))
     N_t = parse(Int, retrieve(conf, "THERMODYNAMIC_INTEGRATION", "num_temps"))
     num_steps = parse(Int, retrieve(conf, "POST_LANGEVIN", "iters"))
-    MALA = parse(Bool, retrieve(conf, "POST_LANGEVIN", "use_langevin"))
+    sampler_type = retrieve(conf, "POST_LANGEVIN", "sampler")
 
     # Thermo scheduling
     N_t = max(N_t, 1)
@@ -167,7 +167,7 @@ function init_KAEM(
         nothing,
         eps,
         file_loc,
-        MALA,
+        sampler_type,
         conf,
         LogPriorUnivariate(eps, !prior_model.bool_config.contrastive_div),
         use_pca,

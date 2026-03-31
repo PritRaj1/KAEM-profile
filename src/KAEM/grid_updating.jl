@@ -101,7 +101,7 @@ function (gu::GridUpdater)(
                 :,
                 end,
             ]
-        elseif model.prior.bool_config.ula || model.MALA
+        elseif model.prior.bool_config.ula || model.sampler_type != "importance"
             z = first(model.posterior_sampler(ps, st_kan, st_lux, x, st_rng))[
                 :,
                 :,
@@ -127,7 +127,7 @@ function (gu::GridUpdater)(
         end
 
         # Must update domain for inverse transform sampling
-        ula_bool = model.prior.bool_config.ula || model.MALA || model.N_t > 1
+        ula_bool = model.prior.bool_config.ula || model.sampler_type != "importance" || model.N_t > 1
         if (ula_bool && gu.nogrid_prior)
             red_dim = model.prior.bool_config.mixture_model ? (2, 3) : (1, 3)
             min_z = dropdims(minimum(z; dims = red_dim); dims = red_dim)
@@ -233,7 +233,7 @@ function (gu::GridUpdater)(
                 :,
                 end,
             ]
-        elseif model.prior.bool_config.ula || model.MALA
+        elseif model.prior.bool_config.ula || model.sampler_type != "importance"
             z = first(model.posterior_sampler(ps, st_kan, st_lux, x, st_rng))[
                 :,
                 :,

@@ -20,7 +20,7 @@ conf = ConfParse("tests/test_conf.ini")
 parse_conf!(conf)
 
 commit!(conf, "THERMODYNAMIC_INTEGRATION", "num_temps", "-1")
-commit!(conf, "POST_LANGEVIN", "use_langevin", "false")
+commit!(conf, "POST_LANGEVIN", "sampler", "importance")
 commit!(conf, "VARIATIONAL", "use_variational", "true")
 
 optimizer = create_opt(conf)

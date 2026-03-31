@@ -78,7 +78,7 @@ function init_trainer(
     vocab_size = parse(Int, retrieve(conf, "SEQ", "vocab_size"))
     batch_size = parse(Int, retrieve(conf, "TRAINING", "batch_size"))
     variational = parse(Bool, retrieve(conf, "VARIATIONAL", "use_variational"))
-    use_langevin = parse(Bool, retrieve(conf, "POST_LANGEVIN", "use_langevin"))
+    sampler_type = retrieve(conf, "POST_LANGEVIN", "sampler")
 
     dataset, x_shape, save_dataset = (
         seq ?
@@ -107,8 +107,8 @@ function init_trainer(
     train_type = "importance"
     if variational
         train_type = "amortized"
-    elseif use_langevin
-        train_type = "ULA"
+    elseif sampler_type != "importance"
+        train_type = uppercase(sampler_type)
     end
 
     model_type =

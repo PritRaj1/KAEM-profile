@@ -15,12 +15,14 @@ include("train_steps/importance_sampling.jl")
 include("train_steps/thermodynamic.jl")
 include("train_steps/variational.jl")
 include("posterior_sampling/unadjusted_langevin.jl")
+include("posterior_sampling/pcnl.jl")
 include("rng.jl")
 using .ImportanceSampling
 using .LangevinMLE
 using .ThermodynamicIntegration
 using .VariationalTraining
 using .ULA_sampling
+using .pCNL_sampling
 using .HLOrng
 
 function setup_training(
@@ -79,11 +81,18 @@ function setup_training(
         println("Prior sampler: Univar ITS")
     end
 
-    @reset model.posterior_sampler = initialize_ULA_sampler(
-        model;
-        η = η_init,
-        N = num_steps,
-    )
+    @reset model.posterior_sampler = begin
+        if model.sampler_type == "pcnl"
+            β = (
+                haskey(conf, "POST_LANGEVIN", "pcnl_beta") ?
+                    parse(Float32, retrieve(conf, "POST_LANGEVIN", "pcnl_beta")) :
+                    0.1f0
+            )
+            initialize_pCNL_sampler(model; β = β, N = num_steps)
+        else
+            initialize_ULA_sampler(model; η = η_init, N = num_steps)
+        end
+    end
 
     st_rng = seed_rand(model; rng = rng)
 
@@ -183,9 +192,9 @@ function setup_training(
                 static_loss
             end
         end
-        println("Posterior sampler: Thermo ULA")
+        println("Posterior sampler: Thermo $(uppercase(model.sampler_type))")
 
-    elseif model.MALA || model.prior.bool_config.ula
+    elseif model.sampler_type != "importance" || model.prior.bool_config.ula
 
         static_loss = LangevinLoss(model)
 
@@ -205,7 +214,7 @@ function setup_training(
             end
         end
 
-        println("Posterior sampler: MLE ULA")
+        println("Posterior sampler: MLE $(uppercase(model.sampler_type))")
     else
         @reset model.train_step = begin
 

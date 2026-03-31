@@ -24,7 +24,7 @@ ENV["GPU"] = retrieve(conf, "TRAINING", "use_gpu")
 ENV["PERCEPTUAL"] = retrieve(conf, "TRAINING", "use_perceptual_loss")
 
 # EDIT:
-commit!(conf, "POST_LANGEVIN", "use_langevin", "true")
+commit!(conf, "POST_LANGEVIN", "sampler", "ula")
 commit!(conf, "THERMODYNAMIC_INTEGRATION", "num_temps", "-1")
 
 include("src/utils.jl")
