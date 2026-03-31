@@ -24,17 +24,17 @@
 # CELEBA variational
 
 # CIFAR
-# SVHN thermo
-# CELEBA thermo
-# SVHN vanilla
+SVHN vanilla
 CELEBA vanilla
-# CIFAR10 vanilla
-# CIFAR10 thermo
+SVHN thermo
+CELEBA thermo
+CIFAR10 vanilla
+CIFAR10 thermo
 # DARCY_FLOW vanilla
 
 # ==================== Baseline Jobs ====================
 # CIFAR-10 baselines
-# CIFAR10 baseline-vae
+CIFAR10 baseline-vae
 # CIFAR10 baseline-gan
 # CIFAR10 baseline-ddpm
 
