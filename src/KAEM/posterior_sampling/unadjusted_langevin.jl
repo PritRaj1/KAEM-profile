@@ -16,8 +16,8 @@ using ..KAEM_model.InverseTransformSampling
 include("updates.jl")
 using .LangevinUpdates
 
-include("../ebm/mixture_selection.jl")
-using .MixtureChoice: choose_component
+include("sampler_init.jl")
+using .SamplerInit
 
 struct ULA_sampler
     prior_sampling_bool
@@ -64,7 +64,6 @@ end
 function step(
         i,
         z_i,
-        x,
         x_t,
         temps,
         temps_gpu,
@@ -125,129 +124,47 @@ function (sampler::ULA_sampler)(
         temps = [1.0f0],
     )
     """ULA posterior sampler. Returns z ~ p(z|x)."""
-    model = sampler.model
-    η = sampler.η
-    sqrt_2η = sampler.sqrt_2η
-    seq = model.lkhood.SEQ
     Q, P, S, num_temps = sampler.Q, sampler.P, sampler.S, sampler.num_temps
-    thermo_bool = sampler.thermo_bool
-    prior_sampling_bool = sampler.prior_sampling_bool
 
-    # Initialize from prior
-    z_flat = begin
-        if model.prior.bool_config.ula && sampler.prior_sampling_bool
-            rv = st_rng.posterior_its
-            rv = model.prior.prior_type == "lognormal" ? exp.(rv) : rv
-            rv
-        else
-            model_copy = model
-
-            @reset model_copy.batch_size = S * num_temps
-            @reset model_copy.prior.s_size = S * num_temps
-            for i in 1:model_copy.prior.depth
-                @reset model_copy.prior.fcns_qp[i].basis_function.S = S * num_temps
-            end
-
-            z_init, st_ebm = begin
-                if model.prior.bool_config.mixture_model
-                    sample_mixture(
-                        model_copy.prior,
-                        ps.ebm,
-                        st_kan.ebm,
-                        st_lux.ebm,
-                        st_kan.quad,
-                        st_rng;
-                        ula_init = true
-                    )
-                else
-                    sample_univariate(
-                        model_copy.prior,
-                        ps.ebm,
-                        st_kan.ebm,
-                        st_lux.ebm,
-                        st_kan.quad,
-                        st_rng;
-                        ula_init = true
-                    )
-                end
-            end
-
-            z_init
-        end
-    end
-
-    lkhood_copy = model.lkhood
-
-    for i in 1:model.prior.depth
-        @reset model.prior.fcns_qp[i].basis_function.S = S * num_temps
-    end
-
-    if !model.lkhood.SEQ && !model.lkhood.CNN
-        for i in 1:model.lkhood.generator.depth
-            @reset model.lkhood.generator.Φ_fcns[i].basis_function.S = S * num_temps
-        end
-    end
-
-    # Mask used for mixture sampling
-    component_mask = (
-        model.prior.bool_config.mixture_model && !model.prior.bool_config.contrastive_div ?
-            choose_component(ps.ebm.dist.α, S, Q, P, st_rng) :
-            nothing
+    ss = init_sampler_state(
+        sampler.model, ps, st_kan, st_lux, st_rng, x,
+        Q, P, S, num_temps;
+        prior_sampling_bool = sampler.prior_sampling_bool,
     )
-    component_mask = isnothing(component_mask) ? nothing : repeat(component_mask, 1, 1, num_temps)
-
-    @reset model.prior.s_size = S * num_temps
-    @reset model.lkhood.generator.s_size = S * num_temps
+    model = ss.model
     temps_gpu = repeat(temps, S)
 
-    N_steps = sampler.N
-    x_t = !prior_sampling_bool ? (
-            model.lkhood.SEQ ? repeat(x, 1, 1, num_temps) :
-            (model.use_pca ? repeat(x, 1, num_temps) : repeat(x, 1, 1, 1, num_temps))
-        ) : nothing
-
-    # Pre-allocate noise
-    noise = st_rng.ula_noise
-    log_u_swap = st_rng.log_swap
-
-    # DEO masks + shift matrices (pre-computed in rng.jl, already on device)
-    mask_swap_1 = num_temps > 1 ? st_rng.swap_mask_1 : nothing
-    mask_swap_2 = num_temps > 1 ? st_rng.swap_mask_2 : nothing
-    shift_down = num_temps > 1 ? st_rng.shift_down : nothing
-    shift_up = num_temps > 1 ? st_rng.shift_up : nothing
-
-    state = (1, z_flat)
-    @trace while first(state) <= N_steps
+    state = (1, ss.z_flat)
+    @trace while first(state) <= sampler.N
         i, z_acc = state
         z_new = step(
             i,
             z_acc,
-            x,
-            x_t,
+            ss.x_t,
             temps,
             temps_gpu,
-            η,
-            sqrt_2η,
+            sampler.η,
+            sampler.sqrt_2η,
             sampler,
             model,
-            lkhood_copy,
+            ss.lkhood_copy,
             ps,
             st_kan,
             st_lux,
-            noise,
-            log_u_swap,
-            mask_swap_1,
-            mask_swap_2,
-            component_mask,
-            shift_down,
-            shift_up,
+            ss.noise,
+            ss.log_u_swap,
+            ss.mask_swap_1,
+            ss.mask_swap_2,
+            ss.component_mask,
+            ss.shift_down,
+            ss.shift_up,
         )
         state = (i + 1, z_new)
     end
 
     z = reshape(last(state), Q, P, S, num_temps)
 
-    if prior_sampling_bool
+    if sampler.prior_sampling_bool
         st_lux = st_lux.ebm
         z = dropdims(z; dims = 4)
     end
