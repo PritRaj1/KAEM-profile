@@ -24,27 +24,27 @@ plt.rcParams.update(
 DATASETS = {
     "SVHN": {"grid_size": 10, "cmap": None},
     "CELEBA": {"grid_size": 10, "cmap": None},
-    "CIFAR10": {"grid_size": 10, "cmap": None},
+    # "CIFAR10": {"grid_size": 10, "cmap": None},
 }
 
 METHOD_CONFIGS = {
-    "vanilla_ula_mixture": {
+    "vanilla_PCNL_mixture": {
         "method_type": "Vanilla",
-        "sampler": "ULA",
+        "sampler": "PCNL",
         "model_type": "mixture",
         "is_baseline": False,
     },
-    "thermo_ula_mixture": {
+    "thermo_PCNL_mixture": {
         "method_type": "Thermodynamic",
-        "sampler": "ULA",
+        "sampler": "PCNL",
         "model_type": "mixture",
         "is_baseline": False,
     },
-    "baseline_vae": {
-        "method_type": "Baseline",
-        "model_type": "VAE",
-        "is_baseline": True,
-    },
+    # "baseline_vae": {
+    #     "method_type": "Baseline",
+    #     "model_type": "VAE",
+    #     "is_baseline": True,
+    # },
     # "baseline_gan": {
     #     "method_type": "Baseline",
     #     "model_type": "GAN",
@@ -103,7 +103,7 @@ def select_best_samples_fast(generated_images, num_samples):
 
 
 def plot_generated_images_grid(dataset, method_config, grid_size, cmap):
-    """Generate and save a single plot for generated images from ULA method."""
+    """Generate and save a single plot for generated images from PCNL method."""
 
     if method_config.get("is_baseline", False):
         gen_path = (
@@ -232,8 +232,8 @@ def plot_real_images_reference(dataset, grid_size, cmap):
 
 
 def main():
-    """Generate all individual plots for ULA methods."""
-    print("Generating individual plots for ULA methods...")
+    """Generate all individual plots for PCNL methods."""
+    print("Generating individual plots for PCNL methods...")
 
     for dataset, config in DATASETS.items():
         print(f"\nProcessing dataset: {dataset}")
