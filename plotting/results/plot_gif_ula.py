@@ -29,75 +29,75 @@ GIF_CONFIGS = {
     "SVHN_vanilla_mixture": {
         "dataset": "SVHN",
         "method_type": "Vanilla",
-        "sampler": "ULA",
+        "sampler": "PCNL",
         "model_type": "mixture",
         "grid_size": 7,
         "cmap": None,
         "epochs": list(range(10, 100, 10)),
         "samples_per_frame": 1,
-        "filename": "svhn_vanilla_ula_mixture_evolution.gif",
+        "filename": "svhn_vanilla_PCNL_mixture_evolution.gif",
         "is_baseline": False,
     },
     "SVHN_thermo_mixture": {
         "dataset": "SVHN",
         "method_type": "Thermodynamic",
-        "sampler": "ULA",
+        "sampler": "PCNL",
         "model_type": "mixture",
         "grid_size": 7,
         "cmap": None,
         "epochs": list(range(10, 100, 10)),
         "samples_per_frame": 1,
-        "filename": "svhn_thermo_ula_mixture_evolution.gif",
+        "filename": "svhn_thermo_PCNL_mixture_evolution.gif",
         "is_baseline": False,
     },
     # KAEM - CELEBA
     "CELEBA_vanilla_mixture": {
         "dataset": "CELEBA",
         "method_type": "Vanilla",
-        "sampler": "ULA",
+        "sampler": "PCNL",
         "model_type": "mixture",
         "grid_size": 7,
         "cmap": None,
         "epochs": list(range(10, 100, 10)),
         "samples_per_frame": 1,
-        "filename": "celeba_vanilla_ula_mixture_evolution.gif",
+        "filename": "celeba_vanilla_PCNL_mixture_evolution.gif",
         "is_baseline": False,
     },
     "CELEBA_thermo_mixture": {
         "dataset": "CELEBA",
         "method_type": "Thermodynamic",
-        "sampler": "ULA",
+        "sampler": "PCNL",
         "model_type": "mixture",
         "grid_size": 7,
         "cmap": None,
         "epochs": list(range(10, 100, 10)),
         "samples_per_frame": 1,
-        "filename": "celeba_thermo_ula_mixture_evolution.gif",
+        "filename": "celeba_thermo_PCNL_mixture_evolution.gif",
         "is_baseline": False,
     },
     # # KAEM - CIFAR10
     # "CIFAR10_vanilla_mixture": {
     #     "dataset": "CIFAR10",
     #     "method_type": "Vanilla",
-    #     "sampler": "ULA",
+    #     "sampler": "PCNL",
     #     "model_type": "mixture",
     #     "grid_size": 7,
     #     "cmap": None,
     #     "epochs": list(range(10, 100, 10)),
     #     "samples_per_frame": 1,
-    #     "filename": "cifar10_vanilla_ula_mixture_evolution.gif",
+    #     "filename": "cifar10_vanilla_PCNL_mixture_evolution.gif",
     #     "is_baseline": False,
     # },
     # "CIFAR10_thermo_mixture": {
     #     "dataset": "CIFAR10",
     #     "method_type": "Thermodynamic",
-    #     "sampler": "ULA",
+    #     "sampler": "PCNL",
     #     "model_type": "mixture",
     #     "grid_size": 7,
     #     "cmap": None,
     #     "epochs": list(range(10, 100, 10)),
     #     "samples_per_frame": 1,
-    #     "filename": "cifar10_thermo_ula_mixture_evolution.gif",
+    #     "filename": "cifar10_thermo_PCNL_mixture_evolution.gif",
     #     "is_baseline": False,
     # },
     # # Baseline - CIFAR10
@@ -345,7 +345,7 @@ def create_evolution_gif(config):
 
 
 def main():
-    print("Creating sample evolution GIFs for ULA methods...")
+    print("Creating sample evolution GIFs for PCNL methods...")
     print(f"Output directory: {output_dir}")
 
     for config_name, config in GIF_CONFIGS.items():
