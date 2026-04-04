@@ -16,8 +16,6 @@ struct PcnlKernel
     P::Int
     S::Int
     num_temps::Int
-    log_dist::Function
-    eval_dist::Function
 end
 
 function (k::PcnlKernel)(
@@ -27,6 +25,8 @@ function (k::PcnlKernel)(
         x_t,
         temps_gpu,
         δ_gpu,
+        log_dist,
+        eval_dist,
         model,
         lkhood_copy,
         ps,
@@ -58,7 +58,7 @@ function (k::PcnlKernel)(
     # Dℓ(u) = ∇log_target(u) + u
     ∇z = unadjusted_grad(
         z_i, x_t, temps_gpu, model, ps, st_kan, st_lux,
-        component_mask, k.log_dist,
+        component_mask, log_dist,
     )
     Dell_old = ∇z .+ z_i
 
@@ -69,17 +69,17 @@ function (k::PcnlKernel)(
     # Reverse Dℓ(v)
     ∇z_prop = unadjusted_grad(
         z_prop, x_t, temps_gpu, model, ps, st_kan, st_lux,
-        component_mask, k.log_dist,
+        component_mask, log_dist,
     )
     Dell_new = ∇z_prop .+ z_prop
     m_new = z_c .* z_prop .+ g_c .* Dell_new
 
     # Per-sample log-target
-    logp_old = k.eval_dist(
+    logp_old = eval_dist(
         z_i, x_t, temps_gpu, model, ps, st_kan, st_lux,
         component_mask, zero_vector,
     )
-    logp_new = k.eval_dist(
+    logp_new = eval_dist(
         z_prop, x_t, temps_gpu, model, ps, st_kan, st_lux,
         component_mask, zero_vector,
     )

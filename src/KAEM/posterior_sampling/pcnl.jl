@@ -72,7 +72,9 @@ function (sampler::pCNL_sampler)(
     Q, P, S, num_temps = sampler.Q, sampler.P, sampler.S, sampler.num_temps
     prior_sampling_bool = sampler.prior_sampling_bool
 
-    kernel = PcnlKernel(Q, P, S, num_temps, sampler.log_dist, sampler.eval_dist)
+    kernel = PcnlKernel(Q, P, S, num_temps)
+    log_dist = sampler.log_dist
+    eval_dist = sampler.eval_dist
 
     # Initialize from prior
     z_flat = begin
@@ -153,6 +155,8 @@ function (sampler::pCNL_sampler)(
             x_t,
             temps_gpu,
             δ_gpu,
+            log_dist,
+            eval_dist,
             model,
             lkhood_copy,
             ps,
