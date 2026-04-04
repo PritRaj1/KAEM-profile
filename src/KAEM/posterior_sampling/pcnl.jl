@@ -125,7 +125,7 @@ function (sampler::pCNL_sampler)(
     @reset model.prior.s_size = S * num_temps
     @reset model.lkhood.generator.s_size = S * num_temps
     temps_gpu = repeat(temps, S)
-    δ_gpu = repeat(st_lux.delta[1:num_temps], S)
+    δ_gpu = repeat(st_lux.delta, S)
 
     N_steps = sampler.N
     x_t = !prior_sampling_bool ? (
@@ -141,13 +141,11 @@ function (sampler::pCNL_sampler)(
     shift_down = num_temps > 1 ? st_rng.shift_down : nothing
     shift_up = num_temps > 1 ? st_rng.shift_up : nothing
 
-    accept_count = st_lux.delta[1:num_temps] .* 0.0f0
+    accept_count = st_lux.delta .* 0.0f0
 
     state = (1, z_flat, accept_count)
     @trace while first(state) <= N_steps
         i, z_acc, ac = state
-        ξ = noise[:, :, :, i]
-        log_u = log_u_mh[:, i]
         z_new, ac_new = kernel(
             i,
             z_acc,
@@ -155,13 +153,13 @@ function (sampler::pCNL_sampler)(
             x_t,
             temps_gpu,
             δ_gpu,
-            ξ,
-            log_u,
             model,
             lkhood_copy,
             ps,
             st_kan,
             st_lux,
+            noise,
+            log_u_mh,
             log_u_swap,
             mask_swap_1,
             mask_swap_2,
