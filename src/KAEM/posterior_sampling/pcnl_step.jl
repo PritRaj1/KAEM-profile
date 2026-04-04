@@ -26,7 +26,10 @@ function (k::PcnlKernel)(
         accept_count,
         x_t,
         temps_gpu,
-        δ_gpu,
+        z_c,
+        g_c,
+        n_c,
+        inv_2σ2,
         model,
         lkhood_copy,
         ps,
@@ -47,14 +50,7 @@ function (k::PcnlKernel)(
     ξ = noise[:, :, :, i]
     zero_vector = zero(x_t)
 
-    # pCNL coefficients: https://arxiv.org/abs/2408.14325 eq. 8
-    denom = 2.0f0 .+ δ_gpu
-    nc = sqrt.(8.0f0 .* δ_gpu) ./ denom
-    z_c = reshape((2.0f0 .- δ_gpu) ./ denom, 1, 1, S * num_temps)
-    g_c = reshape(2.0f0 .* δ_gpu ./ denom, 1, 1, S * num_temps)
-    n_c = reshape(nc, 1, 1, S * num_temps)
-    inv_2σ2 = 1.0f0 ./ (2.0f0 .* nc .^ 2)
-
+    # pCNL proposal + MH: https://arxiv.org/abs/2408.14325 eq. 8-9
     # Dℓ(u) = ∇log_target(u) + u
     ∇z = unadjusted_grad(
         z_i, x_t, temps_gpu, model, ps, st_kan, st_lux,
