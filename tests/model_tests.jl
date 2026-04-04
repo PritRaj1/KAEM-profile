@@ -35,8 +35,8 @@ function test_ps_derivative()
     model, opt_state, ps, st_kan, st_lux, st_rng = prep_model(model, x_test, optimizer; rng = rng)
 
     ps_before = Array(ps)
-    loss, ps, _, st_ebm, st_gen =
-        model.train_step(opt_state, ps, st_kan, st_lux, x_test, 1, st_rng)
+    result = model.train_step(opt_state, ps, st_kan, st_lux, x_test, 1, st_rng)
+    loss, ps = result[1], result[2]
 
     ps_after = Array(ps)
     @test any(ps_before .!= ps_after)
@@ -88,8 +88,8 @@ function test_grid_update()
     @test !all(iszero, ps_mid - ps_before)
     @test !any(isnan, ps_mid)
 
-    loss, ps, _, st_ebm, st_gen =
-        model.train_step(opt_state, ps, st_kan, st_lux, x_test, 1, st_rng)
+    result = model.train_step(opt_state, ps, st_kan, st_lux, x_test, 1, st_rng)
+    loss, ps = result[1], result[2]
 
     ps_after = Array(ps)
     @test any(ps_mid .!= ps_after)
@@ -120,8 +120,8 @@ function test_mala_loss()
     model, opt_state, ps, st_kan, st_lux, st_rng = prep_model(model, x_test, optimizer; rng = rng)
 
     ps_before = Array(ps)
-    loss, ps, _, st_ebm, st_gen =
-        model.train_step(opt_state, ps, st_kan, st_lux, x_test, 1, st_rng)
+    result = model.train_step(opt_state, ps, st_kan, st_lux, x_test, 1, st_rng)
+    loss, ps = result[1], result[2]
 
     ps_after = Array(ps)
     @test any(ps_before .!= ps_after)
@@ -138,8 +138,8 @@ function test_cnn_loss()
     model, opt_state, ps, st_kan, st_lux, st_rng = prep_model(model, x_test, optimizer; rng = rng)
 
     ps_before = Array(ps)
-    loss, ps, _, st_ebm, st_gen =
-        model.train_step(opt_state, ps, st_kan, st_lux, x_test, 1, st_rng)
+    result = model.train_step(opt_state, ps, st_kan, st_lux, x_test, 1, st_rng)
+    loss, ps = result[1], result[2]
 
     ps_after = Array(ps)
     @test any(ps_before .!= ps_after)
@@ -156,8 +156,8 @@ function test_cnn_residual_loss()
     model, opt_state, ps, st_kan, st_lux, st_rng = prep_model(model, x_test, optimizer; rng = rng)
 
     ps_before = Array(ps)
-    loss, ps, _, st_ebm, st_gen =
-        model.train_step(opt_state, ps, st_kan, st_lux, x_test, 1, st_rng)
+    result = model.train_step(opt_state, ps, st_kan, st_lux, x_test, 1, st_rng)
+    loss, ps = result[1], result[2]
 
     ps_after = Array(ps)
     @test any(ps_before .!= ps_after)
@@ -174,8 +174,8 @@ function test_seq_loss()
     model, opt_state, ps, st_kan, st_lux, st_rng = prep_model(model, x_test, optimizer; rng = rng)
 
     ps_before = Array(ps)
-    loss, ps, _, st_ebm, st_gen =
-        model.train_step(opt_state, ps, st_kan, st_lux, x_test, 1, st_rng)
+    result = model.train_step(opt_state, ps, st_kan, st_lux, x_test, 1, st_rng)
+    loss, ps = result[1], result[2]
 
     ps_after = Array(ps)
     @test any(ps_before .!= ps_after)

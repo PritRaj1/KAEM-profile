@@ -30,8 +30,8 @@ function test_model_derivative()
     model, opt_state, ps, st_kan, st_lux, st_rng = prep_model(model, x_test, optimizer; rng = rng)
 
     ps_before = Array(ps)
-    loss, ps, _, st_ebm, st_gen =
-        model.train_step(opt_state, ps, st_kan, st_lux, x_test, 1, st_rng)
+    result = model.train_step(opt_state, ps, st_kan, st_lux, x_test, 1, st_rng)
+    loss, ps = result[1], result[2]
 
     ps_after = Array(ps)
 

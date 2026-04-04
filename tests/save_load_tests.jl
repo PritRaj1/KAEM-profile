@@ -34,7 +34,8 @@ model = init_KAEM(dataset, conf, (32, 32, 1))
 x_test = first(model.train_loader) |> pu
 model, opt_state, ps, st_kan, st_lux, st_rng = prep_model(model, x_test, optimizer; rng = rng)
 
-_, ps, _, _, _ = model.train_step(opt_state, ps, st_kan, st_lux, x_test, 1, st_rng)
+result = model.train_step(opt_state, ps, st_kan, st_lux, x_test, 1, st_rng)
+ps = result[2]
 
 function test_axes()
     tmpfile = tempname() * ".jld2"

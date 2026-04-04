@@ -2,6 +2,7 @@ module pCNL_sampling
 
 export initialize_pCNL_sampler, pCNL_sampler
 
+using Reactant: @trace
 using LinearAlgebra,
     Lux,
     Accessors,
@@ -28,8 +29,8 @@ struct pCNL_sampler
     S
     num_temps
     thermo_bool
-    log_dist    # summed (for gradient): unadjusted_logpos or unadjusted_logprior
-    eval_dist   # per-sample (for MH): per_sample_logpos or per_sample_logprior
+    log_dist
+    eval_dist
 end
 
 function initialize_pCNL_sampler(
@@ -50,21 +51,18 @@ function initialize_pCNL_sampler(
     eval_dist = prior_sampling_bool ? per_sample_logprior : per_sample_logpos
 
     return pCNL_sampler(
-        prior_sampling_bool, N, δ, model, Q, P, S, num_temps, thermo_bool,
-        log_dist, eval_dist,
+        prior_sampling_bool,
+        N,
+        δ,
+        model,
+        Q,
+        P,
+        S,
+        num_temps,
+        thermo_bool,
+        log_dist,
+        eval_dist,
     )
-end
-
-# pCNL coefficients from per-sample δ vector
-# ref: https://arxiv.org/abs/2408.14325 eq. 8
-function pcnl_coefficients(δ_gpu)
-    denom = 2.0f0 .+ δ_gpu
-    nc = sqrt.(8.0f0 .* δ_gpu) ./ denom
-    z_c = reshape((2.0f0 .- δ_gpu) ./ denom, 1, 1, :)
-    g_c = reshape(2.0f0 .* δ_gpu ./ denom, 1, 1, :)
-    n_c = reshape(nc, 1, 1, :)
-    inv2 = 1.0f0 ./ (2.0f0 .* nc .^ 2)
-    return z_c, g_c, n_c, inv2
 end
 
 function step(
@@ -73,10 +71,11 @@ function step(
         accept_count,
         x_t,
         temps_gpu,
-        z_coeff,
-        grad_coeff,
-        noise_coeff,
-        inv_2σ2,
+        δ_gpu,
+        num_temps,
+        S,
+        log_dist,
+        eval_dist,
         model,
         lkhood_copy,
         ps,
@@ -91,14 +90,18 @@ function step(
         shift_down,
         shift_up,
         temps,
-        log_dist,
-        eval_dist,
-        num_temps,
-        S,
     )
 
     ξ = noise[:, :, :, i]
     zero_vector = zero(x_t)
+
+    # pCNL coefficients: https://arxiv.org/abs/2408.14325 eq. 8
+    denom = 2.0f0 .+ δ_gpu
+    nc = sqrt.(8.0f0 .* δ_gpu) ./ denom
+    z_c = reshape((2.0f0 .- δ_gpu) ./ denom, 1, 1, S * num_temps)
+    g_c = reshape(2.0f0 .* δ_gpu ./ denom, 1, 1, S * num_temps)
+    n_c = reshape(nc, 1, 1, S * num_temps)
+    inv_2σ2 = 1.0f0 ./ (2.0f0 .* nc .^ 2)
 
     # Dℓ(u) = ∇log_target(u) + u  (strip Gaussian reference)
     ∇z = unadjusted_grad(
@@ -107,9 +110,9 @@ function step(
     )
     Dell_old = ∇z .+ z_i
 
-    # pCNL proposal: https://arxiv.org/abs/2408.14325 eq. 8
-    m_old = z_coeff .* z_i .+ grad_coeff .* Dell_old
-    z_prop = m_old .+ noise_coeff .* ξ
+    # Proposal
+    m_old = z_c .* z_i .+ g_c .* Dell_old
+    z_prop = m_old .+ n_c .* ξ
 
     # Reverse Dℓ(v) for MH proposal correction
     ∇z_prop = unadjusted_grad(
@@ -117,7 +120,7 @@ function step(
         component_mask, log_dist,
     )
     Dell_new = ∇z_prop .+ z_prop
-    m_new = z_coeff .* z_prop .+ grad_coeff .* Dell_new
+    m_new = z_c .* z_prop .+ g_c .* Dell_new
 
     # Per-sample log-target for MH
     logp_old = eval_dist(
@@ -135,7 +138,7 @@ function step(
     # Accept/reject
     log_u = log_u_mh[:, i]
     accept = max.(sign.(log_alpha .- log_u), 0.0f0)
-    accept_z = reshape(accept, 1, 1, :)
+    accept_z = reshape(accept, 1, 1, S * num_temps)
     z_mh = accept_z .* z_prop .+ (1.0f0 .- accept_z) .* z_i
 
     # Per-temperature accept counts
@@ -146,8 +149,20 @@ function step(
 
     # Replica exchange
     z_xch = model.xchange_func(
-        i, z_mh, x_t, temps, model, lkhood_copy, ps, st_kan, st_lux,
-        log_u_swap, mask_swap_1, mask_swap_2, shift_down, shift_up,
+        i,
+        z_mh,
+        x_t,
+        temps,
+        model,
+        lkhood_copy,
+        ps,
+        st_kan,
+        st_lux,
+        log_u_swap,
+        mask_swap_1,
+        mask_swap_2,
+        shift_down,
+        shift_up,
     )
 
     return z_xch, new_accept_count
@@ -165,6 +180,8 @@ function (sampler::pCNL_sampler)(
     model = sampler.model
     Q, P, S, num_temps = sampler.Q, sampler.P, sampler.S, sampler.num_temps
     prior_sampling_bool = sampler.prior_sampling_bool
+    log_dist = sampler.log_dist
+    eval_dist = sampler.eval_dist
 
     # Initialize from prior
     z_flat = begin
@@ -217,16 +234,13 @@ function (sampler::pCNL_sampler)(
     @reset model.prior.s_size = S * num_temps
     @reset model.lkhood.generator.s_size = S * num_temps
     temps_gpu = repeat(temps, S)
-
-    # Per-temperature δ from st_rng (adapted by trainer)
     δ_gpu = repeat(st_rng.delta_vec[1:num_temps], S)
-    z_coeff, grad_coeff, noise_coeff, inv_2σ2 = pcnl_coefficients(δ_gpu)
 
     N_steps = sampler.N
     x_t = !prior_sampling_bool ? (
             model.lkhood.SEQ ? repeat(x, 1, 1, num_temps) :
             (model.use_pca ? repeat(x, 1, num_temps) : repeat(x, 1, 1, 1, num_temps))
-        ) : x  # prior mode: pass x through (unused by logprior, needed for zero_vector shape)
+        ) : x
 
     noise = st_rng.mcmc_noise
     log_u_mh = st_rng.log_mh
@@ -236,23 +250,43 @@ function (sampler::pCNL_sampler)(
     shift_down = num_temps > 1 ? st_rng.shift_down : nothing
     shift_up = num_temps > 1 ? st_rng.shift_up : nothing
 
-    accept_count = zeros(Float32, num_temps)
+    accept_count = zero(st_rng.delta_vec[1:num_temps])
 
-    z_acc = z_flat
-    accept_acc = accept_count
-    for i in 1:N_steps
-        z_acc, accept_acc = step(
-            i, z_acc, accept_acc,
-            x_t, temps_gpu, z_coeff, grad_coeff, noise_coeff, inv_2σ2,
-            model, lkhood_copy, ps, st_kan, st_lux,
-            noise, log_u_mh, log_u_swap, mask_swap_1, mask_swap_2,
-            component_mask, shift_down, shift_up,
-            temps, sampler.log_dist, sampler.eval_dist, num_temps, S,
+    state = (1, z_flat, accept_count)
+    @trace while first(state) <= N_steps
+        i, z_acc, ac = state
+        z_new, ac_new = step(
+            i,
+            z_acc,
+            ac,
+            x_t,
+            temps_gpu,
+            δ_gpu,
+            num_temps,
+            S,
+            log_dist,
+            eval_dist,
+            model,
+            lkhood_copy,
+            ps,
+            st_kan,
+            st_lux,
+            noise,
+            log_u_mh,
+            log_u_swap,
+            mask_swap_1,
+            mask_swap_2,
+            component_mask,
+            shift_down,
+            shift_up,
+            temps,
         )
+        state = (i + 1, z_new, ac_new)
     end
 
-    z = reshape(z_acc, Q, P, S, num_temps)
-    accept_rate = accept_acc ./ Float32(N_steps * S)
+    _, z_final, final_accept = state
+    z = reshape(z_final, Q, P, S, num_temps)
+    accept_rate = final_accept ./ (N_steps * S)
 
     if prior_sampling_bool
         st_lux = st_lux.ebm

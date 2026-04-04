@@ -39,8 +39,8 @@ function test_diagonal_loss()
     )
 
     ps_before = Array(ps)
-    loss, ps, _, st_ebm, st_gen =
-        model.train_step(opt_state, ps, st_kan, st_lux, x_test, 1, st_rng)
+    result = model.train_step(opt_state, ps, st_kan, st_lux, x_test, 1, st_rng)
+    loss, ps = result[1], result[2]
 
     ps_after = Array(ps)
     @test any(ps_before .!= ps_after)
@@ -60,8 +60,8 @@ function test_cnn_loss()
     )
 
     ps_before = Array(ps)
-    loss, ps, _, st_ebm, st_gen =
-        model.train_step(opt_state, ps, st_kan, st_lux, x_test, 1, st_rng)
+    result = model.train_step(opt_state, ps, st_kan, st_lux, x_test, 1, st_rng)
+    loss, ps = result[1], result[2]
 
     ps_after = Array(ps)
     @test any(ps_before .!= ps_after)
@@ -84,8 +84,8 @@ function test_mixture_loss()
     @test model.prior.bool_config.mixture_model == true
 
     ps_before = Array(ps)
-    loss, ps, _, st_ebm, st_gen =
-        model.train_step(opt_state, ps, st_kan, st_lux, x_test, 1, st_rng)
+    result = model.train_step(opt_state, ps, st_kan, st_lux, x_test, 1, st_rng)
+    loss, ps = result[1], result[2]
 
     ps_after = Array(ps)
     @test any(ps_before .!= ps_after)
