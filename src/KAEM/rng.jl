@@ -10,7 +10,6 @@ using ..KAEM_model
 function seed_rand(
         model::KAEM{T};
         rng::AbstractRNG = Random.MersenneTwister(1),
-        log_delta::Union{Nothing, Vector{T}} = nothing,
     ) where {T <: Float32}
 
     # ITS prior rng
@@ -88,12 +87,6 @@ function seed_rand(
     log_swap = log.(rand(rng, T, S, num_temps, N))
     log_mh = log.(rand(rng, T, S * num_temps, N))
 
-    # Per-temperature pCNL step sizes (adapted by trainer via Robbins-Monro)
-    delta_vec = (
-        isnothing(log_delta) ?
-            fill(model.posterior_sampler.δ_base, num_temps) :
-            clamp.(exp.(log_delta[1:num_temps]), 1.0f-6, 1.99f0)
-    )
 
     # Replica exchange masks and shift matrices
     exchange_type = (
@@ -162,7 +155,6 @@ function seed_rand(
         mcmc_noise = mcmc_noise,
         log_swap = log_swap,
         log_mh = log_mh,
-        delta_vec = delta_vec,
         swap_mask_1 = swap_mask_1,
         swap_mask_2 = swap_mask_2,
         shift_down = shift_down,

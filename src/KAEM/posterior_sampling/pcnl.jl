@@ -125,7 +125,7 @@ function (sampler::pCNL_sampler)(
     @reset model.prior.s_size = S * num_temps
     @reset model.lkhood.generator.s_size = S * num_temps
     temps_gpu = repeat(temps, S)
-    δ_gpu = repeat(st_rng.delta_vec[1:num_temps], S)
+    δ_gpu = repeat(st_lux.delta[1:num_temps], S)
 
     N_steps = sampler.N
     x_t = !prior_sampling_bool ? (
@@ -141,7 +141,7 @@ function (sampler::pCNL_sampler)(
     shift_down = num_temps > 1 ? st_rng.shift_down : nothing
     shift_up = num_temps > 1 ? st_rng.shift_up : nothing
 
-    accept_count = zero(st_rng.delta_vec[1:num_temps])
+    accept_count = zero(st_lux.delta[1:num_temps])
 
     state = (1, z_flat, accept_count)
     @trace while first(state) <= N_steps

@@ -162,7 +162,18 @@ function (l::ThermoLoss)(
     )
 
     opt_state, ps = Optimisers.update(opt_state, ps, dps)
-    return loss, ps, opt_state, st_lux_ebm, st_lux_gen, accept_rate
+
+    # Robbins-Monro δ adaptation: https://arxiv.org/abs/0811.4725
+    # α_target = 0.574 (MALA optimal), γ diminishes with train_idx
+    log_delta = log.(st_lux.delta)
+    if !isnothing(accept_rate)
+        γ = min(0.05f0, 1.0f0 / train_idx^0.6f0)
+        log_delta = log_delta .+ γ .* (accept_rate .- 0.574f0)
+        log_delta = clamp.(log_delta, -14.0f0, 0.69f0)
+    end
+    new_delta = exp.(log_delta)
+
+    return loss, ps, opt_state, st_lux_ebm, st_lux_gen, new_delta
 end
 
 end
