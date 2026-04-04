@@ -26,7 +26,7 @@ rng = Random.MersenneTwister(1)
 commit!(conf, "CNN", "use_cnn_lkhood", "true")
 commit!(conf, "SEQ", "sequence_length", "0")
 commit!(conf, "TRAINING", "verbose", "false")
-commit!(conf, "POST_LANGEVIN", "sampler", "ula")
+commit!(conf, "POST_LANGEVIN", "sampler", "pcnl")
 
 dataset, img_size = get_vision_dataset(
     "SVHN",

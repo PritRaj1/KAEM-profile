@@ -2,7 +2,6 @@ module pCNL_sampling
 
 export initialize_pCNL_sampler, pCNL_sampler
 
-using Reactant: @trace
 using LinearAlgebra,
     Lux,
     Accessors,
@@ -20,63 +19,64 @@ include("../ebm/mixture_selection.jl")
 using .MixtureChoice: choose_component
 
 struct pCNL_sampler
+    prior_sampling_bool
     N
-    δ
-    z_coeff     # (2 - δ) / (2 + δ)
-    grad_coeff  # 2δ / (2 + δ)
-    noise_coeff # √(8δ) / (2 + δ)
-    inv_2σ2     # (2 + δ)² / (2 · 8δ)
+    δ_base
     model
     Q
     P
     S
     num_temps
     thermo_bool
-    log_dist
-    eval_dist
+    log_dist    # summed (for gradient): unadjusted_logpos or unadjusted_logprior
+    eval_dist   # per-sample (for MH): per_sample_logpos or per_sample_logprior
 end
 
 function initialize_pCNL_sampler(
         model::KAEM{T};
         δ::T = 0.01f0,
         N::Int = 20,
+        prior_sampling_bool::Bool = false,
     ) where {T}
 
-    @assert 0.0f0 < δ < 2.0f0 "pCNL step size δ must be in (0, 2), got $δ"
+    @assert 0.0f0 < δ < 2.0f0 "pCNL δ must be in (0, 2), got $δ"
 
     Q, S = model.prior.q_size, model.batch_size
     P = model.prior.bool_config.mixture_model ? 1 : model.prior.p_size
-    num_temps = model.N_t > 1 ? model.N_t : 1
+    num_temps = (model.N_t > 1 && !prior_sampling_bool) ? model.N_t : 1
     thermo_bool = num_temps > 1
 
-    denom = 2.0f0 + δ
-    nc = sqrt(8.0f0 * δ) / denom
+    log_dist = prior_sampling_bool ? unadjusted_logprior : unadjusted_logpos
+    eval_dist = prior_sampling_bool ? per_sample_logprior : per_sample_logpos
 
     return pCNL_sampler(
-        N,
-        δ,
-        (2.0f0 - δ) / denom,
-        2.0f0 * δ / denom,
-        nc,
-        1.0f0 / (2.0f0 * nc^2),
-        model,
-        Q,
-        P,
-        S,
-        num_temps,
-        thermo_bool,
-        unadjusted_logpos,
-        per_sample_logpos,
+        prior_sampling_bool, N, δ, model, Q, P, S, num_temps, thermo_bool,
+        log_dist, eval_dist,
     )
+end
+
+# pCNL coefficients from per-sample δ vector
+# ref: https://arxiv.org/abs/2408.14325 eq. 8
+function pcnl_coefficients(δ_gpu)
+    denom = 2.0f0 .+ δ_gpu
+    nc = sqrt.(8.0f0 .* δ_gpu) ./ denom
+    z_c = reshape((2.0f0 .- δ_gpu) ./ denom, 1, 1, :)
+    g_c = reshape(2.0f0 .* δ_gpu ./ denom, 1, 1, :)
+    n_c = reshape(nc, 1, 1, :)
+    inv2 = 1.0f0 ./ (2.0f0 .* nc .^ 2)
+    return z_c, g_c, n_c, inv2
 end
 
 function step(
         i,
         z_i,
+        accept_count,
         x_t,
-        temps,
         temps_gpu,
-        sampler,
+        z_coeff,
+        grad_coeff,
+        noise_coeff,
+        inv_2σ2,
         model,
         lkhood_copy,
         ps,
@@ -90,67 +90,67 @@ function step(
         component_mask,
         shift_down,
         shift_up,
+        temps,
+        log_dist,
+        eval_dist,
+        num_temps,
+        S,
     )
 
     ξ = noise[:, :, :, i]
     zero_vector = zero(x_t)
 
-    # Dℓ(u) = ∇log_posterior(u) + u  (gradient w.r.t. Gaussian measure)
+    # Dℓ(u) = ∇log_target(u) + u  (strip Gaussian reference)
     ∇z = unadjusted_grad(
         z_i, x_t, temps_gpu, model, ps, st_kan, st_lux,
-        component_mask, sampler.log_dist,
+        component_mask, log_dist,
     )
     Dell_old = ∇z .+ z_i
 
-    # pCNL proposal (Pezzetti 2024 eq. 8)
-    m_old = sampler.z_coeff .* z_i .+ sampler.grad_coeff .* Dell_old
-    z_prop = m_old .+ sampler.noise_coeff .* ξ
+    # pCNL proposal: https://arxiv.org/abs/2408.14325 eq. 8
+    m_old = z_coeff .* z_i .+ grad_coeff .* Dell_old
+    z_prop = m_old .+ noise_coeff .* ξ
 
-    # Dℓ(v) for reverse proposal mean
+    # Reverse Dℓ(v) for MH proposal correction
     ∇z_prop = unadjusted_grad(
         z_prop, x_t, temps_gpu, model, ps, st_kan, st_lux,
-        component_mask, sampler.log_dist,
+        component_mask, log_dist,
     )
     Dell_new = ∇z_prop .+ z_prop
-    m_new = sampler.z_coeff .* z_prop .+ sampler.grad_coeff .* Dell_new
+    m_new = z_coeff .* z_prop .+ grad_coeff .* Dell_new
 
-    # Per-sample log-posterior for MH ratio
-    logpos_old = sampler.eval_dist(
+    # Per-sample log-target for MH
+    logp_old = eval_dist(
         z_i, x_t, temps_gpu, model, ps, st_kan, st_lux, component_mask, zero_vector,
     )
-    logpos_new = sampler.eval_dist(
+    logp_new = eval_dist(
         z_prop, x_t, temps_gpu, model, ps, st_kan, st_lux, component_mask, zero_vector,
     )
 
-    # MH: log α = [π(v)/π(u)] · [q(u|v)/q(v|u)]
-    # q(v|u) = N(v; m(u), σ²I), so log q ∝ -‖·‖²/(2σ²)
+    # MH: log α = π(v)/π(u) · q(u|v)/q(v|u)
     fwd_sq = dropdims(sum((z_prop .- m_old) .^ 2; dims = (1, 2)); dims = (1, 2))
     bwd_sq = dropdims(sum((z_i .- m_new) .^ 2; dims = (1, 2)); dims = (1, 2))
-    log_alpha = logpos_new .- logpos_old .+ sampler.inv_2σ2 .* (fwd_sq .- bwd_sq)
+    log_alpha = logp_new .- logp_old .+ inv_2σ2 .* (fwd_sq .- bwd_sq)
 
-    # Accept/reject (HLO-compatible)
+    # Accept/reject
     log_u = log_u_mh[:, i]
     accept = max.(sign.(log_alpha .- log_u), 0.0f0)
     accept_z = reshape(accept, 1, 1, :)
     z_mh = accept_z .* z_prop .+ (1.0f0 .- accept_z) .* z_i
 
-    # Replica exchange
-    return model.xchange_func(
-        i,
-        z_mh,
-        x_t,
-        temps,
-        model,
-        lkhood_copy,
-        ps,
-        st_kan,
-        st_lux,
-        log_u_swap,
-        mask_swap_1,
-        mask_swap_2,
-        shift_down,
-        shift_up,
+    # Per-temperature accept counts
+    accept_per_temp = dropdims(
+        sum(reshape(accept, num_temps, S); dims = 2); dims = 2,
     )
+    new_accept_count = accept_count .+ accept_per_temp
+
+    # Replica exchange
+    z_xch = model.xchange_func(
+        i, z_mh, x_t, temps, model, lkhood_copy, ps, st_kan, st_lux,
+        log_u_swap, mask_swap_1, mask_swap_2, shift_down, shift_up,
+    )
+
+    return z_xch, new_accept_count
 end
 
 function (sampler::pCNL_sampler)(
@@ -161,45 +161,39 @@ function (sampler::pCNL_sampler)(
         st_rng;
         temps = [1.0f0],
     )
-    """pCNL posterior sampler (Pezzetti 2024). Returns z ~ p(z|x)."""
+    """pCNL sampler (https://arxiv.org/abs/2408.14325)."""
     model = sampler.model
     Q, P, S, num_temps = sampler.Q, sampler.P, sampler.S, sampler.num_temps
+    prior_sampling_bool = sampler.prior_sampling_bool
 
     # Initialize from prior
     z_flat = begin
-        model_copy = model
-
-        @reset model_copy.batch_size = S * num_temps
-        @reset model_copy.prior.s_size = S * num_temps
-        for i in 1:model_copy.prior.depth
-            @reset model_copy.prior.fcns_qp[i].basis_function.S = S * num_temps
-        end
-
-        z_init, _ = begin
-            if model.prior.bool_config.mixture_model
-                sample_mixture(
-                    model_copy.prior,
-                    ps.ebm,
-                    st_kan.ebm,
-                    st_lux.ebm,
-                    st_kan.quad,
-                    st_rng;
-                    ula_init = true,
-                )
-            else
-                sample_univariate(
-                    model_copy.prior,
-                    ps.ebm,
-                    st_kan.ebm,
-                    st_lux.ebm,
-                    st_kan.quad,
-                    st_rng;
-                    ula_init = true,
-                )
+        if model.prior.bool_config.ula && prior_sampling_bool
+            rv = st_rng.posterior_its
+            model.prior.prior_type == "lognormal" ? exp.(rv) : rv
+        else
+            model_copy = model
+            @reset model_copy.batch_size = S * num_temps
+            @reset model_copy.prior.s_size = S * num_temps
+            for i in 1:model_copy.prior.depth
+                @reset model_copy.prior.fcns_qp[i].basis_function.S = S * num_temps
             end
-        end
 
-        z_init
+            z_init, _ = begin
+                if model.prior.bool_config.mixture_model
+                    sample_mixture(
+                        model_copy.prior, ps.ebm, st_kan.ebm, st_lux.ebm,
+                        st_kan.quad, st_rng; ula_init = true,
+                    )
+                else
+                    sample_univariate(
+                        model_copy.prior, ps.ebm, st_kan.ebm, st_lux.ebm,
+                        st_kan.quad, st_rng; ula_init = true,
+                    )
+                end
+            end
+            z_init
+        end
     end
 
     lkhood_copy = model.lkhood
@@ -207,14 +201,12 @@ function (sampler::pCNL_sampler)(
     for i in 1:model.prior.depth
         @reset model.prior.fcns_qp[i].basis_function.S = S * num_temps
     end
-
     if !model.lkhood.SEQ && !model.lkhood.CNN
         for i in 1:model.lkhood.generator.depth
             @reset model.lkhood.generator.Φ_fcns[i].basis_function.S = S * num_temps
         end
     end
 
-    # Mask used for mixture sampling
     component_mask = (
         model.prior.bool_config.mixture_model && !model.prior.bool_config.contrastive_div ?
             choose_component(ps.ebm.dist.α, S, Q, P, st_rng) :
@@ -226,51 +218,48 @@ function (sampler::pCNL_sampler)(
     @reset model.lkhood.generator.s_size = S * num_temps
     temps_gpu = repeat(temps, S)
 
-    N_steps = sampler.N
-    x_t = model.lkhood.SEQ ? repeat(x, 1, 1, num_temps) :
-        (model.use_pca ? repeat(x, 1, num_temps) : repeat(x, 1, 1, 1, num_temps))
+    # Per-temperature δ from st_rng (adapted by trainer)
+    δ_gpu = repeat(st_rng.delta_vec[1:num_temps], S)
+    z_coeff, grad_coeff, noise_coeff, inv_2σ2 = pcnl_coefficients(δ_gpu)
 
-    # Pre-allocate noise
-    noise = st_rng.ula_noise
+    N_steps = sampler.N
+    x_t = !prior_sampling_bool ? (
+            model.lkhood.SEQ ? repeat(x, 1, 1, num_temps) :
+            (model.use_pca ? repeat(x, 1, num_temps) : repeat(x, 1, 1, 1, num_temps))
+        ) : x  # prior mode: pass x through (unused by logprior, needed for zero_vector shape)
+
+    noise = st_rng.mcmc_noise
     log_u_mh = st_rng.log_mh
     log_u_swap = st_rng.log_swap
-
-    # DEO masks + shift matrices
     mask_swap_1 = num_temps > 1 ? st_rng.swap_mask_1 : nothing
     mask_swap_2 = num_temps > 1 ? st_rng.swap_mask_2 : nothing
     shift_down = num_temps > 1 ? st_rng.shift_down : nothing
     shift_up = num_temps > 1 ? st_rng.shift_up : nothing
 
-    state = (1, z_flat)
-    @trace while first(state) <= N_steps
-        i, z_acc = state
-        z_new = step(
-            i,
-            z_acc,
-            x_t,
-            temps,
-            temps_gpu,
-            sampler,
-            model,
-            lkhood_copy,
-            ps,
-            st_kan,
-            st_lux,
-            noise,
-            log_u_mh,
-            log_u_swap,
-            mask_swap_1,
-            mask_swap_2,
-            component_mask,
-            shift_down,
-            shift_up,
+    accept_count = zeros(Float32, num_temps)
+
+    z_acc = z_flat
+    accept_acc = accept_count
+    for i in 1:N_steps
+        z_acc, accept_acc = step(
+            i, z_acc, accept_acc,
+            x_t, temps_gpu, z_coeff, grad_coeff, noise_coeff, inv_2σ2,
+            model, lkhood_copy, ps, st_kan, st_lux,
+            noise, log_u_mh, log_u_swap, mask_swap_1, mask_swap_2,
+            component_mask, shift_down, shift_up,
+            temps, sampler.log_dist, sampler.eval_dist, num_temps, S,
         )
-        state = (i + 1, z_new)
     end
 
-    z = reshape(last(state), Q, P, S, num_temps)
+    z = reshape(z_acc, Q, P, S, num_temps)
+    accept_rate = accept_acc ./ Float32(N_steps * S)
 
-    return z, st_lux
+    if prior_sampling_bool
+        st_lux = st_lux.ebm
+        z = dropdims(z; dims = 4)
+    end
+
+    return z, st_lux, accept_rate
 end
 
 end

@@ -26,7 +26,7 @@
 # commit!(conf, "CNN", "use_cnn_lkhood", "true")
 # commit!(conf, "SEQ", "sequence_length", "0")
 # commit!(conf, "TRAINING", "verbose", "false")
-# commit!(conf, "POST_LANGEVIN", "sampler", "ula")
+# commit!(conf, "POST_LANGEVIN", "sampler", "pcnl")
 # commit!(conf, "THERMODYNAMIC_INTEGRATION", "num_temps", "-1")
 #
 # dataset, img_size = get_vision_dataset(

@@ -20,7 +20,9 @@ function sample_langevin(
         x,
         st_rng,
     )
-    z, st_lux, = model.posterior_sampler(ps, st_kan, st_lux, x, st_rng)
+    sampler_out = model.posterior_sampler(ps, st_kan, st_lux, x, st_rng)
+    z = sampler_out[1]
+    st_lux = sampler_out[2]
     noise = st_rng.train_noise
 
     # Get component mask for mixture model normalization
@@ -128,7 +130,7 @@ function (l::LangevinLoss)(
     )
 
     opt_state, ps = Optimisers.update(opt_state, ps, dps)
-    return loss, ps, opt_state, st_lux_ebm, st_lux_gen
+    return loss, ps, opt_state, st_lux_ebm, st_lux_gen, nothing
 end
 
 end

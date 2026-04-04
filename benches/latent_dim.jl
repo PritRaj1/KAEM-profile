@@ -27,7 +27,7 @@ commit!(conf, "THERMODYNAMIC_INTEGRATION", "num_temps", "-1")
 commit!(conf, "CNN", "use_cnn_lkhood", "true")
 commit!(conf, "SEQ", "sequence_length", "0")
 commit!(conf, "TRAINING", "verbose", "false")
-commit!(conf, "POST_LANGEVIN", "sampler", "ula") # Set "importance" for IS
+commit!(conf, "POST_LANGEVIN", "sampler", "pcnl") # Set "importance" for IS
 
 dataset, img_size = get_vision_dataset(
     "SVHN",

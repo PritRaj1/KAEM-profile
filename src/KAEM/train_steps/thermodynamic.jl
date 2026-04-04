@@ -22,14 +22,13 @@ function sample_thermo(
         p_value,
     )
     temps = collect(Float32, [(k / model.N_t)^p_value for k in 0:model.N_t])
-    z, st_lux = model.posterior_sampler(
-        ps,
-        st_kan,
-        st_lux,
-        x,
-        st_rng;
+    sampler_out = model.posterior_sampler(
+        ps, st_kan, st_lux, x, st_rng;
         temps = temps[2:end],
     )
+    z = sampler_out[1]
+    st_lux = sampler_out[2]
+    accept_rate = length(sampler_out) > 2 ? sampler_out[3] : nothing
 
     Δt = temps[2:end] - temps[1:(end - 1)]
     tempered_noise = st_rng.tempered_noise
@@ -43,7 +42,7 @@ function sample_thermo(
             nothing
     )
 
-    return z, Δt, st_lux, noise, tempered_noise, component_mask
+    return z, Δt, st_lux, noise, tempered_noise, component_mask, accept_rate
 end
 
 function marginal_llhood(
@@ -125,7 +124,7 @@ function (l::ThermoLoss)(
         train_idx,
         st_rng,
     )
-    z, Δt, st_lux, noise, tempered_noise, component_mask = sample_thermo(
+    z, Δt, st_lux, noise, tempered_noise, component_mask, accept_rate = sample_thermo(
         ps,
         st_kan,
         st_lux,
@@ -163,7 +162,7 @@ function (l::ThermoLoss)(
     )
 
     opt_state, ps = Optimisers.update(opt_state, ps, dps)
-    return loss, ps, opt_state, st_lux_ebm, st_lux_gen
+    return loss, ps, opt_state, st_lux_ebm, st_lux_gen, accept_rate
 end
 
 end

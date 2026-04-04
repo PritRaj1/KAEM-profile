@@ -114,7 +114,7 @@ end
 
 function test_mala_loss()
     dataset = randn(rng, Float32, 32, 32, 1, 500)
-    commit!(conf, "POST_LANGEVIN", "sampler", "ula")
+    commit!(conf, "POST_LANGEVIN", "sampler", "pcnl")
     model = init_KAEM(dataset, conf, (32, 32, 1))
     x_test = first(model.train_loader) |> pu
     model, opt_state, ps, st_kan, st_lux, st_rng = prep_model(model, x_test, optimizer; rng = rng)

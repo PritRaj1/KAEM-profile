@@ -9,7 +9,8 @@ using ..KAEM_model
 
 function seed_rand(
         model::KAEM{T};
-        rng::AbstractRNG = Random.MersenneTwister(1)
+        rng::AbstractRNG = Random.MersenneTwister(1),
+        log_delta::Union{Nothing, Vector{T}} = nothing,
     ) where {T <: Float32}
 
     # ITS prior rng
@@ -40,7 +41,7 @@ function seed_rand(
             [0.0f0]
     )
 
-    # ITS ula (init)
+    # ITS mcmc (init)
     posterior_its = (
         model.prior.bool_config.mixture_model ?
             rand(rng, T, model.prior.q_size, 1, 1, model.batch_size * num_temps) :
@@ -83,9 +84,16 @@ function seed_rand(
     )
 
     Q, N, S = model.posterior_sampler.Q, model.posterior_sampler.N, model.batch_size
-    ula_noise = randn(rng, T, Q, P, S * num_temps, N)
+    mcmc_noise = randn(rng, T, Q, P, S * num_temps, N)
     log_swap = log.(rand(rng, T, S, num_temps, N))
     log_mh = log.(rand(rng, T, S * num_temps, N))
+
+    # Per-temperature pCNL step sizes (adapted by trainer via Robbins-Monro)
+    delta_vec = (
+        isnothing(log_delta) ?
+            fill(model.posterior_sampler.δ_base, num_temps) :
+            clamp.(exp.(log_delta[1:num_temps]), 1.0f-6, 1.99f0)
+    )
 
     # Replica exchange masks and shift matrices
     exchange_type = (
@@ -146,14 +154,15 @@ function seed_rand(
         prior_its = prior_its,
         posterior_its = posterior_its,
         mix_rv = mix_mask_rv,
-        mix_rv_ula = mix_mask_rv_ula,
+        mix_rv_mcmc = mix_mask_rv_ula,
         attn_rand = attn_rand,
         train_noise = train_noise,
         tempered_noise = tempered_noise,
         resample_rv = resample_rv,
-        ula_noise = ula_noise,
+        mcmc_noise = mcmc_noise,
         log_swap = log_swap,
         log_mh = log_mh,
+        delta_vec = delta_vec,
         swap_mask_1 = swap_mask_1,
         swap_mask_2 = swap_mask_2,
         shift_down = shift_down,

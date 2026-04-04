@@ -55,6 +55,7 @@ mutable struct KAEM_trainer{T <: Float32}
     gen_every::Int
     loss::T
     rng::AbstractRNG
+    log_delta::Vector{T}
 end
 
 function init_trainer(
@@ -108,7 +109,7 @@ function init_trainer(
     if variational
         train_type = "amortized"
     elseif sampler_type != "importance"
-        train_type = uppercase(sampler_type)
+        train_type = "pCNL"
     end
 
     model_type =
@@ -190,6 +191,7 @@ function init_trainer(
         gen_every,
         zero(Float32),
         rng,
+        fill(log(model.posterior_sampler.δ_base), model.posterior_sampler.num_temps),
     )
 end
 
@@ -265,7 +267,7 @@ function train!(t::KAEM_trainer; train_idx::Int = 1, trial = nothing)
 
     # Update for a single batch
     function step!()
-        t.st_rng = seed_rand(t.model; rng = t.rng)
+        t.st_rng = seed_rand(t.model; rng = t.rng, log_delta = t.log_delta)
 
         if (
                 train_idx == 1 || (train_idx - t.last_grid_update >= t.grid_updater.update_frequency)
@@ -295,7 +297,7 @@ function train!(t::KAEM_trainer; train_idx::Int = 1, trial = nothing)
             t.model.verbose && println("Iter: $(train_idx), Grid updated")
         end
 
-        t.loss, t.ps, t.opt_state, st_ebm, st_gen = t.model.train_step(
+        result = t.model.train_step(
             t.opt_state,
             t.ps,
             t.st_kan,
@@ -304,8 +306,16 @@ function train!(t::KAEM_trainer; train_idx::Int = 1, trial = nothing)
             train_idx,
             t.st_rng,
         )
-        @reset t.st_lux.ebm = st_ebm
-        @reset t.st_lux.gen = st_gen
+        t.loss, t.ps, t.opt_state = result[1], result[2], result[3]
+        @reset t.st_lux.ebm = result[4]
+        @reset t.st_lux.gen = result[5]
+
+        # Robbins-Monro δ adaptation: https://arxiv.org/abs/0811.4725
+        if !isnothing(result[6])
+            γ = min(0.05f0, Float32(1.0 / train_idx^0.6))
+            t.log_delta .+= γ .* (Array(result[6]) .- 0.574f0)       # 0.574 = MALA optimal
+            clamp!(t.log_delta, -14.0f0, 0.69f0)                     # δ ∈ (1e-6, 1.99)
+        end
 
         if isnan(Float32(t.loss))
             train_idx = Inf
@@ -331,7 +341,7 @@ function train!(t::KAEM_trainer; train_idx::Int = 1, trial = nothing)
         if !t.img_tuning && epoch_done || first_bool
             test_loss = 0.0e0
             for x in t.model.test_loader
-                t.st_rng = seed_rand(t.model; rng = t.rng)
+                t.st_rng = seed_rand(t.model; rng = t.rng, log_delta = t.log_delta)
                 x_gen, _, _ = gen_compiled(
                     t.ps,
                     t.st_kan,
@@ -362,7 +372,7 @@ function train!(t::KAEM_trainer; train_idx::Int = 1, trial = nothing)
         if (t.gen_every > 0) && (epoch % t.gen_every == 0) && epoch_done && t.img_tuning
             gen_ssim_x = zeros(Float32, t.model.lkhood.x_shape..., 0)
             for x in t.model.test_loader
-                t.st_rng = seed_rand(t.model; rng = t.rng)
+                t.st_rng = seed_rand(t.model; rng = t.rng, log_delta = t.log_delta)
                 x_gen, _, _ = gen_compiled(
                     t.ps,
                     t.st_kan,
@@ -404,7 +414,7 @@ function train!(t::KAEM_trainer; train_idx::Int = 1, trial = nothing)
             num_batches_to_save = 1 # Save only 1 batch for visualization during training
             if num_batches_to_save > 0
                 concat_dim = length(t.model.lkhood.x_shape) + 1
-                t.st_rng = seed_rand(t.model; rng = t.rng)
+                t.st_rng = seed_rand(t.model; rng = t.rng, log_delta = t.log_delta)
 
                 # Get first batch to determine type
                 first_batch, _, _ = gen_compiled(
@@ -420,7 +430,7 @@ function train!(t::KAEM_trainer; train_idx::Int = 1, trial = nothing)
                 push!(batches_to_cat, first_batch)
 
                 for i in 2:num_batches_to_save
-                    t.st_rng = seed_rand(t.model; rng = t.rng)
+                    t.st_rng = seed_rand(t.model; rng = t.rng, log_delta = t.log_delta)
                     batch, _, _ = gen_compiled(
                         t.ps,
                         t.st_kan,
@@ -497,7 +507,7 @@ function train!(t::KAEM_trainer; train_idx::Int = 1, trial = nothing)
     push!(batches_to_cat, first_batch)
 
     for i in 2:num_batches
-        t.st_rng = seed_rand(t.model; rng = t.rng)
+        t.st_rng = seed_rand(t.model; rng = t.rng, log_delta = t.log_delta)
         batch, _, _ = gen_compiled(
             t.ps,
             t.st_kan,
@@ -538,7 +548,7 @@ function train!(t::KAEM_trainer; train_idx::Int = 1, trial = nothing)
     if t.img_tuning
         gen_ssim_x = zeros(Float32, t.model.lkhood.x_shape..., 0)
         for x in t.model.test_loader
-            t.st_rng = seed_rand(t.model; rng = t.rng)
+            t.st_rng = seed_rand(t.model; rng = t.rng, log_delta = t.log_delta)
             x_gen, _, _ = gen_compiled(
                 t.ps,
                 t.st_kan,
