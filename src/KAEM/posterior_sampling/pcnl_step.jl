@@ -27,13 +27,13 @@ function (k::PcnlKernel)(
         x_t,
         temps_gpu,
         δ_gpu,
+        ξ,
+        log_u,
         model,
         lkhood_copy,
         ps,
         st_kan,
         st_lux,
-        noise,
-        log_u_mh,
         log_u_swap,
         mask_swap_1,
         mask_swap_2,
@@ -43,8 +43,6 @@ function (k::PcnlKernel)(
         temps,
     )
     Q, P, S, num_temps = k.Q, k.P, k.S, k.num_temps
-
-    ξ = noise[:, :, :, i]
     zero_vector = zero(x_t)
 
     # pCNL coefficients: https://arxiv.org/abs/2408.14325 eq. 8
@@ -90,7 +88,6 @@ function (k::PcnlKernel)(
     log_alpha = logp_new .- logp_old .+ inv_2σ2 .* (fwd_sq .- bwd_sq)
 
     # Accept/reject
-    log_u = log_u_mh[:, i]
     accept = max.(sign.(log_alpha .- log_u), 0.0f0)
     accept_z = reshape(accept, 1, 1, S * num_temps)
     z_mh = accept_z .* z_prop .+ (1.0f0 .- accept_z) .* z_i
