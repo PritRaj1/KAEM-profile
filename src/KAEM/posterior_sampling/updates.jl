@@ -80,21 +80,53 @@ end
 
 # For autodiff
 function unadjusted_logpos(
-        z, x, temps, model, ps, st_kan, st_lux, component_mask, zero_vector,
+        z,
+        x,
+        temps,
+        model,
+        ps,
+        st_kan,
+        st_lux,
+        component_mask,
+        zero_vector,
     )
     return sum(
         per_sample_logpos(
-            z, x, temps, model, ps, st_kan, st_lux, component_mask, zero_vector,
+            z,
+            x,
+            temps,
+            model,
+            ps,
+            st_kan,
+            st_lux,
+            component_mask,
+            zero_vector,
         )
     )
 end
 
 function unadjusted_logprior(
-        z, x, temps, model, ps, st_kan, st_lux, component_mask, zero_vector,
+        z,
+        x,
+        temps,
+        model,
+        ps,
+        st_kan,
+        st_lux,
+        component_mask,
+        zero_vector,
     )
     return sum(
         per_sample_logprior(
-            z, x, temps, model, ps, st_kan, st_lux, component_mask, zero_vector,
+            z,
+            x,
+            temps,
+            model,
+            ps,
+            st_kan,
+            st_lux,
+            component_mask,
+            zero_vector,
         )
     )
 end
