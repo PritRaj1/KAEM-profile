@@ -79,13 +79,9 @@ function setup_training(
         println("Prior sampler: Univar ITS")
     end
 
+    δ = parse(Float32, retrieve(conf, "POST_LANGEVIN", "pcnl_delta"))
     @reset model.posterior_sampler = begin
         if model.sampler_type != "importance"
-            δ = (
-                haskey(conf, "POST_LANGEVIN", "pcnl_delta") ?
-                    parse(Float32, retrieve(conf, "POST_LANGEVIN", "pcnl_delta")) :
-                    0.01f0
-            )
             initialize_pCNL_sampler(model; δ = δ, N = num_steps)
         else
             initialize_pCNL_sampler(model; N = num_steps)
@@ -94,9 +90,7 @@ function setup_training(
 
     st_rng = seed_rand(model; rng = rng)
 
-    # Init delta_vec in st_lux from sampler
-    num_temps = model.posterior_sampler.num_temps
-    @reset st_lux.delta = fill(model.posterior_sampler.δ_base, num_temps)
+    @reset st_lux.delta = pu(fill(δ, model.posterior_sampler.num_temps))
 
     # Forward pass to init st_lux state before compilation
     _, st_ebm, st_gen = Reactant.@jit model(ps, st_kan, Lux.trainmode(st_lux), st_rng)

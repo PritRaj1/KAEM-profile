@@ -25,7 +25,6 @@ using .MixtureChoice: choose_component
 struct pCNL_sampler
     prior_sampling_bool
     N
-    δ_base
     model
     Q
     P
@@ -54,7 +53,7 @@ function initialize_pCNL_sampler(
     eval_dist = prior_sampling_bool ? per_sample_logprior : per_sample_logpos
 
     return pCNL_sampler(
-        prior_sampling_bool, N, δ, model, Q, P, S, num_temps, thermo_bool,
+        prior_sampling_bool, N, model, Q, P, S, num_temps, thermo_bool,
         log_dist, eval_dist,
     )
 end
