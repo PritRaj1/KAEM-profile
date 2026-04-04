@@ -16,6 +16,9 @@ using ..KAEM_model.InverseTransformSampling
 include("updates.jl")
 using .LangevinUpdates
 
+include("pcnl_step.jl")
+using .pCNL_Step
+
 include("../ebm/mixture_selection.jl")
 using .MixtureChoice: choose_component
 
@@ -51,121 +54,9 @@ function initialize_pCNL_sampler(
     eval_dist = prior_sampling_bool ? per_sample_logprior : per_sample_logpos
 
     return pCNL_sampler(
-        prior_sampling_bool,
-        N,
-        δ,
-        model,
-        Q,
-        P,
-        S,
-        num_temps,
-        thermo_bool,
-        log_dist,
-        eval_dist,
+        prior_sampling_bool, N, δ, model, Q, P, S, num_temps, thermo_bool,
+        log_dist, eval_dist,
     )
-end
-
-function step(
-        i,
-        z_i,
-        accept_count,
-        x_t,
-        temps_gpu,
-        δ_gpu,
-        num_temps,
-        S,
-        log_dist,
-        eval_dist,
-        model,
-        lkhood_copy,
-        ps,
-        st_kan,
-        st_lux,
-        noise,
-        log_u_mh,
-        log_u_swap,
-        mask_swap_1,
-        mask_swap_2,
-        component_mask,
-        shift_down,
-        shift_up,
-        temps,
-    )
-
-    ξ = noise[:, :, :, i]
-    zero_vector = zero(x_t)
-
-    # pCNL coefficients: https://arxiv.org/abs/2408.14325 eq. 8
-    denom = 2.0f0 .+ δ_gpu
-    nc = sqrt.(8.0f0 .* δ_gpu) ./ denom
-    z_c = reshape((2.0f0 .- δ_gpu) ./ denom, 1, 1, S * num_temps)
-    g_c = reshape(2.0f0 .* δ_gpu ./ denom, 1, 1, S * num_temps)
-    n_c = reshape(nc, 1, 1, S * num_temps)
-    inv_2σ2 = 1.0f0 ./ (2.0f0 .* nc .^ 2)
-
-    # Dℓ(u) = ∇log_target(u) + u  (strip Gaussian reference)
-    ∇z = unadjusted_grad(
-        z_i, x_t, temps_gpu, model, ps, st_kan, st_lux,
-        component_mask, log_dist,
-    )
-    Dell_old = ∇z .+ z_i
-
-    # Proposal
-    m_old = z_c .* z_i .+ g_c .* Dell_old
-    z_prop = m_old .+ n_c .* ξ
-
-    # Reverse Dℓ(v) for MH proposal correction
-    ∇z_prop = unadjusted_grad(
-        z_prop, x_t, temps_gpu, model, ps, st_kan, st_lux,
-        component_mask, log_dist,
-    )
-    Dell_new = ∇z_prop .+ z_prop
-    m_new = z_c .* z_prop .+ g_c .* Dell_new
-
-    # Per-sample log-target for MH
-    logp_old = eval_dist(
-        z_i, x_t, temps_gpu, model, ps, st_kan, st_lux, component_mask, zero_vector,
-    )
-    logp_new = eval_dist(
-        z_prop, x_t, temps_gpu, model, ps, st_kan, st_lux, component_mask, zero_vector,
-    )
-
-    # MH: log α = π(v)/π(u) · q(u|v)/q(v|u)
-    fwd_sq = dropdims(sum((z_prop .- m_old) .^ 2; dims = (1, 2)); dims = (1, 2))
-    bwd_sq = dropdims(sum((z_i .- m_new) .^ 2; dims = (1, 2)); dims = (1, 2))
-    log_alpha = logp_new .- logp_old .+ inv_2σ2 .* (fwd_sq .- bwd_sq)
-
-    # Accept/reject
-    log_u = log_u_mh[:, i]
-    accept = max.(sign.(log_alpha .- log_u), 0.0f0)
-    accept_z = reshape(accept, 1, 1, S * num_temps)
-    z_mh = accept_z .* z_prop .+ (1.0f0 .- accept_z) .* z_i
-
-    # Per-temperature accept counts
-    accept_per_temp = dropdims(
-        sum(reshape(accept, num_temps, S); dims = 2); dims = 2,
-    )
-    new_accept_count = accept_count .+ accept_per_temp
-
-    # Replica exchange
-    z_xch = model.xchange_func(
-        i,
-        z_mh,
-        x_t,
-        temps,
-        model,
-        lkhood_copy,
-        ps,
-        st_kan,
-        st_lux,
-        log_u_swap,
-        mask_swap_1,
-        mask_swap_2,
-        shift_down,
-        shift_up,
-    )
-
-    return z_xch, new_accept_count
 end
 
 function (sampler::pCNL_sampler)(
@@ -180,8 +71,8 @@ function (sampler::pCNL_sampler)(
     model = sampler.model
     Q, P, S, num_temps = sampler.Q, sampler.P, sampler.S, sampler.num_temps
     prior_sampling_bool = sampler.prior_sampling_bool
-    log_dist = sampler.log_dist
-    eval_dist = sampler.eval_dist
+
+    kernel = PcnlKernel(Q, P, S, num_temps, sampler.log_dist, sampler.eval_dist)
 
     # Initialize from prior
     z_flat = begin
@@ -255,17 +146,13 @@ function (sampler::pCNL_sampler)(
     state = (1, z_flat, accept_count)
     @trace while first(state) <= N_steps
         i, z_acc, ac = state
-        z_new, ac_new = step(
+        z_new, ac_new = kernel(
             i,
             z_acc,
             ac,
             x_t,
             temps_gpu,
             δ_gpu,
-            num_temps,
-            S,
-            log_dist,
-            eval_dist,
             model,
             lkhood_copy,
             ps,
