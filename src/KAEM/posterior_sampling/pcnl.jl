@@ -134,8 +134,8 @@ function (sampler::pCNL_sampler)(
     δ_gpu = repeat(st_lux.delta, S)
     denom = 2.0f0 .+ δ_gpu
     nc = (8.0f0 .* δ_gpu) .^ 0.5f0 ./ denom
-    z_c = (2.0f0 .- δ_gpu) ./ denom
-    n_c = nc
+    z_c = reshape((2.0f0 .- δ_gpu) ./ denom, 1, 1, S * num_temps) .* 1.0f0
+    n_c = reshape(nc, 1, 1, S * num_temps) .* 1.0f0
     inv_2σ2 = 1.0f0 ./ (2.0f0 .* nc .^ 2)
 
     N_steps = sampler.N
