@@ -18,6 +18,7 @@ using .optimization
 conf = ConfParse("tests/test_conf.ini")
 parse_conf!(conf)
 commit!(conf, "THERMODYNAMIC_INTEGRATION", "num_temps", "4")
+commit!(conf, "POST_LANGEVIN", "sampler", "pcnl")
 out_dim = parse(Int, retrieve(conf, "GeneratorModel", "output_dim"))
 optimizer = create_opt(conf)
 rng = Random.MersenneTwister(1)

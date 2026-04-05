@@ -52,6 +52,7 @@ struct KAEM{T <: Float32} <: Lux.AbstractLuxLayer
     N_t::Int
     sample_prior::Function
     posterior_sampler::Any
+    xchange_func::Any
     train_step::Any
     ε::T
     file_loc::AbstractString
@@ -162,6 +163,7 @@ function init_KAEM(
         N_t,
         sample_prior,
         nothing,
+        NoExchange(),
         nothing,
         eps,
         file_loc,

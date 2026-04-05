@@ -14,12 +14,14 @@ include("train_steps/langevin_mle.jl")
 include("train_steps/importance_sampling.jl")
 include("train_steps/thermodynamic.jl")
 include("train_steps/variational.jl")
+include("posterior_sampling/unadjusted_langevin.jl")
 include("posterior_sampling/pcnl.jl")
 include("rng.jl")
 using .ImportanceSampling
 using .LangevinMLE
 using .ThermodynamicIntegration
 using .VariationalTraining
+using .ULA_sampling
 using .pCNL_sampling
 using .HLOrng
 
@@ -79,9 +81,17 @@ function setup_training(
         println("Prior sampler: Univar ITS")
     end
 
-    δ = parse(Float32, retrieve(conf, "POST_LANGEVIN", "pcnl_delta"))
-    @reset st_lux.delta = pu(fill(δ, model.posterior_sampler.num_temps))
-    @reset model.posterior_sampler = initialize_pCNL_sampler(model; δ = δ, N = num_steps)
+    if model.sampler_type == "pcnl"
+        δ = parse(Float32, retrieve(conf, "POST_LANGEVIN", "pcnl_delta"))
+        @reset model.posterior_sampler = initialize_pCNL_sampler(model; δ = δ, N = num_steps)
+        @reset st_lux.delta = pu(fill(δ, model.posterior_sampler.num_temps))
+    elseif model.sampler_type == "ula"
+        @reset model.posterior_sampler = initialize_ULA_sampler(model; η = η_init, N = num_steps)
+        @reset st_lux.delta = pu(fill(η_init, model.posterior_sampler.num_temps))
+    else
+        @reset model.posterior_sampler = initialize_pCNL_sampler(model; N = num_steps)
+        @reset st_lux.delta = pu([0.01f0])
+    end
 
     # Forward pass to init st_lux state before compilation
     @reset st_lux.delta = Reactant.@jit adapt_delta(st_lux.delta, st_lux.delta, 1)
@@ -147,6 +157,10 @@ function setup_training(
 
         Q, S = model.prior.q_size, model.batch_size
         P = model.prior.bool_config.mixture_model ? 1 : model.prior.p_size
+        exchange_type = retrieve(conf, "THERMODYNAMIC_INTEGRATION", "exchange_type")
+        @reset model.xchange_func =
+            exchange_type == "none" ? NoExchange() : ReplicaXchange(Q, P, S, model.N_t)
+        @reset model.posterior_sampler.model = model
 
         @reset model.train_step = begin
 
@@ -174,7 +188,7 @@ function setup_training(
                 static_loss
             end
         end
-        println("Posterior sampler: Thermo pCNL")
+        println("Posterior sampler: Thermo $(uppercase(model.sampler_type))")
 
     elseif model.sampler_type != "importance" || model.prior.bool_config.ula
 
@@ -196,7 +210,7 @@ function setup_training(
             end
         end
 
-        println("Posterior sampler: MLE pCNL")
+        println("Posterior sampler: MLE $(uppercase(model.sampler_type))")
     else
         @reset model.train_step = begin
 

@@ -108,7 +108,7 @@ function init_trainer(
     if variational
         train_type = "amortized"
     elseif sampler_type != "importance"
-        train_type = "pCNL"
+        train_type = uppercase(sampler_type)
     end
 
     model_type =
