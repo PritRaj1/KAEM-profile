@@ -230,7 +230,7 @@ function Lux.initialstates(
 
     return (
         (ebm = ebm_kan, gen = gen_kan, quad = st_quad),
-        (ebm = ebm_lux, gen = gen_lux, enc = enc_lux, delta = [0.01f0]),
+        (ebm = ebm_lux, gen = gen_lux, enc = enc_lux),
     )
 end
 

@@ -95,8 +95,6 @@ function setup_training(
 
     st_rng = seed_rand(model; rng = rng)
 
-    @reset st_lux.delta = pu(fill(δ, model.posterior_sampler.num_temps))
-
     # Forward pass to init st_lux state before compilation
     _, st_ebm, st_gen = Reactant.@jit model(ps, st_kan, Lux.trainmode(st_lux), st_rng)
     @reset st_lux.ebm = st_ebm

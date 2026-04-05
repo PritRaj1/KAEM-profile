@@ -23,7 +23,6 @@ end
 function (k::PcnlKernel)(
         i,
         z_i,
-        accept_count,
         x_t,
         temps_gpu,
         z_c,
@@ -83,12 +82,7 @@ function (k::PcnlKernel)(
     accept_z = reshape(accept, 1, 1, S * num_temps)
     z_mh = accept_z .* z_prop .+ (1.0f0 .- accept_z) .* z_i
 
-    # Per-temperature accept counts
-    accept_per_temp = dropdims(
-        sum(reshape(accept, num_temps, S); dims = 2); dims = 2,
-    )
-
-    return z_mh, accept_count .+ accept_per_temp
+    return z_mh
 end
 
 end
