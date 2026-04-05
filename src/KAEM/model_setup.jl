@@ -79,19 +79,12 @@ function setup_training(
         println("Prior sampler: Univar ITS")
     end
 
-    δ = parse(Float32, retrieve(conf, "POST_LANGEVIN", "pcnl_delta"))
-    exchange_type = (
-        haskey(conf, "THERMODYNAMIC_INTEGRATION", "exchange_type") ?
-            retrieve(conf, "THERMODYNAMIC_INTEGRATION", "exchange_type") :
-            "deo"
-    )
-    sampler = initialize_pCNL_sampler(
-        model; δ = δ, N = num_steps, exchange_type = exchange_type,
-    )
-    @reset model.pcnl_kernel = sampler.kernel
-    @reset model.xchange_func = sampler.model.xchange_func
-    @reset model.posterior_sampler = sampler
-    @reset model.posterior_sampler.model = model
+    if model.sampler_type != "importance"
+        δ = parse(Float32, retrieve(conf, "POST_LANGEVIN", "pcnl_delta"))
+        @reset model.posterior_sample = initialize_pCNL_sampler(model; δ = δ, N = num_steps)
+        @reset st_lux.delta = pu(fill(δ, model.posterior_sampler.num_temps))
+        @reset st_lux.delta = Reactant.@jit adapt_delta(st_lux.delta, st_lux.delta, 1)
+    end
 
     st_rng = seed_rand(model; rng = rng)
 

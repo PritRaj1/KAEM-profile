@@ -87,13 +87,8 @@ function seed_rand(
     log_swap = log.(rand(rng, T, S, num_temps, N))
     log_mh = log.(rand(rng, T, S * num_temps, N))
 
-
     # Replica exchange masks and shift matrices
-    exchange_type = (
-        haskey(model.conf, "THERMODYNAMIC_INTEGRATION", "exchange_type") ?
-            retrieve(model.conf, "THERMODYNAMIC_INTEGRATION", "exchange_type") :
-            "deo"
-    )
+    exchange_type = retrieve(model.conf, "THERMODYNAMIC_INTEGRATION", "exchange_type")
 
     if num_temps > 1 && exchange_type != "none"
         if exchange_type == "deo"

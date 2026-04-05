@@ -1,8 +1,7 @@
 module pCNL_sampling
 
-export initialize_pCNL_sampler, pCNL_sampler, PcnlKernel
+export initialize_pCNL_sampler, pCNL_sampler
 
-using Reactant: @trace
 using LinearAlgebra,
     Lux,
     Accessors,
@@ -26,6 +25,7 @@ using .MixtureChoice: choose_component
 struct pCNL_sampler
     prior_sampling_bool
     N
+    δ_base
     model
     Q
     P
@@ -33,9 +33,6 @@ struct pCNL_sampler
     num_temps
     thermo_bool
     kernel
-    z_c
-    n_c
-    inv_2σ2
 end
 
 function initialize_pCNL_sampler(
@@ -55,25 +52,15 @@ function initialize_pCNL_sampler(
 
     log_dist = prior_sampling_bool ? unadjusted_logprior : unadjusted_logpos
     eval_dist = prior_sampling_bool ? per_sample_logprior : per_sample_logpos
-    kernel = PcnlKernel(Q, P, S, num_temps, log_dist, eval_dist)
-
-    # pCNL coefficients: https://arxiv.org/abs/2408.14325 eq. 8
-    # z_c + (1 - z_c) = 1
-    denom = 2.0f0 + δ
-    nc = sqrt(8.0f0 * δ) / denom
-    z_c = (2.0f0 - δ) / denom
-    n_c = nc
-    inv_2σ2 = 1.0f0 / (2.0f0 * nc^2)
-
-    @reset model.pcnl_kernel = kernel
-    @reset model.xchange_func = (
+    xchange = (
         exchange_type != "none" && thermo_bool ?
             ReplicaXchange(Q, P, S, num_temps) : NoExchange()
     )
+    kernel = PcnlKernel(Q, P, S, num_temps, log_dist, eval_dist, xchange)
 
     return pCNL_sampler(
-        prior_sampling_bool, N, model, Q, P, S, num_temps, thermo_bool,
-        kernel, z_c, n_c, inv_2σ2,
+        prior_sampling_bool, N, δ, model, Q, P, S, num_temps, thermo_bool,
+        kernel,
     )
 end
 
@@ -89,9 +76,6 @@ function (sampler::pCNL_sampler)(
     model = sampler.model
     Q, P, S, num_temps = sampler.Q, sampler.P, sampler.S, sampler.num_temps
     prior_sampling_bool = sampler.prior_sampling_bool
-    z_c = sampler.z_c
-    n_c = sampler.n_c
-    inv_2σ2 = sampler.inv_2σ2
 
     # Initialize from prior
     z_flat = begin
@@ -145,6 +129,15 @@ function (sampler::pCNL_sampler)(
     @reset model.lkhood.generator.s_size = S * num_temps
     temps_gpu = repeat(temps, S)
 
+    # pCNL coefficients: https://arxiv.org/abs/2408.14325 eq. 8
+    # z_c + (1 - z_c) = 1
+    δ_gpu = repeat(st_lux.delta, S)
+    denom = 2.0f0 .+ δ_gpu
+    nc = (8.0f0 .* δ_gpu) .^ 0.5f0 ./ denom
+    z_c = (2.0f0 .- δ_gpu) ./ denom
+    n_c = nc
+    inv_2σ2 = 1.0f0 ./ (2.0f0 .* nc .^ 2)
+
     N_steps = sampler.N
     x_t = !prior_sampling_bool ? (
             model.lkhood.SEQ ? repeat(x, 1, 1, num_temps) :
@@ -159,52 +152,46 @@ function (sampler::pCNL_sampler)(
     shift_down = num_temps > 1 ? st_rng.shift_down : nothing
     shift_up = num_temps > 1 ? st_rng.shift_up : nothing
 
-    state = (1, z_flat)
-    @trace while first(state) <= N_steps
-        i, z_acc = state
-        z_mh = model.pcnl_kernel(
+    kernel = sampler.kernel
+    accept_count = zero(st_lux.delta)
+    z_acc = z_flat
+    accept_acc = accept_count
+    for i in 1:N_steps
+        z_acc, accept_acc = kernel(
             i,
             z_acc,
+            accept_acc,
             x_t,
             temps_gpu,
             z_c,
             n_c,
             inv_2σ2,
             model,
+            lkhood_copy,
             ps,
             st_kan,
             st_lux,
             noise,
             log_u_mh,
-            component_mask,
-        )
-        z_new = model.xchange_func(
-            i,
-            z_mh,
-            x_t,
-            temps,
-            model,
-            lkhood_copy,
-            ps,
-            st_kan,
-            st_lux,
             log_u_swap,
             mask_swap_1,
             mask_swap_2,
+            component_mask,
             shift_down,
             shift_up,
+            temps,
         )
-        state = (i + 1, z_new)
     end
 
-    z = reshape(last(state), Q, P, S, num_temps)
+    z = reshape(z_acc, Q, P, S, num_temps)
+    accept_rate = accept_acc ./ (N_steps * S)
 
     if prior_sampling_bool
         st_lux = st_lux.ebm
         z = dropdims(z; dims = 4)
     end
 
-    return z, st_lux
+    return z, st_lux, accept_rate
 end
 
 end

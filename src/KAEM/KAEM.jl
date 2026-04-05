@@ -52,8 +52,6 @@ struct KAEM{T <: Float32} <: Lux.AbstractLuxLayer
     N_t::Int
     sample_prior::Function
     posterior_sampler::Any
-    xchange_func::Any
-    pcnl_kernel::Any
     train_step::Any
     ε::T
     file_loc::AbstractString
@@ -164,8 +162,6 @@ function init_KAEM(
         N_t,
         sample_prior,
         nothing,
-        NoExchange(),
-        nothing,
         nothing,
         eps,
         file_loc,
@@ -230,7 +226,7 @@ function Lux.initialstates(
 
     return (
         (ebm = ebm_kan, gen = gen_kan, quad = st_quad),
-        (ebm = ebm_lux, gen = gen_lux, enc = enc_lux),
+        (ebm = ebm_lux, gen = gen_lux, enc = enc_lux, delta = [0.01f0]),
     )
 end
 

@@ -18,23 +18,32 @@ struct PcnlKernel
     num_temps::Int
     log_dist
     eval_dist
+    xchange_func
 end
 
 function (k::PcnlKernel)(
         i,
         z_i,
+        accept_count,
         x_t,
         temps_gpu,
         z_c,
         n_c,
         inv_2σ2,
         model,
+        lkhood_copy,
         ps,
         st_kan,
         st_lux,
         noise,
         log_u_mh,
+        log_u_swap,
+        mask_swap_1,
+        mask_swap_2,
         component_mask,
+        shift_down,
+        shift_up,
+        temps,
     )
     Q, P, S, num_temps = k.Q, k.P, k.S, k.num_temps
 
@@ -82,7 +91,30 @@ function (k::PcnlKernel)(
     accept_z = reshape(accept, 1, 1, S * num_temps)
     z_mh = accept_z .* z_prop .+ (1.0f0 .- accept_z) .* z_i
 
-    return z_mh
+    # Per-temperature accept counts
+    accept_per_temp = dropdims(
+        sum(reshape(accept, num_temps, S); dims = 2); dims = 2,
+    )
+
+    # Replica exchange
+    z_xch = k.xchange_func(
+        i,
+        z_mh,
+        x_t,
+        temps,
+        model,
+        lkhood_copy,
+        ps,
+        st_kan,
+        st_lux,
+        log_u_swap,
+        mask_swap_1,
+        mask_swap_2,
+        shift_down,
+        shift_up,
+    )
+
+    return z_xch, accept_count .+ accept_per_temp
 end
 
 end
