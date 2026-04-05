@@ -14,7 +14,7 @@ include("train_steps/langevin_mle.jl")
 include("train_steps/importance_sampling.jl")
 include("train_steps/thermodynamic.jl")
 include("train_steps/variational.jl")
-include("posterior_sampling/unadjusted_langevin.jl")
+include("posterior_sampling/ula.jl")
 include("posterior_sampling/pcnl.jl")
 include("rng.jl")
 using .ImportanceSampling
@@ -81,12 +81,17 @@ function setup_training(
         println("Prior sampler: Univar ITS")
     end
 
+    exchange_type = retrieve(conf, "THERMODYNAMIC_INTEGRATION", "exchange_type")
     if model.sampler_type == "pcnl"
         δ = parse(Float32, retrieve(conf, "POST_LANGEVIN", "pcnl_delta"))
-        @reset model.posterior_sampler = initialize_pCNL_sampler(model; δ = δ, N = num_steps)
+        @reset model.posterior_sampler = initialize_pCNL_sampler(
+            model; δ = δ, N = num_steps, exchange_type = exchange_type,
+        )
         @reset st_lux.delta = pu(fill(δ, model.posterior_sampler.num_temps))
     elseif model.sampler_type == "ula"
-        @reset model.posterior_sampler = initialize_ULA_sampler(model; η = η_init, N = num_steps)
+        @reset model.posterior_sampler = initialize_ULA_sampler(
+            model; η = η_init, N = num_steps, exchange_type = exchange_type,
+        )
         @reset st_lux.delta = pu(fill(η_init, model.posterior_sampler.num_temps))
     else
         @reset model.posterior_sampler = initialize_pCNL_sampler(model; N = num_steps)
@@ -157,10 +162,6 @@ function setup_training(
 
         Q, S = model.prior.q_size, model.batch_size
         P = model.prior.bool_config.mixture_model ? 1 : model.prior.p_size
-        exchange_type = retrieve(conf, "THERMODYNAMIC_INTEGRATION", "exchange_type")
-        @reset model.xchange_func =
-            exchange_type == "none" ? NoExchange() : ReplicaXchange(Q, P, S, model.N_t)
-        @reset model.posterior_sampler.model = model
 
         @reset model.train_step = begin
 

@@ -32,7 +32,7 @@ using .GeneratorModel
 include("ebm/log_prior_fcns.jl")
 using .LogPriorFCNs
 
-include("posterior_sampling/population_xchange.jl")
+include("posterior_sampling/xchange.jl")
 using .PopulationXchange
 
 include("posterior_sampling/encoder.jl")
@@ -52,7 +52,6 @@ struct KAEM{T <: Float32} <: Lux.AbstractLuxLayer
     N_t::Int
     sample_prior::Function
     posterior_sampler::Any
-    xchange_func::Any
     train_step::Any
     ε::T
     file_loc::AbstractString
@@ -163,7 +162,6 @@ function init_KAEM(
         N_t,
         sample_prior,
         nothing,
-        NoExchange(),
         nothing,
         eps,
         file_loc,
