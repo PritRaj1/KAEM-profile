@@ -48,6 +48,17 @@ function setup_training(
     max_samples = max(model.batch_size, batch_size)
     x = zeros(T, model.lkhood.x_shape..., max_samples) |> pu
 
+    if model.N_t > 1
+        Q, S = model.prior.q_size, model.batch_size
+        P = model.prior.bool_config.mixture_model ? 1 : model.prior.p_size
+        if !model.lkhood.SEQ && !model.lkhood.CNN
+            for i in 1:model.lkhood.generator.depth
+                @reset model.lkhood.generator.Φ_fcns[i].basis_function.S = S * (model.N_t + 1)
+            end
+        end
+        @reset model.lkhood.generator.s_size = S * (model.N_t + 1)
+    end
+
     # Prior sampling setup
     if model.prior.bool_config.ula
         num_steps_prior = parse(Int, retrieve(conf, "PRIOR_LANGEVIN", "iters"))
@@ -159,21 +170,8 @@ function setup_training(
         println("Posterior sampler: Variational")
 
     elseif model.N_t > 1
-
-        Q, S = model.prior.q_size, model.batch_size
-        P = model.prior.bool_config.mixture_model ? 1 : model.prior.p_size
-
         @reset model.train_step = begin
-
-            thermo_model = model
-            if !model.lkhood.SEQ && !model.lkhood.CNN
-                for i in 1:model.lkhood.generator.depth
-                    @reset thermo_model.lkhood.generator.Φ_fcns[i].basis_function.S = S * (model.N_t + 1)
-                end
-            end
-
-            @reset thermo_model.lkhood.generator.s_size = S * (model.N_t + 1)
-            static_loss = ThermoLoss(thermo_model)
+            static_loss = ThermoLoss(model)
 
             if MLIR
                 Reactant.@compile static_loss(
