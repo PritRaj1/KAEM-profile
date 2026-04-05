@@ -9,6 +9,8 @@ include("updates.jl")
 using .LangevinUpdates
 
 struct UlaKernel
+    η
+    sqrt_2η
     log_dist
     xchange_func
 end
@@ -18,8 +20,6 @@ function (k::UlaKernel)(
         z_i,
         x_t,
         temps_gpu,
-        η,
-        sqrt_2η,
         model,
         lkhood_copy,
         ps,
@@ -46,7 +46,7 @@ function (k::UlaKernel)(
         component_mask,
         k.log_dist,
     )
-    new_z = z_i .+ η .* ∇z .+ sqrt_2η .* ξ
+    new_z = z_i .+ k.η .* ∇z .+ k.sqrt_2η .* ξ
 
     return k.xchange_func(
         i,

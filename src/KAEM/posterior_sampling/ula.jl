@@ -26,8 +26,6 @@ using .MixtureChoice: choose_component
 struct ULA_sampler
     prior_sampling_bool
     N
-    η
-    sqrt_2η
     model
     Q
     P
@@ -55,10 +53,10 @@ function initialize_ULA_sampler(
         exchange_type != "none" && thermo_bool ?
             ReplicaXchange(Q, P, S, num_temps) : NoExchange()
     )
-    kernel = UlaKernel(log_dist, xchange)
+    kernel = UlaKernel(η, sqrt(2 * η), log_dist, xchange)
 
     return ULA_sampler(
-        prior_sampling_bool, N, η, sqrt(2 * η),
+        prior_sampling_bool, N,
         model, Q, P, S, num_temps, thermo_bool, kernel,
     )
 end
@@ -73,8 +71,6 @@ function (sampler::ULA_sampler)(
     )
     """ULA posterior sampler. Returns z ~ p(z|x)."""
     model = sampler.model
-    η = sampler.η
-    sqrt_2η = sampler.sqrt_2η
     Q, P, S, num_temps = sampler.Q, sampler.P, sampler.S, sampler.num_temps
     prior_sampling_bool = sampler.prior_sampling_bool
 
@@ -153,8 +149,6 @@ function (sampler::ULA_sampler)(
             z_acc,
             x_t,
             temps_gpu,
-            η,
-            sqrt_2η,
             model,
             lkhood_copy,
             ps,
