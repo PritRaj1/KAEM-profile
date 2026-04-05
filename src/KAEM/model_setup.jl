@@ -161,6 +161,11 @@ function setup_training(
         )
         @reset model.xchange_func =
             exchange_type == "none" ? NoExchange() : ReplicaXchange(Q, P, S, model.N_t)
+        @reset model.pcnl_kernel = PcnlKernel(
+            Q, P, S, model.N_t,
+            model.posterior_sampler.log_dist,
+            model.posterior_sampler.eval_dist,
+        )
 
         @reset model.train_step = begin
 
@@ -191,6 +196,13 @@ function setup_training(
         println("Posterior sampler: Thermo pCNL")
 
     elseif model.sampler_type != "importance" || model.prior.bool_config.ula
+
+        Q, S = model.prior.q_size, model.batch_size
+        P = model.prior.bool_config.mixture_model ? 1 : model.prior.p_size
+        @reset model.pcnl_kernel = PcnlKernel(
+            Q, P, S, 1,
+            model.posterior_sampler.log_dist, model.posterior_sampler.eval_dist,
+        )
 
         static_loss = LangevinLoss(model)
 

@@ -16,8 +16,8 @@ struct PcnlKernel
     P::Int
     S::Int
     num_temps::Int
-    log_dist::Function
-    eval_dist::Function
+    log_dist
+    eval_dist
 end
 
 function (k::PcnlKernel)(

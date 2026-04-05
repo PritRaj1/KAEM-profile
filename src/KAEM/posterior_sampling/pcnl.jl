@@ -1,6 +1,6 @@
 module pCNL_sampling
 
-export initialize_pCNL_sampler, pCNL_sampler
+export initialize_pCNL_sampler, pCNL_sampler, PcnlKernel
 
 using Reactant: @trace
 using LinearAlgebra,
@@ -71,7 +71,6 @@ function (sampler::pCNL_sampler)(
     Q, P, S, num_temps = sampler.Q, sampler.P, sampler.S, sampler.num_temps
     prior_sampling_bool = sampler.prior_sampling_bool
 
-    kernel = PcnlKernel(Q, P, S, num_temps, sampler.log_dist, sampler.eval_dist)
 
     # Initialize from prior
     z_flat = begin
@@ -153,7 +152,7 @@ function (sampler::pCNL_sampler)(
     state = (1, z_flat, accept_count)
     @trace while first(state) <= N_steps
         i, z_acc, ac = state
-        z_mh, ac_new = kernel(
+        z_mh, ac_new = model.pcnl_kernel(
             i,
             z_acc,
             ac,
