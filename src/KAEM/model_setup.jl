@@ -79,9 +79,9 @@ function setup_training(
         println("Prior sampler: Univar ITS")
     end
 
+    δ = parse(Float32, retrieve(conf, "POST_LANGEVIN", "pcnl_delta"))
+    @reset model.posterior_sampler = initialize_pCNL_sampler(model; δ = δ, N = num_steps)
     if model.sampler_type != "importance"
-        δ = parse(Float32, retrieve(conf, "POST_LANGEVIN", "pcnl_delta"))
-        @reset model.posterior_sample = initialize_pCNL_sampler(model; δ = δ, N = num_steps)
         @reset st_lux.delta = pu(fill(δ, model.posterior_sampler.num_temps))
         @reset st_lux.delta = Reactant.@jit adapt_delta(st_lux.delta, st_lux.delta, 1)
     end
