@@ -12,6 +12,7 @@ using LinearAlgebra,
 using ..Utils
 using ..KAEM_model
 using ..KAEM_model.InverseTransformSampling
+using ..KAEM_model.PopulationXchange
 
 include("updates.jl")
 using .LangevinUpdates
@@ -33,6 +34,7 @@ struct pCNL_sampler
     thermo_bool
     log_dist
     eval_dist
+    kernel
 end
 
 function initialize_pCNL_sampler(
@@ -40,6 +42,7 @@ function initialize_pCNL_sampler(
         δ::T = 0.01f0,
         N::Int = 20,
         prior_sampling_bool::Bool = false,
+        exchange_type::String = "none",
     ) where {T}
 
     @assert 0.0f0 < δ < 2.0f0 "pCNL δ must be in (0, 2), got $δ"
@@ -51,10 +54,18 @@ function initialize_pCNL_sampler(
 
     log_dist = prior_sampling_bool ? unadjusted_logprior : unadjusted_logpos
     eval_dist = prior_sampling_bool ? per_sample_logprior : per_sample_logpos
+    kernel = PcnlKernel(Q, P, S, num_temps, log_dist, eval_dist)
+
+    # Set kernel + exchange on model so sampler.model has them
+    @reset model.pcnl_kernel = kernel
+    @reset model.xchange_func = (
+        exchange_type != "none" && thermo_bool ?
+            ReplicaXchange(Q, P, S, num_temps) : NoExchange()
+    )
 
     return pCNL_sampler(
         prior_sampling_bool, N, model, Q, P, S, num_temps, thermo_bool,
-        log_dist, eval_dist,
+        log_dist, eval_dist, kernel,
     )
 end
 

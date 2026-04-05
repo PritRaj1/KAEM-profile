@@ -80,13 +80,18 @@ function setup_training(
     end
 
     δ = parse(Float32, retrieve(conf, "POST_LANGEVIN", "pcnl_delta"))
-    @reset model.posterior_sampler = begin
-        if model.sampler_type != "importance"
-            initialize_pCNL_sampler(model; δ = δ, N = num_steps)
-        else
-            initialize_pCNL_sampler(model; N = num_steps)
-        end
-    end
+    exchange_type = (
+        haskey(conf, "THERMODYNAMIC_INTEGRATION", "exchange_type") ?
+            retrieve(conf, "THERMODYNAMIC_INTEGRATION", "exchange_type") :
+            "deo"
+    )
+    sampler = initialize_pCNL_sampler(
+        model; δ = δ, N = num_steps, exchange_type = exchange_type,
+    )
+    @reset model.pcnl_kernel = sampler.kernel
+    @reset model.xchange_func = sampler.model.xchange_func
+    @reset model.posterior_sampler = sampler
+    @reset model.posterior_sampler.model = model
 
     st_rng = seed_rand(model; rng = rng)
 
@@ -154,18 +159,6 @@ function setup_training(
 
         Q, S = model.prior.q_size, model.batch_size
         P = model.prior.bool_config.mixture_model ? 1 : model.prior.p_size
-        exchange_type = (
-            haskey(conf, "THERMODYNAMIC_INTEGRATION", "exchange_type") ?
-                retrieve(conf, "THERMODYNAMIC_INTEGRATION", "exchange_type") :
-                "deo"
-        )
-        @reset model.xchange_func =
-            exchange_type == "none" ? NoExchange() : ReplicaXchange(Q, P, S, model.N_t)
-        @reset model.pcnl_kernel = PcnlKernel(
-            Q, P, S, model.N_t,
-            model.posterior_sampler.log_dist,
-            model.posterior_sampler.eval_dist,
-        )
 
         @reset model.train_step = begin
 
@@ -196,13 +189,6 @@ function setup_training(
         println("Posterior sampler: Thermo pCNL")
 
     elseif model.sampler_type != "importance" || model.prior.bool_config.ula
-
-        Q, S = model.prior.q_size, model.batch_size
-        P = model.prior.bool_config.mixture_model ? 1 : model.prior.p_size
-        @reset model.pcnl_kernel = PcnlKernel(
-            Q, P, S, 1,
-            model.posterior_sampler.log_dist, model.posterior_sampler.eval_dist,
-        )
 
         static_loss = LangevinLoss(model)
 
