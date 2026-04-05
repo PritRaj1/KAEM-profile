@@ -30,19 +30,12 @@ function (k::PcnlKernel)(
         n_c,
         inv_2σ2,
         model,
-        lkhood_copy,
         ps,
         st_kan,
         st_lux,
         noise,
         log_u_mh,
-        log_u_swap,
-        mask_swap_1,
-        mask_swap_2,
         component_mask,
-        shift_down,
-        shift_up,
-        temps,
     )
     Q, P, S, num_temps = k.Q, k.P, k.S, k.num_temps
 
@@ -95,25 +88,7 @@ function (k::PcnlKernel)(
         sum(reshape(accept, num_temps, S); dims = 2); dims = 2,
     )
 
-    # Replica exchange
-    z_xch = model.xchange_func(
-        i,
-        z_mh,
-        x_t,
-        temps,
-        model,
-        lkhood_copy,
-        ps,
-        st_kan,
-        st_lux,
-        log_u_swap,
-        mask_swap_1,
-        mask_swap_2,
-        shift_down,
-        shift_up,
-    )
-
-    return z_xch, accept_count .+ accept_per_temp
+    return z_mh, accept_count .+ accept_per_temp
 end
 
 end

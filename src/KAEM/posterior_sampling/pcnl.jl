@@ -148,12 +148,12 @@ function (sampler::pCNL_sampler)(
     shift_down = num_temps > 1 ? st_rng.shift_down : nothing
     shift_up = num_temps > 1 ? st_rng.shift_up : nothing
 
-    accept_count = st_lux.delta .* 0.0f0
+    accept_count = zero(st_lux.delta)
 
     state = (1, z_flat, accept_count)
     @trace while first(state) <= N_steps
         i, z_acc, ac = state
-        z_new, ac_new = kernel(
+        z_mh, ac_new = kernel(
             i,
             z_acc,
             ac,
@@ -163,19 +163,28 @@ function (sampler::pCNL_sampler)(
             n_c,
             inv_2σ2,
             model,
-            lkhood_copy,
             ps,
             st_kan,
             st_lux,
             noise,
             log_u_mh,
+            component_mask,
+        )
+        z_new = model.xchange_func(
+            i,
+            z_mh,
+            x_t,
+            temps,
+            model,
+            lkhood_copy,
+            ps,
+            st_kan,
+            st_lux,
             log_u_swap,
             mask_swap_1,
             mask_swap_2,
-            component_mask,
             shift_down,
             shift_up,
-            temps,
         )
         state = (i + 1, z_new, ac_new)
     end
