@@ -125,13 +125,13 @@ function (sampler::pCNL_sampler)(
     @reset model.lkhood.generator.s_size = S * num_temps
     temps_gpu = repeat(temps, S)
 
-    # pCNL coefficients
+    # pCNL coefficients: https://arxiv.org/abs/2408.14325 eq. 8
+    # z_c + g_c = 1, so g_c = 1 - z_c
     δ_gpu = repeat(st_lux.delta, S)
     denom = 2.0f0 .+ δ_gpu
     nc = sqrt.(8.0f0 .* δ_gpu) ./ denom
-    z_c = reshape((2.0f0 .- δ_gpu) ./ denom, 1, 1, S * num_temps)
-    g_c = reshape(2.0f0 .* δ_gpu ./ denom, 1, 1, S * num_temps)
-    n_c = reshape(nc, 1, 1, S * num_temps)
+    z_c = reshape((2.0f0 .- δ_gpu) ./ denom, 1, 1, S * num_temps) .* 1.0f0
+    n_c = reshape(nc, 1, 1, S * num_temps) .* 1.0f0
     inv_2σ2 = 1.0f0 ./ (2.0f0 .* nc .^ 2)
 
     N_steps = sampler.N
@@ -160,7 +160,6 @@ function (sampler::pCNL_sampler)(
             x_t,
             temps_gpu,
             z_c,
-            g_c,
             n_c,
             inv_2σ2,
             model,
