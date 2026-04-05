@@ -24,6 +24,8 @@ export pu,
 using Lux, LinearAlgebra, Statistics, Random, Accessors, NNlib, Reactant
 using MLDataDevices: reactant_device
 
+ENV["TF_GPU_ALLOCATOR"] = get(ENV, "TF_GPU_ALLOCATOR", "cuda_malloc_async")
+
 # Device: "tpu", "gpu", or "cpu"
 function xdev()
     device = lowercase(get(ENV, "DEVICE", "cpu"))

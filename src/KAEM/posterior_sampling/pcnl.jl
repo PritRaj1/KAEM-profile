@@ -2,6 +2,7 @@ module pCNL_sampling
 
 export initialize_pCNL_sampler, pCNL_sampler
 
+using Reactant: @trace
 using LinearAlgebra,
     Lux,
     Accessors,
@@ -154,13 +155,14 @@ function (sampler::pCNL_sampler)(
 
     kernel = sampler.kernel
     accept_count = zero(st_lux.delta)
-    z_acc = z_flat
-    accept_acc = accept_count
-    for i in 1:N_steps
-        z_acc, accept_acc = kernel(
+
+    state = (1, z_flat, accept_count)
+    @trace while first(state) <= N_steps
+        i, z_acc, ac = state
+        z_new, ac_new = kernel(
             i,
             z_acc,
-            accept_acc,
+            ac,
             x_t,
             temps_gpu,
             z_c,
@@ -181,10 +183,12 @@ function (sampler::pCNL_sampler)(
             shift_up,
             temps,
         )
+        state = (i + 1, z_new, ac_new)
     end
 
-    z = reshape(z_acc, Q, P, S, num_temps)
-    accept_rate = accept_acc ./ (N_steps * S)
+    _, z_final, final_accept = state
+    z = reshape(z_final, Q, P, S, num_temps)
+    accept_rate = final_accept ./ (N_steps * S)
 
     if prior_sampling_bool
         st_lux = st_lux.ebm
