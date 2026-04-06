@@ -87,19 +87,14 @@ function setup_training(
         @reset model.posterior_sampler = initialize_pCNL_sampler(
             model; δ = δ, N = num_steps, exchange_type = exchange_type,
         )
-        @reset st_lux.delta = pu(fill(δ, model.posterior_sampler.num_temps))
     elseif model.sampler_type == "ula"
         @reset model.posterior_sampler = initialize_ULA_sampler(
             model; η = η_init, N = num_steps, exchange_type = exchange_type,
         )
-        @reset st_lux.delta = pu(fill(η_init, model.posterior_sampler.num_temps))
     else
         @reset model.posterior_sampler = initialize_pCNL_sampler(model; N = num_steps)
-        @reset st_lux.delta = pu([0.01f0])
     end
 
-    # Forward pass to init st_lux state before compilation
-    @reset st_lux.delta = Reactant.@jit adapt_delta(st_lux.delta, st_lux.delta, 1)
     st_rng = seed_rand(model; rng = rng)
     _, st_ebm, st_gen = Reactant.@jit model(ps, st_kan, Lux.trainmode(st_lux), st_rng)
     @reset st_lux.ebm = st_ebm

@@ -28,13 +28,11 @@ function sample_thermo(
     )
     z = sampler_out[1]
     st_lux = sampler_out[2]
-    accept_rate = length(sampler_out) > 2 ? sampler_out[3] : nothing
 
     Δt = temps[2:end] - temps[1:(end - 1)]
     tempered_noise = st_rng.tempered_noise
     noise = st_rng.train_noise
 
-    # Get component mask for mixture model normalization
     Q, P, S = model.prior.q_size, model.prior.p_size, model.batch_size
     component_mask = (
         model.prior.bool_config.mixture_model && !model.prior.bool_config.contrastive_div ?
@@ -42,7 +40,7 @@ function sample_thermo(
             nothing
     )
 
-    return z, Δt, st_lux, noise, tempered_noise, component_mask, accept_rate
+    return z, Δt, st_lux, noise, tempered_noise, component_mask
 end
 
 function marginal_llhood(
@@ -124,7 +122,7 @@ function (l::ThermoLoss)(
         train_idx,
         st_rng,
     )
-    z, Δt, st_lux, noise, tempered_noise, component_mask, accept_rate = sample_thermo(
+    z, Δt, st_lux, noise, tempered_noise, component_mask = sample_thermo(
         ps,
         st_kan,
         st_lux,
@@ -162,9 +160,7 @@ function (l::ThermoLoss)(
     )
 
     opt_state, ps = Optimisers.update(opt_state, ps, dps)
-    new_delta = !isnothing(accept_rate) ?
-        adapt_delta(st_lux.delta, accept_rate, train_idx) : nothing
-    return loss, ps, opt_state, st_lux_ebm, st_lux_gen, new_delta
+    return loss, ps, opt_state, st_lux_ebm, st_lux_gen
 end
 
 end

@@ -20,10 +20,7 @@ function sample_langevin(
         x,
         st_rng,
     )
-    sampler_out = model.posterior_sampler(ps, st_kan, st_lux, x, st_rng)
-    z = sampler_out[1]
-    st_lux = sampler_out[2]
-    accept_rate = length(sampler_out) > 2 ? sampler_out[3] : nothing
+    z, st_lux = model.posterior_sampler(ps, st_kan, st_lux, x, st_rng)
     noise = st_rng.train_noise
 
     Q, P, S = model.prior.q_size, model.prior.p_size, model.batch_size
@@ -33,7 +30,7 @@ function sample_langevin(
             nothing
     )
 
-    return z[:, :, :, 1], st_lux, noise, component_mask, accept_rate
+    return z[:, :, :, 1], st_lux, noise, component_mask
 end
 
 function marginal_llhood(
@@ -106,7 +103,7 @@ function (l::LangevinLoss)(
         train_idx,
         st_rng,
     )
-    z_posterior, st_new, noise, component_mask, accept_rate =
+    z_posterior, st_new, noise, component_mask =
         sample_langevin(ps, st_kan, st_lux, l.model, x, st_rng)
     st_lux_ebm, st_lux_gen = st_new.ebm, st_new.gen
     z_prior, st_lux_ebm =
@@ -130,9 +127,7 @@ function (l::LangevinLoss)(
     )
 
     opt_state, ps = Optimisers.update(opt_state, ps, dps)
-    new_delta = !isnothing(accept_rate) ?
-        adapt_delta(st_lux.delta, accept_rate, train_idx) : nothing
-    return loss, ps, opt_state, st_lux_ebm, st_lux_gen, new_delta
+    return loss, ps, opt_state, st_lux_ebm, st_lux_gen
 end
 
 end
