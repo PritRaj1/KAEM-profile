@@ -131,7 +131,6 @@ function init_KAEM(
     variational = parse(Bool, retrieve(conf, "VARIATIONAL", "use_variational"))
     encoder_model = init_encoder(conf, x_shape; rng = rng)
 
-    η_init = parse(Float32, retrieve(conf, "POST_LANGEVIN", "initial_step_size"))
     N_t = parse(Int, retrieve(conf, "THERMODYNAMIC_INTEGRATION", "num_temps"))
     num_steps = parse(Int, retrieve(conf, "POST_LANGEVIN", "iters"))
     sampler_type = retrieve(conf, "POST_LANGEVIN", "sampler")

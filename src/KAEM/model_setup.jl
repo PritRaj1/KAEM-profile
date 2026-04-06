@@ -25,6 +25,11 @@ using .ULA_sampling
 using .pCNL_sampling
 using .HLOrng
 
+# Compile or return raw loss function
+function maybe_compile(loss, MLIR, opt_state, ps, st_kan, st_lux, x, st_rng)
+    return MLIR ? Reactant.@compile(loss(opt_state, ps, st_kan, st_lux, x, 1, st_rng)) : loss
+end
+
 function setup_training(
         opt_state,
         ps::ComponentArray{T},
@@ -37,14 +42,10 @@ function setup_training(
     ) where {T <: Float32}
     conf = model.conf
 
-    # Posterior samplers
-    initial_step_size =
-        parse(Float32, retrieve(conf, "POST_LANGEVIN", "initial_step_size"))
     num_steps = parse(Int, retrieve(conf, "POST_LANGEVIN", "iters"))
-    η_init = parse(Float32, retrieve(conf, "POST_LANGEVIN", "initial_step_size"))
+    η = parse(Float32, retrieve(conf, "POST_LANGEVIN", "ula_eta"))
 
     batch_size = parse(Int, retrieve(conf, "TRAINING", "batch_size"))
-    zero_vec = pu(zeros(T, model.lkhood.x_shape..., model.batch_size, batch_size))
     max_samples = max(model.batch_size, batch_size)
     x = zeros(T, model.lkhood.x_shape..., max_samples) |> pu
 
@@ -68,7 +69,6 @@ function setup_training(
         @reset model.sample_prior =
             (m, p, sk, sl, r) ->
         sample_mixture(m.prior, p.ebm, sk.ebm, Lux.testmode(sl.ebm), sk.quad, r)
-
         @reset model.log_prior =
             LogPriorMix(model.ε, !model.prior.bool_config.contrastive_div)
         println("Prior sampler: Mix ITS")
@@ -81,6 +81,7 @@ function setup_training(
         println("Prior sampler: Univar ITS")
     end
 
+    # Posterior sampler setup
     exchange_type = retrieve(conf, "THERMODYNAMIC_INTEGRATION", "exchange_type")
     if model.sampler_type == "pcnl"
         δ = parse(Float32, retrieve(conf, "POST_LANGEVIN", "pcnl_delta"))
@@ -89,13 +90,15 @@ function setup_training(
         )
     elseif model.sampler_type == "ula"
         @reset model.posterior_sampler = initialize_ULA_sampler(
-            model; η = η_init, N = num_steps, exchange_type = exchange_type,
+            model; η = η, N = num_steps, exchange_type = exchange_type,
         )
     else
         @reset model.posterior_sampler = initialize_pCNL_sampler(model; N = num_steps)
     end
 
     st_rng = seed_rand(model; rng = rng)
+
+    # Forward pass to init st_lux state before compilation
     _, st_ebm, st_gen = Reactant.@jit model(ps, st_kan, Lux.trainmode(st_lux), st_rng)
     @reset st_lux.ebm = st_ebm
     @reset st_lux.gen = st_gen
@@ -103,12 +106,12 @@ function setup_training(
     num_param_updates =
         parse(Int, retrieve(conf, "TRAINING", "N_epochs")) * length(model.train_loader)
 
+    # Training loss dispatch
     if model.encoder.bool_config.variational
 
-        # Force normalized log prior for ELBO (need -log Z term)
         @reset model.log_prior.normalize = true
 
-        # Cyclic beta annealing schedule (Fu et al., 2019)
+        # Cyclic beta annealing (Fu et al., 2019)
         max_kl_weight = parse(Float32, retrieve(conf, "VARIATIONAL", "beta"))
         beta_num_cycles = parse(Int, retrieve(conf, "VARIATIONAL", "num_cycles"))
         beta_cycle_length = parse(Int, retrieve(conf, "VARIATIONAL", "cycle_length"))
@@ -134,23 +137,9 @@ function setup_training(
         end
 
         static_loss = VariationalLoss(model, beta)
-
-        @reset model.train_step = begin
-            if MLIR
-                Reactant.@compile static_loss(
-                    opt_state,
-                    ps,
-                    st_kan,
-                    st_lux,
-                    x,
-                    1,
-                    st_rng,
-                )
-            else
-                static_loss
-            end
-        end
-
+        @reset model.train_step = maybe_compile(
+            static_loss, MLIR, opt_state, ps, st_kan, st_lux, x, st_rng,
+        )
         println("Posterior sampler: Variational")
 
     elseif model.N_t > 1
@@ -167,64 +156,24 @@ function setup_training(
             end
             @reset thermo_model.lkhood.generator.s_size = S * (model.N_t + 1)
             static_loss = ThermoLoss(thermo_model)
-
-            if MLIR
-                Reactant.@compile static_loss(
-                    opt_state,
-                    ps,
-                    st_kan,
-                    st_lux,
-                    x,
-                    1,
-                    st_rng,
-                )
-            else
-                static_loss
-            end
+            maybe_compile(static_loss, MLIR, opt_state, ps, st_kan, st_lux, x, st_rng)
         end
         println("Posterior sampler: Thermo $(uppercase(model.sampler_type))")
 
     elseif model.sampler_type != "importance" || model.prior.bool_config.ula
 
         static_loss = LangevinLoss(model)
-
-        @reset model.train_step = begin
-            if MLIR
-                Reactant.@compile static_loss(
-                    opt_state,
-                    ps,
-                    st_kan,
-                    st_lux,
-                    x,
-                    1,
-                    st_rng,
-                )
-            else
-                static_loss
-            end
-        end
-
+        @reset model.train_step = maybe_compile(
+            static_loss, MLIR, opt_state, ps, st_kan, st_lux, x, st_rng,
+        )
         println("Posterior sampler: MLE $(uppercase(model.sampler_type))")
+
     else
-        @reset model.train_step = begin
 
-            static_loss = ImportanceLoss(model)
-
-            if MLIR
-                Reactant.@compile static_loss(
-                    opt_state,
-                    ps,
-                    st_kan,
-                    st_lux,
-                    x,
-                    1,
-                    st_rng,
-                )
-            else
-                static_loss
-            end
-        end
-
+        static_loss = ImportanceLoss(model)
+        @reset model.train_step = maybe_compile(
+            static_loss, MLIR, opt_state, ps, st_kan, st_lux, x, st_rng,
+        )
         println("Posterior sampler: MLE IS")
     end
 
