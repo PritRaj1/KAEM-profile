@@ -33,22 +33,25 @@ function (r::ReplicaXchange)(
     )
     Q, P, S, num_temps = r.Q, r.P, r.S, r.num_temps
 
-    ll_all = first(log_likelihood_MALA(
-        z_i,
-        x_t,
-        model.lkhood,
-        ps.gen,
-        st_kan.gen,
-        st_lux.gen,
-        zero(x_t);
-        ε = model.ε,
-    ))
+    ll_all = first(
+        log_likelihood_MALA(
+            z_i,
+            x_t,
+            model.lkhood,
+            ps.gen,
+            st_kan.gen,
+            st_lux.gen,
+            zero(x_t);
+            ε = model.ε,
+        )
+    )
 
     ll_st = reshape(ll_all, S, num_temps)
-    mask1 = reshape(mask_swap_1[:, i], 1, num_temps) .* 1.0f0
-    mask2 = reshape(mask_swap_2[:, i], 1, num_temps) .* 1.0f0
+    mask1 = reshape(mask_swap_1[:, i], 1, num_temps)
+    mask2 = reshape(mask_swap_2[:, i], 1, num_temps)
 
-    ll_shifted = ll_st * shift_down'
+    # Note sift_down' = shift_up and vice versa
+    ll_shifted = ll_st * shift_up
     temps_row = reshape(temps, 1, num_temps)
     temps_shifted = reshape(shift_down * temps, 1, num_temps)
 
@@ -56,12 +59,12 @@ function (r::ReplicaXchange)(
     ratio = mask1 .* (temps_row .- temps_shifted) .* (ll_shifted .- ll_st)
     log_u = log_u_swap[:, :, i]
     accept = mask1 .* max.(sign.(ratio .- log_u), 0.0f0)
-    accept_upper = (accept * shift_up') .* mask2
+    accept_upper = (accept * shift_down) .* mask2
 
     z = reshape(z_i, Q, P, S, num_temps)
     z_flat_temps = reshape(z, Q * P * S, num_temps)
-    z_down = reshape(z_flat_temps * shift_down', Q, P, S, num_temps)
-    z_up = reshape(z_flat_temps * shift_up', Q, P, S, num_temps)
+    z_down = reshape(z_flat_temps * shift_up, Q, P, S, num_temps)
+    z_up = reshape(z_flat_temps * shift_down, Q, P, S, num_temps)
 
     accept_exp = reshape(accept, 1, 1, S, num_temps)
     accept_upper_exp = reshape(accept_upper, 1, 1, S, num_temps)
