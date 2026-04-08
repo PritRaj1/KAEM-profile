@@ -106,8 +106,8 @@ function seed_rand(
                 odd_2[t + 1] = 1.0f0
             end
 
-            swap_mask_1 = hcat([isodd(i) ? even_1 : odd_1 for i in 1:N]...)
-            swap_mask_2 = hcat([isodd(i) ? even_2 : odd_2 for i in 1:N]...)
+            swap_mask_1 = reshape(hcat([isodd(i) ? even_1 : odd_1 for i in 1:N]...), 1, num_temps, N)
+            swap_mask_2 = reshape(hcat([isodd(i) ? even_2 : odd_2 for i in 1:N]...), 1, num_temps, N)
         else # random
             swap_mask_1 = zeros(T, 1, num_temps, N)
             swap_mask_2 = zeros(T, 1, num_temps, N)
