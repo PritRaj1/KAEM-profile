@@ -1,5 +1,7 @@
 module Utils
 
+ENV["TF_GPU_ALLOCATOR"] = get(ENV, "TF_GPU_ALLOCATOR", "cuda_malloc_async")
+
 export pu,
     xdev,
     symbol_map,
