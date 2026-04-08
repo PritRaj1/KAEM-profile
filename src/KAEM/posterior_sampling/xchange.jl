@@ -33,7 +33,7 @@ function (r::ReplicaXchange)(
     )
     Q, P, S, num_temps = r.Q, r.P, r.S, r.num_temps
 
-    ll_all, _ = log_likelihood_MALA(
+    ll_all = first(log_likelihood_MALA(
         z_i,
         x_t,
         model.lkhood,
@@ -42,12 +42,11 @@ function (r::ReplicaXchange)(
         st_lux.gen,
         zero(x_t);
         ε = model.ε,
-    )
+    ))
 
     ll_st = reshape(ll_all, S, num_temps)
-
-    mask1 = reshape(mask_swap_1[:, i], 1, num_temps)
-    mask2 = reshape(mask_swap_2[:, i], 1, num_temps)
+    mask1 = reshape(mask_swap_1[:, i], 1, num_temps) .* 1.0f0
+    mask2 = reshape(mask_swap_2[:, i], 1, num_temps) .* 1.0f0
 
     ll_shifted = ll_st * shift_down'
     temps_row = reshape(temps, 1, num_temps)
