@@ -109,12 +109,12 @@ function seed_rand(
             swap_mask_1 = hcat([isodd(i) ? even_1 : odd_1 for i in 1:N]...)
             swap_mask_2 = hcat([isodd(i) ? even_2 : odd_2 for i in 1:N]...)
         else # random
-            swap_mask_1 = zeros(T, num_temps, N)
-            swap_mask_2 = zeros(T, num_temps, N)
+            swap_mask_1 = zeros(T, 1, num_temps, N)
+            swap_mask_2 = zeros(T, 1, num_temps, N)
             for i in 1:N
                 t = rand(rng, 1:(num_temps - 1))
-                swap_mask_1[t, i] = 1.0f0
-                swap_mask_2[t + 1, i] = 1.0f0
+                swap_mask_1[1, t, i] = 1.0f0
+                swap_mask_2[1, t + 1, i] = 1.0f0
             end
         end
 

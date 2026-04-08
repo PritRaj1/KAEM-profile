@@ -47,8 +47,8 @@ function (r::ReplicaXchange)(
     )
 
     ll_st = reshape(ll_all, S, num_temps)
-    mask1 = reshape(mask_swap_1[:, i], 1, num_temps)
-    mask2 = reshape(mask_swap_2[:, i], 1, num_temps)
+    mask1 = mask_swap_1[:, :, i]
+    mask2 = mask_swap_2[:, :, i]
 
     # Note sift_down' = shift_up and vice versa
     ll_shifted = ll_st * shift_up
