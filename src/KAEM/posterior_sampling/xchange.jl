@@ -77,7 +77,7 @@ function (r::ReplicaXchange)(
             (1.0f0 .- mask1_exp .- mask2_exp) .* z
     )
 
-    return reshape(z_new, Q, P, S * num_temps)
+    return reshape(z_new, Q, P, S * num_temps) .* 1.0f0
 end
 
 struct NoExchange end
