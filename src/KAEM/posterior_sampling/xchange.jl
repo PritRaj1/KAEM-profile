@@ -42,17 +42,18 @@ function (r::ReplicaXchange)(
         )
     )
 
-    ll_st = reshape(ll_all, S, num_temps)
+    T = num_temps
+    ll_st = reshape(ll_all, S, T)
     mask1 = mask_swap_1[:, :, i]
     mask2 = mask_swap_2[:, :, i]
 
     # Shift via slice+pad
     pad_s = ll_st[:, 1:1] .* 0.0f0
-    ll_shifted = cat(ll_st[:, 2:end], pad_s; dims = 2)
+    ll_shifted = cat(ll_st[:, 2:T], pad_s; dims = 2)
 
-    temps_row = reshape(temps, 1, num_temps)
+    temps_row = reshape(temps, 1, T)
     pad_t = temps_row[:, 1:1] .* 0.0f0
-    temps_shifted = cat(temps_row[:, 2:end], pad_t; dims = 2)
+    temps_shifted = cat(temps_row[:, 2:T], pad_t; dims = 2)
 
     # Accept/reject
     ratio = mask1 .* (temps_row .- temps_shifted) .* (ll_shifted .- ll_st)
@@ -61,26 +62,24 @@ function (r::ReplicaXchange)(
 
     # Shift accept up: accept_upper[t+1] = accept[t]
     pad_a = accept[:, 1:1] .* 0.0f0
-    accept_upper = cat(pad_a, accept[:, 1:(end - 1)]; dims = 2) .* mask2
+    accept_upper = cat(pad_a, accept[:, 1:(T - 1)]; dims = 2) .* mask2
 
-    z = reshape(z_i, Q, P, S, num_temps)
-    z_flat_temps = reshape(z, Q * P * S, num_temps)
+    z = reshape(z_i, Q, P, S, T)
+    z_flat_temps = reshape(z, Q * P * S, T)
 
     # z_down[t] = z[t+1], z_up[t] = z[t-1]
     pad_z = z_flat_temps[:, 1:1] .* 0.0f0
     z_down = reshape(
-        cat(z_flat_temps[:, 2:end], pad_z; dims = 2),
-        Q, P, S, num_temps,
+        cat(z_flat_temps[:, 2:T], pad_z; dims = 2), Q, P, S, T,
     )
     z_up = reshape(
-        cat(pad_z, z_flat_temps[:, 1:(end - 1)]; dims = 2),
-        Q, P, S, num_temps,
+        cat(pad_z, z_flat_temps[:, 1:(T - 1)]; dims = 2), Q, P, S, T,
     )
 
-    accept_exp = reshape(accept, 1, 1, S, num_temps)
-    accept_upper_exp = reshape(accept_upper, 1, 1, S, num_temps)
-    mask1_exp = reshape(mask1, 1, 1, 1, num_temps)
-    mask2_exp = reshape(mask2, 1, 1, 1, num_temps)
+    accept_exp = reshape(accept, 1, 1, S, T)
+    accept_upper_exp = reshape(accept_upper, 1, 1, S, T)
+    mask1_exp = reshape(mask1, 1, 1, 1, T)
+    mask2_exp = reshape(mask2, 1, 1, 1, T)
 
     z_new = (
         mask1_exp .* (accept_exp .* z_down .+ (1.0f0 .- accept_exp) .* z) .+
@@ -88,7 +87,7 @@ function (r::ReplicaXchange)(
             (1.0f0 .- mask1_exp .- mask2_exp) .* z
     )
 
-    return reshape(z_new, Q, P, S * num_temps) .* 1.0f0
+    return reshape(z_new, Q, P, S * num_temps)
 end
 
 struct NoExchange end

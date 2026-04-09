@@ -133,8 +133,8 @@ function (sampler::ULA_sampler)(
 
     noise = st_rng.mcmc_noise
     log_u_swap = st_rng.log_swap
-    mask_swap_1 = num_temps > 1 ? st_rng.swap_mask_1 .* 1.0f0 : nothing
-    mask_swap_2 = num_temps > 1 ? st_rng.swap_mask_2 .* 1.0f0 : nothing
+    mask_swap_1 = num_temps > 1 ? st_rng.swap_mask_1 : nothing
+    mask_swap_2 = num_temps > 1 ? st_rng.swap_mask_2 : nothing
 
     kernel = sampler.kernel
     state = (1, z_flat)
