@@ -32,10 +32,16 @@ dev = [
     "ruff",
     "mypy",
 ]
+notebook = [
+    "jupyter",
+    "nbformat",
+    "nbstripout",
+]
 
 [tool.ruff]
 line-length = 88
 target-version = "py311"
+extend-include = ["*.ipynb"]
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "W"]
