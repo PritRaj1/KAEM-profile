@@ -73,14 +73,14 @@ function (r::_ReplicaXchange)(
     # Fused shift-subtract: ll_diff[s,t] = ll[s,t+1] - ll[s,t]
     ll_diff = ll_st * r.ll_diff_mat
     temps_row = reshape(temps, 1, T)
-    temps_diff = temps_row .- reshape(r.shift_down * temps, 1, T)
+    temps_diff = temps_row .- reshape(r.shift_down[1, 1, 1, :, :] * temps, 1, T)
     ratio = mask1 .* temps_diff .* ll_diff
 
     log_u = log_u_swap[:, :, i]
     accept = mask1 .* max.(sign.(ratio .- log_u), 0.0f0)
 
     # Shift accept up: accept_upper[t+1] = accept[t]
-    accept_upper = (accept * r.shift_down) .* mask2
+    accept_upper = (accept * r.shift_down[1, 1, 1, :, :]) .* mask2
 
     z = reshape(z_i, Q, P, S, T)
     z_down = dropdims(sum(z .* r.shift_up, dims = 4); dims = 4)
