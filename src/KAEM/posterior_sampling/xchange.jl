@@ -21,13 +21,13 @@ struct _ReplicaXchange
 end
 
 function ReplicaXchange(Q::Int, P::Int, S::Int, T::Int)
-    shift_up = zeros(Float32, T, T)
-    shift_down = zeros(Float32, T, T)
+    shift_up = zeros(Float32, 1, 1, 1, T, T)
+    shift_down = zeros(Float32, 1, 1, 1, T, T)
     for t in 1:(T - 1)
-        shift_up[t + 1, t] = 1.0f0
-        shift_down[t, t + 1] = 1.0f0
+        shift_up[1, 1, 1, t + 1, t] = 1.0f0
+        shift_down[1, 1, 1, t, t + 1] = 1.0f0
     end
-    ll_diff_mat = shift_up - Matrix{Float32}(I, T, T)
+    ll_diff_mat = shift_up[1, 1, 1, :, :] - Matrix{Float32}(I, T, T)
     return _ReplicaXchange(
         Q,
         P,
@@ -53,7 +53,6 @@ function (r::_ReplicaXchange)(
         mask_swap_2,
     )
     Q, P, S, T = r.Q, r.P, r.S, r.num_temps
-
     ll_all = first(
         log_likelihood_MALA(
             z_i,
@@ -84,9 +83,8 @@ function (r::_ReplicaXchange)(
     accept_upper = (accept * r.shift_down) .* mask2
 
     z = reshape(z_i, Q, P, S, T)
-    z_flat_temps = reshape(z, Q * P * S, T)
-    z_down = reshape(z_flat_temps * r.shift_up, Q, P, S, T)
-    z_up = reshape(z_flat_temps * r.shift_down, Q, P, S, T)
+    z_down = dropdims(sum(z .* r.shift_up, dims = 4); dims = 4)
+    z_up = dropdims(sum(z .* r.shift_down, dims = 4); dims = 4)
 
     accept_exp = reshape(accept, 1, 1, S, T)
     accept_upper_exp = reshape(accept_upper, 1, 1, S, T)
