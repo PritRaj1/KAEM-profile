@@ -105,8 +105,6 @@ function (sampler::ULA_sampler)(
         end
     end
 
-    lkhood_copy = model.lkhood
-
     for i in 1:model.prior.depth
         @reset model.prior.fcns_qp[i].basis_function.S = S * num_temps
     end
@@ -135,10 +133,8 @@ function (sampler::ULA_sampler)(
 
     noise = st_rng.mcmc_noise
     log_u_swap = st_rng.log_swap
-    mask_swap_1 = num_temps > 1 ? st_rng.swap_mask_1 : nothing
-    mask_swap_2 = num_temps > 1 ? st_rng.swap_mask_2 : nothing
-    shift_down = num_temps > 1 ? st_rng.shift_down : nothing
-    shift_up = num_temps > 1 ? st_rng.shift_up : nothing
+    mask_swap_1 = num_temps > 1 ? st_rng.swap_mask_1 .* 1.0f0 : nothing
+    mask_swap_2 = num_temps > 1 ? st_rng.swap_mask_2 .* 1.0f0 : nothing
 
     kernel = sampler.kernel
     state = (1, z_flat)
@@ -150,7 +146,6 @@ function (sampler::ULA_sampler)(
             x_t,
             temps_gpu,
             model,
-            lkhood_copy,
             ps,
             st_kan,
             st_lux,
@@ -159,8 +154,6 @@ function (sampler::ULA_sampler)(
             mask_swap_1,
             mask_swap_2,
             component_mask,
-            shift_down,
-            shift_up,
             temps,
         )
         state = (i + 1, z_new)

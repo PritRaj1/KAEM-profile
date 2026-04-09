@@ -117,18 +117,9 @@ function seed_rand(
                 swap_mask_2[1, t + 1, i] = 1.0f0
             end
         end
-
-        shift_down = zeros(T, num_temps, num_temps)
-        shift_up = zeros(T, num_temps, num_temps)
-        for t in 1:(num_temps - 1)
-            shift_down[t, t + 1] = 1.0f0
-            shift_up[t + 1, t] = 1.0f0
-        end
     else
         swap_mask_1 = [0.0f0]
         swap_mask_2 = [0.0f0]
-        shift_down = [0.0f0]
-        shift_up = [0.0f0]
     end
 
     latent_dim = model.prior.q_size * model.prior.p_size
@@ -152,8 +143,6 @@ function seed_rand(
         log_mh = log_mh,
         swap_mask_1 = swap_mask_1,
         swap_mask_2 = swap_mask_2,
-        shift_down = shift_down,
-        shift_up = shift_up,
         encoder_noise = encoder_noise,
     ) |> pu
 end

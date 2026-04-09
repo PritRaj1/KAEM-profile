@@ -21,7 +21,6 @@ function (k::UlaKernel)(
         x_t,
         temps_gpu,
         model,
-        lkhood_copy,
         ps,
         st_kan,
         st_lux,
@@ -30,8 +29,6 @@ function (k::UlaKernel)(
         mask_swap_1,
         mask_swap_2,
         component_mask,
-        shift_down,
-        shift_up,
         temps,
     )
     ξ = noise[:, :, :, i]
@@ -54,15 +51,12 @@ function (k::UlaKernel)(
         x_t,
         temps,
         model,
-        lkhood_copy,
         ps,
         st_kan,
         st_lux,
         log_u_swap,
         mask_swap_1,
         mask_swap_2,
-        shift_down,
-        shift_up,
     )
 end
 

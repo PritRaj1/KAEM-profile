@@ -21,18 +21,14 @@ function (r::ReplicaXchange)(
         x_t,
         temps,
         model,
-        lkhood_copy,
         ps,
         st_kan,
         st_lux,
         log_u_swap,
         mask_swap_1,
         mask_swap_2,
-        shift_down,
-        shift_up,
     )
     Q, P, S, num_temps = r.Q, r.P, r.S, r.num_temps
-
     ll_all = first(
         log_likelihood_MALA(
             z_i,
@@ -50,21 +46,36 @@ function (r::ReplicaXchange)(
     mask1 = mask_swap_1[:, :, i]
     mask2 = mask_swap_2[:, :, i]
 
-    # Note sift_down' = shift_up and vice versa
-    ll_shifted = ll_st * shift_up
-    temps_row = reshape(temps, 1, num_temps)
-    temps_shifted = reshape(shift_down * temps, 1, num_temps)
+    # Shift via slice+pad
+    pad_s = ll_st[:, 1:1] .* 0.0f0
+    ll_shifted = cat(ll_st[:, 2:end], pad_s; dims = 2)
 
-    # Accept/reject w/ sign arithmetic (HLO compatible)
+    temps_row = reshape(temps, 1, num_temps)
+    pad_t = temps_row[:, 1:1] .* 0.0f0
+    temps_shifted = cat(temps_row[:, 2:end], pad_t; dims = 2)
+
+    # Accept/reject
     ratio = mask1 .* (temps_row .- temps_shifted) .* (ll_shifted .- ll_st)
     log_u = log_u_swap[:, :, i]
     accept = mask1 .* max.(sign.(ratio .- log_u), 0.0f0)
-    accept_upper = (accept * shift_down) .* mask2
+
+    # Shift accept up: accept_upper[t+1] = accept[t]
+    pad_a = accept[:, 1:1] .* 0.0f0
+    accept_upper = cat(pad_a, accept[:, 1:(end - 1)]; dims = 2) .* mask2
 
     z = reshape(z_i, Q, P, S, num_temps)
     z_flat_temps = reshape(z, Q * P * S, num_temps)
-    z_down = reshape(z_flat_temps * shift_up, Q, P, S, num_temps)
-    z_up = reshape(z_flat_temps * shift_down, Q, P, S, num_temps)
+
+    # z_down[t] = z[t+1], z_up[t] = z[t-1]
+    pad_z = z_flat_temps[:, 1:1] .* 0.0f0
+    z_down = reshape(
+        cat(z_flat_temps[:, 2:end], pad_z; dims = 2),
+        Q, P, S, num_temps,
+    )
+    z_up = reshape(
+        cat(pad_z, z_flat_temps[:, 1:(end - 1)]; dims = 2),
+        Q, P, S, num_temps,
+    )
 
     accept_exp = reshape(accept, 1, 1, S, num_temps)
     accept_upper_exp = reshape(accept_upper, 1, 1, S, num_temps)
@@ -88,15 +99,12 @@ function (r::NoExchange)(
         x_t,
         temps,
         model,
-        lkhood_copy,
         ps,
         st_kan,
         st_lux,
         log_u_swap,
         mask_swap_1,
         mask_swap_2,
-        shift_down,
-        shift_up,
     )
     return z_i
 end
