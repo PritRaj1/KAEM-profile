@@ -2,20 +2,44 @@ module PopulationXchange
 
 export ReplicaXchange, NoExchange
 
+using LinearAlgebra
+
 using ..Utils
 using ..KAEM_model
 
 include("../gen/loglikelihoods.jl")
 using .LogLikelihoods: log_likelihood_MALA
 
-struct ReplicaXchange
+struct _ReplicaXchange
     Q::Int
     P::Int
     S::Int
     num_temps::Int
+    shift_up
+    shift_down
+    ll_diff_mat
 end
 
-function (r::ReplicaXchange)(
+function ReplicaXchange(Q::Int, P::Int, S::Int, T::Int)
+    shift_up = zeros(Float32, T, T)
+    shift_down = zeros(Float32, T, T)
+    for t in 1:(T - 1)
+        shift_up[t + 1, t] = 1.0f0
+        shift_down[t, t + 1] = 1.0f0
+    end
+    ll_diff_mat = shift_up - Matrix{Float32}(I, T, T)
+    return _ReplicaXchange(
+        Q,
+        P,
+        S,
+        T,
+        shift_up,
+        shift_down,
+        ll_diff_mat
+    )
+end
+
+function (r::_ReplicaXchange)(
         i,
         z_i,
         x_t,
@@ -28,7 +52,8 @@ function (r::ReplicaXchange)(
         mask_swap_1,
         mask_swap_2,
     )
-    Q, P, S, num_temps = r.Q, r.P, r.S, r.num_temps
+    Q, P, S, T = r.Q, r.P, r.S, r.num_temps
+
     ll_all = first(
         log_likelihood_MALA(
             z_i,
@@ -42,39 +67,26 @@ function (r::ReplicaXchange)(
         )
     )
 
-    T = num_temps
     ll_st = reshape(ll_all, S, T)
     mask1 = mask_swap_1[:, :, i]
     mask2 = mask_swap_2[:, :, i]
 
-    # Shift via slice+pad
-    pad_s = ll_st[:, 1:1] .* 0.0f0
-    ll_shifted = cat(ll_st[:, 2:T], pad_s; dims = 2)
-
+    # Fused shift-subtract: ll_diff[s,t] = ll[s,t+1] - ll[s,t]
+    ll_diff = ll_st * r.ll_diff_mat
     temps_row = reshape(temps, 1, T)
-    pad_t = temps_row[:, 1:1] .* 0.0f0
-    temps_shifted = cat(temps_row[:, 2:T], pad_t; dims = 2)
+    temps_diff = temps_row .- reshape(r.shift_down * temps, 1, T)
+    ratio = mask1 .* temps_diff .* ll_diff
 
-    # Accept/reject
-    ratio = mask1 .* (temps_row .- temps_shifted) .* (ll_shifted .- ll_st)
     log_u = log_u_swap[:, :, i]
     accept = mask1 .* max.(sign.(ratio .- log_u), 0.0f0)
 
     # Shift accept up: accept_upper[t+1] = accept[t]
-    pad_a = accept[:, 1:1] .* 0.0f0
-    accept_upper = cat(pad_a, accept[:, 1:(T - 1)]; dims = 2) .* mask2
+    accept_upper = (accept * r.shift_down) .* mask2
 
     z = reshape(z_i, Q, P, S, T)
     z_flat_temps = reshape(z, Q * P * S, T)
-
-    # z_down[t] = z[t+1], z_up[t] = z[t-1]
-    pad_z = z_flat_temps[:, 1:1] .* 0.0f0
-    z_down = reshape(
-        cat(z_flat_temps[:, 2:T], pad_z; dims = 2), Q, P, S, T,
-    )
-    z_up = reshape(
-        cat(pad_z, z_flat_temps[:, 1:(T - 1)]; dims = 2), Q, P, S, T,
-    )
+    z_down = reshape(z_flat_temps * r.shift_up, Q, P, S, T)
+    z_up = reshape(z_flat_temps * r.shift_down, Q, P, S, T)
 
     accept_exp = reshape(accept, 1, 1, S, T)
     accept_upper_exp = reshape(accept_upper, 1, 1, S, T)
@@ -87,7 +99,7 @@ function (r::ReplicaXchange)(
             (1.0f0 .- mask1_exp .- mask2_exp) .* z
     )
 
-    return reshape(z_new, Q, P, S * num_temps)
+    return reshape(z_new, Q, P, S * T)
 end
 
 struct NoExchange end
