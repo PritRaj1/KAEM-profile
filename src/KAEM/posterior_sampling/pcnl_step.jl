@@ -53,7 +53,7 @@ function (k::PcnlKernel)(
     Dell_old = ∇z .+ z_i
 
     # Proposal: z_c + (1 - z_c) = 1
-    m_old = z_c .* z_i .+ (1.0f0 - z_c) .* Dell_old
+    m_old = z_c .* z_i .+ (1.0f0 .- z_c) .* Dell_old
     z_prop = m_old .+ n_c .* ξ
 
     # Reverse Dℓ(v)
@@ -62,7 +62,7 @@ function (k::PcnlKernel)(
         component_mask, k.log_dist,
     )
     Dell_new = ∇z_prop .+ z_prop
-    m_new = z_c .* z_prop .+ (1.0f0 - z_c) .* Dell_new
+    m_new = z_c .* z_prop .+ (1.0f0 .- z_c) .* Dell_new
 
     # Per-sample log-target
     logp_old = k.eval_dist(
