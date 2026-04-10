@@ -13,9 +13,6 @@ struct PcnlKernel
     P::Int
     S::Int
     num_temps::Int
-    z_c       # (2 - δ) / (2 + δ)
-    n_c       # √(8δ) / (2 + δ)
-    inv_2σ2   # (2 + δ)² / (16δ)
     log_dist
     eval_dist
     xchange_func
@@ -24,8 +21,12 @@ end
 function (k::PcnlKernel)(
         i,
         z_i,
+        accept_count,
         x_t,
         temps_gpu,
+        z_c,
+        n_c,
+        inv_2σ2,
         model,
         ps,
         st_kan,
@@ -52,8 +53,8 @@ function (k::PcnlKernel)(
     Dell_old = ∇z .+ z_i
 
     # Proposal: z_c + (1 - z_c) = 1
-    m_old = k.z_c .* z_i .+ (1.0f0 - k.z_c) .* Dell_old
-    z_prop = m_old .+ k.n_c .* ξ
+    m_old = z_c .* z_i .+ (1.0f0 - z_c) .* Dell_old
+    z_prop = m_old .+ n_c .* ξ
 
     # Reverse Dℓ(v)
     ∇z_prop = unadjusted_grad(
@@ -61,7 +62,7 @@ function (k::PcnlKernel)(
         component_mask, k.log_dist,
     )
     Dell_new = ∇z_prop .+ z_prop
-    m_new = k.z_c .* z_prop .+ (1.0f0 - k.z_c) .* Dell_new
+    m_new = z_c .* z_prop .+ (1.0f0 - z_c) .* Dell_new
 
     # Per-sample log-target
     logp_old = k.eval_dist(
@@ -76,7 +77,7 @@ function (k::PcnlKernel)(
     # MH: log α = π(v)/π(u) · q(u|v)/q(v|u)
     fwd_sq = dropdims(sum((z_prop .- m_old) .^ 2; dims = (1, 2)); dims = (1, 2))
     bwd_sq = dropdims(sum((z_i .- m_new) .^ 2; dims = (1, 2)); dims = (1, 2))
-    log_alpha = logp_new .- logp_old .+ k.inv_2σ2 .* (fwd_sq .- bwd_sq)
+    log_alpha = logp_new .- logp_old .+ inv_2σ2 .* (fwd_sq .- bwd_sq)
 
     # Accept/reject
     log_u = log_u_mh[:, i]
@@ -84,8 +85,13 @@ function (k::PcnlKernel)(
     accept_z = reshape(accept, 1, 1, S * num_temps)
     z_mh = accept_z .* z_prop .+ (1.0f0 .- accept_z) .* z_i
 
+    # Per-temperature accept counts
+    accept_per_temp = dropdims(
+        sum(reshape(accept, num_temps, S); dims = 2); dims = 2,
+    )
+
     # Replica exchange
-    return k.xchange_func(
+    z_xch = k.xchange_func(
         i,
         z_mh,
         x_t,
@@ -98,6 +104,8 @@ function (k::PcnlKernel)(
         mask_swap_1,
         mask_swap_2,
     )
+
+    return z_xch, accept_count .+ accept_per_temp
 end
 
 end

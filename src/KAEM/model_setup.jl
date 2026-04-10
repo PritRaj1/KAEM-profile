@@ -96,12 +96,20 @@ function setup_training(
         @reset model.posterior_sampler = initialize_pCNL_sampler(model; N = num_steps)
     end
 
+    # Init per-temperature step sizes
+    num_temps = model.posterior_sampler.num_temps
+    δ_init = model.sampler_type == "pcnl" ?
+        parse(Float32, retrieve(conf, "POST_LANGEVIN", "pcnl_delta")) :
+        (model.sampler_type == "ula" ? η : 0.01f0)
+    @reset st_lux.delta = pu(fill(δ_init, num_temps))
+
     st_rng = seed_rand(model; rng = rng)
 
     # Forward pass to init st_lux state before compilation
     _, st_ebm, st_gen = Reactant.@jit model(ps, st_kan, Lux.trainmode(st_lux), st_rng)
     @reset st_lux.ebm = st_ebm
     @reset st_lux.gen = st_gen
+    @reset st_lux.delta = Reactant.@jit adapt_delta(st_lux.delta, st_lux.delta, 1)
 
     num_param_updates =
         parse(Int, retrieve(conf, "TRAINING", "N_epochs")) * length(model.train_loader)
