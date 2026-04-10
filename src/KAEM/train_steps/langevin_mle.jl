@@ -130,7 +130,7 @@ function (l::LangevinLoss)(
     )
 
     opt_state, ps = Optimisers.update(opt_state, ps, dps)
-    new_delta = !isnothing(accept_rate) ?
+    new_delta = false ?
         adapt_delta(st_lux.delta, accept_rate, train_idx) : st_lux.delta
     return loss, ps, opt_state, st_lux_ebm, st_lux_gen, new_delta
 end
