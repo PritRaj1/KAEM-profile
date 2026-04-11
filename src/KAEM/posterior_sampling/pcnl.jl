@@ -50,13 +50,19 @@ function initialize_pCNL_sampler(
     num_temps = (model.N_t > 1 && !prior_sampling_bool) ? model.N_t : 1
     thermo_bool = num_temps > 1
 
+    # pCNL coefficients: https://arxiv.org/abs/2408.14325 eq. 8
+    denom = 2.0f0 + δ
+    nc = sqrt(8.0f0 * δ) / denom
+    z_c = (2.0f0 - δ) / denom
+    inv_2σ2 = 1.0f0 / (2.0f0 * nc^2)
+
     log_dist = prior_sampling_bool ? unadjusted_logprior : unadjusted_logpos
     eval_dist = prior_sampling_bool ? per_sample_logprior : per_sample_logpos
     xchange = (
         exchange_type != "none" && thermo_bool ?
             ReplicaXchange(Q, P, S, num_temps) : NoExchange()
     )
-    kernel = PcnlKernel(Q, P, S, num_temps, log_dist, eval_dist, xchange)
+    kernel = PcnlKernel(Q, P, S, num_temps, z_c, nc, inv_2σ2, log_dist, eval_dist, xchange)
 
     return pCNL_sampler(
         prior_sampling_bool, N, model, Q, P, S, num_temps, thermo_bool, kernel,
@@ -126,14 +132,6 @@ function (sampler::pCNL_sampler)(
     @reset model.lkhood.generator.s_size = S * num_temps
     temps_gpu = repeat(temps, S)
 
-    # Per-temperature coefficients: https://arxiv.org/abs/2408.14325 eq. 8
-    δ_gpu = repeat(st_lux.delta, S)
-    denom = 2.0f0 .+ δ_gpu
-    nc = (8.0f0 .* δ_gpu) .^ 0.5f0 ./ denom
-    z_c = reshape((2.0f0 .- δ_gpu) ./ denom, 1, 1, S * num_temps) .* 1.0f0
-    n_c = reshape(nc, 1, 1, S * num_temps) .* 1.0f0
-    inv_2σ2 = 1.0f0 ./ (2.0f0 .* nc .^ 2)
-
     N_steps = sampler.N
     x_t = !prior_sampling_bool ? (
             model.lkhood.SEQ ? repeat(x, 1, 1, num_temps) :
@@ -146,20 +144,15 @@ function (sampler::pCNL_sampler)(
     mask_swap_1 = num_temps > 1 ? st_rng.swap_mask_1 : nothing
     mask_swap_2 = num_temps > 1 ? st_rng.swap_mask_2 : nothing
     kernel = sampler.kernel
-    accept_count = zero(st_lux.delta)
 
-    state = (1, z_flat, accept_count)
+    state = (1, z_flat)
     @trace while first(state) <= N_steps
-        i, z_acc, ac = state
-        z_new, ac_new = kernel(
+        i, z_acc = state
+        z_new = kernel(
             i,
             z_acc,
-            ac,
             x_t,
             temps_gpu,
-            z_c,
-            n_c,
-            inv_2σ2,
             model,
             ps,
             st_kan,
@@ -172,19 +165,17 @@ function (sampler::pCNL_sampler)(
             component_mask,
             temps,
         )
-        state = (i + 1, z_new, ac_new)
+        state = (i + 1, z_new)
     end
 
-    _, z_final, final_accept = state
-    z = reshape(z_final, Q, P, S, num_temps)
-    accept_rate = final_accept ./ (N_steps * S)
+    z = reshape(last(state), Q, P, S, num_temps)
 
     if prior_sampling_bool
         st_lux = st_lux.ebm
         z = dropdims(z; dims = 4)
     end
 
-    return z, st_lux, accept_rate
+    return z, st_lux
 end
 
 end

@@ -20,8 +20,7 @@ export pu,
     validate_generator_widths,
     init_optional_params,
     init_optional_states,
-    compute_p,
-    adapt_delta
+    compute_p
 
 using Lux, LinearAlgebra, Statistics, Random, Accessors, NNlib, Reactant
 using MLDataDevices: reactant_device
@@ -206,13 +205,6 @@ function compute_p(model, train_idx::Int)::Float32
     t_i = 2.0f0 * Float32(π) * (model.p_num_cycles + 0.5f0) *
         Float32(train_idx - 1) / Float32(model.num_param_updates)
     return model.p_start + (model.p_end - model.p_start) * 0.5f0 * (1.0f0 - cos(t_i))
-end
-
-# Robbins-Monro δ adaptation (Roberts & Rosenthal 2009, doi:10.1198/jcgs.2009.06134)
-function adapt_delta(delta, accept_rate, train_idx)
-    γ = min(0.05f0, 1.0f0 / train_idx^0.6f0)
-    log_delta = log.(delta) .+ γ .* (accept_rate .- 0.574f0)
-    return exp.(clamp.(log_delta, -14.0f0, 0.69f0))
 end
 
 end

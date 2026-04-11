@@ -304,10 +304,9 @@ function train!(t::KAEM_trainer; train_idx::Int = 1, trial = nothing)
             train_idx,
             t.st_rng,
         )
-        t.loss, t.ps, t.opt_state = result[1], result[2], result[3]
-        @reset t.st_lux.ebm = result[4]
-        @reset t.st_lux.gen = result[5]
-        @reset t.st_lux.delta = result[6]
+        t.loss, t.ps, t.opt_state, st_ebm, st_gen = result
+        @reset t.st_lux.ebm = st_ebm
+        @reset t.st_lux.gen = st_gen
 
         if isnan(Float32(t.loss))
             train_idx = Inf

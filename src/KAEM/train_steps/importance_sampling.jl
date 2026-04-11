@@ -181,7 +181,7 @@ function (l::ImportanceLoss)(
     )
 
     opt_state, ps = Optimisers.update(opt_state, ps, dps)
-    return loss, ps, opt_state, st_lux_ebm, st_lux_gen, st_lux.delta
+    return loss, ps, opt_state, st_lux_ebm, st_lux_gen
 end
 
 end
