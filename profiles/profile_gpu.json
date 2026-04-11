@@ -1,166 +1,353 @@
 {
   "device": "gpu",
-  "hlo_ops": [
-    {
-      "count": 585,
-      "op": "reshape",
-      "pct": 30.1
+  "grid_update": {
+    "hlo_ops": [
+      {
+        "count": 577,
+        "op": "reshape",
+        "pct": 32.9
+      },
+      {
+        "count": 528,
+        "op": "slice",
+        "pct": 30.1
+      },
+      {
+        "count": 127,
+        "op": "multiply",
+        "pct": 7.2
+      },
+      {
+        "count": 81,
+        "op": "broadcast_in_dim",
+        "pct": 4.6
+      },
+      {
+        "count": 77,
+        "op": "add",
+        "pct": 4.4
+      },
+      {
+        "count": 72,
+        "op": "constant",
+        "pct": 4.1
+      },
+      {
+        "count": 42,
+        "op": "subtract",
+        "pct": 2.4
+      },
+      {
+        "count": 39,
+        "op": "dot_general",
+        "pct": 2.2
+      },
+      {
+        "count": 37,
+        "op": "transpose",
+        "pct": 2.1
+      },
+      {
+        "count": 20,
+        "op": "compare",
+        "pct": 1.1
+      },
+      {
+        "count": 18,
+        "op": "reduce",
+        "pct": 1.0
+      },
+      {
+        "count": 17,
+        "op": "divide",
+        "pct": 1.0
+      },
+      {
+        "count": 15,
+        "op": "convolution",
+        "pct": 0.9
+      },
+      {
+        "count": 15,
+        "op": "negate",
+        "pct": 0.9
+      },
+      {
+        "count": 13,
+        "op": "maximum",
+        "pct": 0.7
+      },
+      {
+        "count": 12,
+        "op": "exponential",
+        "pct": 0.7
+      },
+      {
+        "count": 11,
+        "op": "select",
+        "pct": 0.6
+      },
+      {
+        "count": 9,
+        "op": "convert",
+        "pct": 0.5
+      },
+      {
+        "count": 6,
+        "op": "concatenate",
+        "pct": 0.3
+      },
+      {
+        "count": 6,
+        "op": "return",
+        "pct": 0.3
+      },
+      {
+        "count": 5,
+        "op": "dynamic_slice",
+        "pct": 0.3
+      },
+      {
+        "count": 5,
+        "op": "log",
+        "pct": 0.3
+      },
+      {
+        "count": 3,
+        "op": "reverse",
+        "pct": 0.2
+      },
+      {
+        "count": 3,
+        "op": "reduce_window",
+        "pct": 0.2
+      },
+      {
+        "count": 3,
+        "op": "logistic",
+        "pct": 0.2
+      },
+      {
+        "count": 3,
+        "op": "tanh",
+        "pct": 0.2
+      },
+      {
+        "count": 2,
+        "op": "triangular_solve",
+        "pct": 0.1
+      },
+      {
+        "count": 2,
+        "op": "sign",
+        "pct": 0.1
+      },
+      {
+        "count": 1,
+        "op": "sqrt",
+        "pct": 0.1
+      },
+      {
+        "count": 1,
+        "op": "while",
+        "pct": 0.1
+      },
+      {
+        "count": 1,
+        "op": "abs",
+        "pct": 0.1
+      },
+      {
+        "count": 1,
+        "op": "pad",
+        "pct": 0.1
+      },
+      {
+        "count": 1,
+        "op": "sort",
+        "pct": 0.1
+      },
+      {
+        "count": 1,
+        "op": "cholesky",
+        "pct": 0.1
+      }
+    ],
+    "timing_ms": {
+      "max": 1296.185012,
+      "median": 1291.741352,
+      "min": 1079.793356
     },
-    {
-      "count": 524,
-      "op": "slice",
-      "pct": 27.0
-    },
-    {
-      "count": 147,
-      "op": "multiply",
-      "pct": 7.6
-    },
-    {
-      "count": 103,
-      "op": "broadcast_in_dim",
-      "pct": 5.3
-    },
-    {
-      "count": 101,
-      "op": "add",
-      "pct": 5.2
-    },
-    {
-      "count": 90,
-      "op": "constant",
-      "pct": 4.6
-    },
-    {
-      "count": 46,
-      "op": "dot_general",
-      "pct": 2.4
-    },
-    {
-      "count": 44,
-      "op": "subtract",
-      "pct": 2.3
-    },
-    {
-      "count": 38,
-      "op": "transpose",
-      "pct": 2.0
-    },
-    {
-      "count": 31,
-      "op": "compare",
-      "pct": 1.6
-    },
-    {
-      "count": 31,
-      "op": "reduce",
-      "pct": 1.6
-    },
-    {
-      "count": 30,
-      "op": "negate",
-      "pct": 1.5
-    },
-    {
-      "count": 24,
-      "op": "convolution",
-      "pct": 1.2
-    },
-    {
-      "count": 23,
-      "op": "divide",
-      "pct": 1.2
-    },
-    {
-      "count": 18,
-      "op": "select",
-      "pct": 0.9
-    },
-    {
-      "count": 17,
-      "op": "maximum",
-      "pct": 0.9
-    },
-    {
-      "count": 15,
-      "op": "pad",
-      "pct": 0.8
-    },
-    {
-      "count": 13,
-      "op": "convert",
-      "pct": 0.7
-    },
-    {
-      "count": 13,
-      "op": "exponential",
-      "pct": 0.7
-    },
-    {
-      "count": 8,
-      "op": "log",
-      "pct": 0.4
-    },
-    {
-      "count": 7,
-      "op": "return",
-      "pct": 0.4
-    },
-    {
-      "count": 5,
-      "op": "dynamic_slice",
-      "pct": 0.3
-    },
-    {
-      "count": 5,
-      "op": "concatenate",
-      "pct": 0.3
-    },
-    {
-      "count": 5,
-      "op": "reduce_window",
-      "pct": 0.3
-    },
-    {
-      "count": 4,
-      "op": "cosine",
-      "pct": 0.2
-    },
-    {
-      "count": 4,
-      "op": "sine",
-      "pct": 0.2
-    },
-    {
-      "count": 4,
-      "op": "logistic",
-      "pct": 0.2
-    },
-    {
-      "count": 3,
-      "op": "reverse",
-      "pct": 0.2
-    },
-    {
-      "count": 2,
-      "op": "sqrt",
-      "pct": 0.1
-    },
-    {
-      "count": 2,
-      "op": "sign",
-      "pct": 0.1
-    },
-    {
-      "count": 1,
-      "op": "while",
-      "pct": 0.1
-    }
-  ],
-  "timing_ms": {
-    "max": 1281.489201,
-    "median": 1277.9902885,
-    "min": 1156.103525
+    "total_ops": 1754
   },
-  "total_ops": 1943
+  "train_step": {
+    "hlo_ops": [
+      {
+        "count": 600,
+        "op": "reshape",
+        "pct": 29.2
+      },
+      {
+        "count": 524,
+        "op": "slice",
+        "pct": 25.5
+      },
+      {
+        "count": 170,
+        "op": "multiply",
+        "pct": 8.3
+      },
+      {
+        "count": 118,
+        "op": "add",
+        "pct": 5.7
+      },
+      {
+        "count": 112,
+        "op": "constant",
+        "pct": 5.5
+      },
+      {
+        "count": 110,
+        "op": "broadcast_in_dim",
+        "pct": 5.4
+      },
+      {
+        "count": 58,
+        "op": "dot_general",
+        "pct": 2.8
+      },
+      {
+        "count": 50,
+        "op": "subtract",
+        "pct": 2.4
+      },
+      {
+        "count": 46,
+        "op": "transpose",
+        "pct": 2.2
+      },
+      {
+        "count": 35,
+        "op": "reduce",
+        "pct": 1.7
+      },
+      {
+        "count": 32,
+        "op": "compare",
+        "pct": 1.6
+      },
+      {
+        "count": 25,
+        "op": "negate",
+        "pct": 1.2
+      },
+      {
+        "count": 24,
+        "op": "divide",
+        "pct": 1.2
+      },
+      {
+        "count": 24,
+        "op": "convolution",
+        "pct": 1.2
+      },
+      {
+        "count": 19,
+        "op": "select",
+        "pct": 0.9
+      },
+      {
+        "count": 17,
+        "op": "maximum",
+        "pct": 0.8
+      },
+      {
+        "count": 14,
+        "op": "exponential",
+        "pct": 0.7
+      },
+      {
+        "count": 13,
+        "op": "convert",
+        "pct": 0.6
+      },
+      {
+        "count": 12,
+        "op": "pad",
+        "pct": 0.6
+      },
+      {
+        "count": 9,
+        "op": "log",
+        "pct": 0.4
+      },
+      {
+        "count": 7,
+        "op": "return",
+        "pct": 0.3
+      },
+      {
+        "count": 6,
+        "op": "concatenate",
+        "pct": 0.3
+      },
+      {
+        "count": 5,
+        "op": "dynamic_slice",
+        "pct": 0.2
+      },
+      {
+        "count": 5,
+        "op": "reduce_window",
+        "pct": 0.2
+      },
+      {
+        "count": 4,
+        "op": "logistic",
+        "pct": 0.2
+      },
+      {
+        "count": 4,
+        "op": "tanh",
+        "pct": 0.2
+      },
+      {
+        "count": 3,
+        "op": "reverse",
+        "pct": 0.1
+      },
+      {
+        "count": 2,
+        "op": "sqrt",
+        "pct": 0.1
+      },
+      {
+        "count": 2,
+        "op": "sign",
+        "pct": 0.1
+      },
+      {
+        "count": 1,
+        "op": "while",
+        "pct": 0.0
+      },
+      {
+        "count": 1,
+        "op": "clamp",
+        "pct": 0.0
+      },
+      {
+        "count": 1,
+        "op": "abs",
+        "pct": 0.0
+      }
+    ],
+    "timing_ms": {
+      "max": 1331.1703539999999,
+      "median": 1327.965557,
+      "min": 1197.388951
+    },
+    "total_ops": 2053
+  }
 }
