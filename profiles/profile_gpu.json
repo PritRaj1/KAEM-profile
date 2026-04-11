@@ -1,0 +1,166 @@
+{
+  "device": "gpu",
+  "hlo_ops": [
+    {
+      "count": 585,
+      "op": "reshape",
+      "pct": 30.1
+    },
+    {
+      "count": 524,
+      "op": "slice",
+      "pct": 27.0
+    },
+    {
+      "count": 147,
+      "op": "multiply",
+      "pct": 7.6
+    },
+    {
+      "count": 103,
+      "op": "broadcast_in_dim",
+      "pct": 5.3
+    },
+    {
+      "count": 101,
+      "op": "add",
+      "pct": 5.2
+    },
+    {
+      "count": 90,
+      "op": "constant",
+      "pct": 4.6
+    },
+    {
+      "count": 46,
+      "op": "dot_general",
+      "pct": 2.4
+    },
+    {
+      "count": 44,
+      "op": "subtract",
+      "pct": 2.3
+    },
+    {
+      "count": 38,
+      "op": "transpose",
+      "pct": 2.0
+    },
+    {
+      "count": 31,
+      "op": "compare",
+      "pct": 1.6
+    },
+    {
+      "count": 31,
+      "op": "reduce",
+      "pct": 1.6
+    },
+    {
+      "count": 30,
+      "op": "negate",
+      "pct": 1.5
+    },
+    {
+      "count": 24,
+      "op": "convolution",
+      "pct": 1.2
+    },
+    {
+      "count": 23,
+      "op": "divide",
+      "pct": 1.2
+    },
+    {
+      "count": 18,
+      "op": "select",
+      "pct": 0.9
+    },
+    {
+      "count": 17,
+      "op": "maximum",
+      "pct": 0.9
+    },
+    {
+      "count": 15,
+      "op": "pad",
+      "pct": 0.8
+    },
+    {
+      "count": 13,
+      "op": "convert",
+      "pct": 0.7
+    },
+    {
+      "count": 13,
+      "op": "exponential",
+      "pct": 0.7
+    },
+    {
+      "count": 8,
+      "op": "log",
+      "pct": 0.4
+    },
+    {
+      "count": 7,
+      "op": "return",
+      "pct": 0.4
+    },
+    {
+      "count": 5,
+      "op": "dynamic_slice",
+      "pct": 0.3
+    },
+    {
+      "count": 5,
+      "op": "concatenate",
+      "pct": 0.3
+    },
+    {
+      "count": 5,
+      "op": "reduce_window",
+      "pct": 0.3
+    },
+    {
+      "count": 4,
+      "op": "cosine",
+      "pct": 0.2
+    },
+    {
+      "count": 4,
+      "op": "sine",
+      "pct": 0.2
+    },
+    {
+      "count": 4,
+      "op": "logistic",
+      "pct": 0.2
+    },
+    {
+      "count": 3,
+      "op": "reverse",
+      "pct": 0.2
+    },
+    {
+      "count": 2,
+      "op": "sqrt",
+      "pct": 0.1
+    },
+    {
+      "count": 2,
+      "op": "sign",
+      "pct": 0.1
+    },
+    {
+      "count": 1,
+      "op": "while",
+      "pct": 0.1
+    }
+  ],
+  "timing_ms": {
+    "max": 1281.489201,
+    "median": 1277.9902885,
+    "min": 1156.103525
+  },
+  "total_ops": 1943
+}
