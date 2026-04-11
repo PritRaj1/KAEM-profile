@@ -69,7 +69,7 @@ function init_function(
         (spline_function == "B-spline" || spline_function == "Cheby") ? spline_degree : 0
     grid_size = spline_function == "Cheby" || spline_function == "Wavelet" ? 1 : grid_size
     grid =
-        spline_function == "FFT" ? collect(T, 0:grid_size) :
+        spline_function == "FFT" ? collect(T, 1:grid_size) :
         range(grid_range[1], grid_range[2], length = grid_size + 1)
     grid = T.(grid) |> collect |> x -> reshape(x, 1, length(x))
     grid = repeat(grid, in_dim, 1)

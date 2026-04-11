@@ -204,7 +204,7 @@ function (b::FFT_basis)(
     I, G, S = b.I, b.G, b.S
 
     x_3d = PermutedDimsArray(view(x, :, :, :), (1, 3, 2))
-    freq = x_3d .* grid .* Float32(2π) .* σ
+    freq = x_3d .* grid
     return cos.(freq), sin.(freq)
 end
 
