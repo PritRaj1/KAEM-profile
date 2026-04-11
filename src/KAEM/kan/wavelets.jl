@@ -57,8 +57,13 @@ struct ShannonWavelet
     S
 end
 
+function _reactant_sinc(x)
+    pix = Float32(pi) * x
+    return ifelse(x == zero(x), one(x), sin(pix) / pix)
+end
+
 function (w::ShannonWavelet)(x, τ)
-    first_term = sinc.(x .* 2.0f0 .* π)
+    first_term = _reactant_sinc.(x .* 2.0f0 .* π)
     second_term = cos.(x .* π / 3.0f0)
     y = first_term .* second_term
     return y .* 2.0f0
