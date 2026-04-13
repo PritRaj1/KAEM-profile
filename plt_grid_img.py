@@ -2,9 +2,9 @@ import h5py
 import matplotlib.pyplot as plt
 import numpy as np
 
-file_path_real = "logs/Vanilla/SVHN/PCNL/mixture/generated_images_epoch_90.h5"
+file_path_real = "logs/Vanilla/CELEBA/PCNL/mixture/generated_images_epoch_30.h5"
 file_path_generated = (
-    "logs/Thermodynamic/SVHN/PCNL/mixture/generated_images_epoch_90.h5"
+    "logs/Thermodynamic/CELEBA/PCNL/mixture/generated_images_epoch_30.h5"
 )
 
 with h5py.File(file_path_real, "r") as h5_file:
@@ -31,5 +31,5 @@ for i in range(grid_size[0] * grid_size[1]):
     ax.imshow(img)
     ax.axis("off")
 
-plt.savefig("garbage/grid.png", bbox_inches="tight", pad_inches=0.2, dpi=700)
+plt.savefig("garbage/grid.png", bbox_inches="tight", pad_inches=0.2, dpi=800)
 plt.show()
