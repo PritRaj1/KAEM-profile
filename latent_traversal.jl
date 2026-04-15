@@ -114,7 +114,7 @@ for base_idx in 1:num_base_samples
             hidedecorations!(ax)
             hidespines!(ax)
             img = clamp.(x_decoded[:, :, :, qi], 0.0f0, 1.0f0)
-            image!(ax, rotr90(permutedims(img, (2, 1, 3))))
+            image!(ax, permutedims(img, (2, 1, 3)))
         end
     end
 
