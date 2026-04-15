@@ -1,12 +1,12 @@
 using ConfParser, Random, JLD2, ComponentArrays, Lux, Reactant, Statistics
-using CairoMakie, LaTeXStrings
+using CairoMakie, LaTeXStrings, Colors
 
 ENV["DEVICE"] = "cpu"
 
 CairoMakie.activate!(type = "png")
 
 dataset = "CELEBA"
-file_loc = "logs/Vanilla/CELEBA/ULA/mixture/"
+file_loc = "logs/Vanilla/CELEBA/PCNL/mixture/"
 save_dir = file_loc * "traversals/"
 mkpath(save_dir)
 
@@ -113,8 +113,10 @@ for base_idx in 1:num_base_samples
             ax = CairoMakie.Axis(fig[row, qi], aspect = DataAspect())
             hidedecorations!(ax)
             hidespines!(ax)
-            img = clamp.(x_decoded[:, :, :, qi], 0.0f0, 1.0f0)
-            image!(ax, permutedims(img, (2, 1, 3)))
+            raw = clamp.(x_decoded[:, :, :, qi], 0.0f0, 1.0f0)
+            img = permutedims(raw, (2, 1, 3))
+            rgb = RGB.(img[:, :, 1], img[:, :, 2], img[:, :, 3])
+            image!(ax, rgb)
         end
     end
 
