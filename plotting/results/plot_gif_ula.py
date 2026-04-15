@@ -25,19 +25,19 @@ plt.rcParams.update(
 )
 
 GIF_CONFIGS = {
-    # KAEM - SVHN
-    "SVHN_vanilla_mixture": {
-        "dataset": "SVHN",
-        "method_type": "Vanilla",
-        "sampler": "PCNL",
-        "model_type": "mixture",
-        "grid_size": 7,
-        "cmap": None,
-        "epochs": list(range(10, 100, 10)),
-        "samples_per_frame": 1,
-        "filename": "svhn_vanilla_PCNL_mixture_evolution.gif",
-        "is_baseline": False,
-    },
+    # # KAEM - SVHN
+    # "SVHN_vanilla_mixture": {
+    #     "dataset": "SVHN",
+    #     "method_type": "Vanilla",
+    #     "sampler": "PCNL",
+    #     "model_type": "mixture",
+    #     "grid_size": 7,
+    #     "cmap": None,
+    #     "epochs": list(range(10, 100, 10)),
+    #     "samples_per_frame": 1,
+    #     "filename": "svhn_vanilla_PCNL_mixture_evolution.gif",
+    #     "is_baseline": False,
+    # },
     "SVHN_thermo_mixture": {
         "dataset": "SVHN",
         "method_type": "Thermodynamic",
@@ -49,20 +49,20 @@ GIF_CONFIGS = {
         "samples_per_frame": 1,
         "filename": "svhn_thermo_PCNL_mixture_evolution.gif",
         "is_baseline": False,
-    },
-    # KAEM - CELEBA
-    "CELEBA_vanilla_mixture": {
-        "dataset": "CELEBA",
-        "method_type": "Vanilla",
-        "sampler": "PCNL",
-        "model_type": "mixture",
-        "grid_size": 7,
-        "cmap": None,
-        "epochs": list(range(10, 100, 10)),
-        "samples_per_frame": 1,
-        "filename": "celeba_vanilla_PCNL_mixture_evolution.gif",
-        "is_baseline": False,
-    },
+    # },
+    # # KAEM - CELEBA
+    # "CELEBA_vanilla_mixture": {
+    #     "dataset": "CELEBA",
+    #     "method_type": "Vanilla",
+    #     "sampler": "PCNL",
+    #     "model_type": "mixture",
+    #     "grid_size": 7,
+    #     "cmap": None,
+    #     "epochs": list(range(10, 100, 10)),
+    #     "samples_per_frame": 1,
+    #     "filename": "celeba_vanilla_PCNL_mixture_evolution.gif",
+    #     "is_baseline": False,
+    # },
     "CELEBA_thermo_mixture": {
         "dataset": "CELEBA",
         "method_type": "Thermodynamic",

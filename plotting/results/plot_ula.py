@@ -28,12 +28,12 @@ DATASETS = {
 }
 
 METHOD_CONFIGS = {
-    "vanilla_PCNL_mixture": {
-        "method_type": "Vanilla",
-        "sampler": "PCNL",
-        "model_type": "mixture",
-        "is_baseline": False,
-    },
+    # "vanilla_PCNL_mixture": {
+    #     "method_type": "Vanilla",
+    #     "sampler": "PCNL",
+    #     "model_type": "mixture",
+    #     "is_baseline": False,
+    # },
     "thermo_PCNL_mixture": {
         "method_type": "Thermodynamic",
         "sampler": "PCNL",

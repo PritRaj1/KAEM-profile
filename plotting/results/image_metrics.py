@@ -225,20 +225,20 @@ if __name__ == "__main__":
             #     "logs/Thermodynamic/CIFAR10/PCNL/mixture/generated_images.h5",
             #     get_real_samples_path("CIFAR10"),
             # ),
-            # KAEM - CELEBA
-            (
-                "logs/Vanilla/CELEBA/PCNL/mixture/generated_images.h5",
-                get_real_samples_path("CELEBA"),
-            ),
+            # # KAEM - CELEBA
+            # (
+            #     "logs/Vanilla/CELEBA/PCNL/mixture/generated_images.h5",
+            #     get_real_samples_path("CELEBA"),
+            # ),
             (
                 "logs/Thermodynamic/CELEBA/PCNL/mixture/generated_images.h5",
                 get_real_samples_path("CELEBA"),
             ),
-            # KAEM - SVHN
-            (
-                "logs/Vanilla/SVHN/PCNL/mixture/generated_images.h5",
-                get_real_samples_path("SVHN"),
-            ),
+            # # KAEM - SVHN
+            # (
+            #     "logs/Vanilla/SVHN/PCNL/mixture/generated_images.h5",
+            #     get_real_samples_path("SVHN"),
+            # ),
             (
                 "logs/Thermodynamic/SVHN/PCNL/mixture/generated_images.h5",
                 get_real_samples_path("SVHN"),
