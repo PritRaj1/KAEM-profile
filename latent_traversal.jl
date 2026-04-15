@@ -110,7 +110,7 @@ for base_idx in 1:num_base_samples
     for (row, dim) in enumerate(top_dims)
         x_decoded = decoded_per_dim[dim]
         for qi in 1:num_steps
-            ax = Axis(fig[row, qi], aspect = DataAspect())
+            ax = CairoMakie.Axis(fig[row, qi], aspect = DataAspect())
             hidedecorations!(ax)
             hidespines!(ax)
             img = clamp.(x_decoded[:, :, :, qi], 0.0f0, 1.0f0)
