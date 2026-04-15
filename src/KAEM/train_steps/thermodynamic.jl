@@ -71,9 +71,15 @@ function marginal_llhood(
         ε = model.ε,
     )
 
-    # Trapezoidal: ½ Σ_k Δt_k (E_{k-1} + E_k)
-    E = dropdims(mean(reshape(ll, S, num_temps + 1); dims = 1); dims = 1)
-    log_ss = 0.5f0 * sum(Δt .* (E[1:num_temps] .+ E[2:(num_temps + 1)]))
+    # Euler-Maclaurin corrected trapezoidal rule:
+    # ½ Σ Δt_k(E_{k-1}+E_k) − (1/12) Σ Δt_k²(Var_k − Var_{k-1})
+    # where dE/dt = Var_{p_t}[log p(x|z)], reducing bias from O(Δt²) to O(Δt⁴)
+    ll_reshaped = reshape(ll, S, num_temps + 1)
+    E = dropdims(mean(ll_reshaped; dims = 1); dims = 1)
+    V = dropdims(mean(ll_reshaped .^ 2; dims = 1); dims = 1) .- E .^ 2
+    trapz = 0.5f0 * sum(Δt .* (E[1:num_temps] .+ E[2:(num_temps + 1)]))
+    correction = -(1.0f0 / 12.0f0) * sum(Δt .^ 2 .* (V[2:(num_temps + 1)] .- V[1:num_temps]))
+    log_ss = trapz + correction
 
     logprior_pos, st_ebm = model.log_prior(
         z[:, :, :, num_temps + 1],
