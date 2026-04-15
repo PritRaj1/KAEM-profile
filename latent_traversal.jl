@@ -6,7 +6,7 @@ ENV["DEVICE"] = "cpu"
 CairoMakie.activate!(type = "png")
 
 dataset = "CELEBA"
-file_loc = "logs/Vanilla/CELEBA/PCNL/mixture/"
+file_loc = "logs/Vanilla/CELEBA/ULA/mixture/"
 save_dir = file_loc * "traversals/"
 mkpath(save_dir)
 

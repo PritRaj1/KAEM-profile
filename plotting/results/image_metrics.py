@@ -160,7 +160,7 @@ def discover_generated_samples(logs_dir: str = "logs") -> list[tuple[str, str]]:
             continue
 
         # KAEM models - Vanilla
-        for train_type in ["PCNL", "importance", "amortized"]:
+        for train_type in ["ULA", "importance", "amortized"]:
             for prior_type in ["mixture", "univariate"]:
                 gen_path = (
                     f"{logs_dir}/Vanilla/{dataset}"
@@ -170,7 +170,7 @@ def discover_generated_samples(logs_dir: str = "logs") -> list[tuple[str, str]]:
                     file_paths.append((gen_path, real_path))
 
         # KAEM models - Thermodynamic
-        for train_type in ["PCNL", "importance", "amortized"]:
+        for train_type in ["ULA", "importance", "amortized"]:
             for prior_type in ["mixture", "univariate"]:
                 gen_path = (
                     f"{logs_dir}/Thermodynamic/{dataset}"
@@ -218,29 +218,29 @@ if __name__ == "__main__":
         file_paths = [
             # # KAEM - CIFAR10
             # (
-            #     "logs/Vanilla/CIFAR10/PCNL/mixture/generated_images.h5",
+            #     "logs/Vanilla/CIFAR10/ULA/mixture/generated_images.h5",
             #     get_real_samples_path("CIFAR10"),
             # ),
             # (
-            #     "logs/Thermodynamic/CIFAR10/PCNL/mixture/generated_images.h5",
+            #     "logs/Thermodynamic/CIFAR10/ULA/mixture/generated_images.h5",
             #     get_real_samples_path("CIFAR10"),
             # ),
             # # KAEM - CELEBA
             # (
-            #     "logs/Vanilla/CELEBA/PCNL/mixture/generated_images.h5",
+            #     "logs/Vanilla/CELEBA/ULA/mixture/generated_images.h5",
             #     get_real_samples_path("CELEBA"),
             # ),
             (
-                "logs/Thermodynamic/CELEBA/PCNL/mixture/generated_images.h5",
+                "logs/Thermodynamic/CELEBA/ULA/mixture/generated_images.h5",
                 get_real_samples_path("CELEBA"),
             ),
             # # KAEM - SVHN
             # (
-            #     "logs/Vanilla/SVHN/PCNL/mixture/generated_images.h5",
+            #     "logs/Vanilla/SVHN/ULA/mixture/generated_images.h5",
             #     get_real_samples_path("SVHN"),
             # ),
             (
-                "logs/Thermodynamic/SVHN/PCNL/mixture/generated_images.h5",
+                "logs/Thermodynamic/SVHN/ULA/mixture/generated_images.h5",
                 get_real_samples_path("SVHN"),
             ),
             # # Baselines - VAE

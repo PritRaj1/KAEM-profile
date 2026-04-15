@@ -28,15 +28,15 @@ DATASETS = {
 }
 
 METHOD_CONFIGS = {
-    # "vanilla_PCNL_mixture": {
+    # "vanilla_ULA_mixture": {
     #     "method_type": "Vanilla",
-    #     "sampler": "PCNL",
+    #     "sampler": "ULA",
     #     "model_type": "mixture",
     #     "is_baseline": False,
     # },
-    "thermo_PCNL_mixture": {
+    "thermo_ULA_mixture": {
         "method_type": "Thermodynamic",
-        "sampler": "PCNL",
+        "sampler": "ULA",
         "model_type": "mixture",
         "is_baseline": False,
     },
@@ -103,7 +103,7 @@ def select_best_samples_fast(generated_images, num_samples):
 
 
 def plot_generated_images_grid(dataset, method_config, grid_size, cmap):
-    """Generate and save a single plot for generated images from PCNL method."""
+    """Generate and save a single plot for generated images from ULA method."""
 
     if method_config.get("is_baseline", False):
         gen_path = (
@@ -232,8 +232,8 @@ def plot_real_images_reference(dataset, grid_size, cmap):
 
 
 def main():
-    """Generate all individual plots for PCNL methods."""
-    print("Generating individual plots for PCNL methods...")
+    """Generate all individual plots for ULA methods."""
+    print("Generating individual plots for ULA methods...")
 
     for dataset, config in DATASETS.items():
         print(f"\nProcessing dataset: {dataset}")
