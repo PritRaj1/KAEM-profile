@@ -24,6 +24,7 @@ mkpath(save_dir)
 
 num_interp_steps = 8
 num_pairs = 6
+num_prior_samples = 500
 
 conf = ConfParse(ds.config)
 parse_conf!(conf)
@@ -56,7 +57,7 @@ q_size = model.prior.q_size
 batch_size = model.batch_size
 
 # Sample from prior
-num_batches = max(div(2 * num_pairs, batch_size), 1) + 1
+num_batches = num_prior_samples ÷ batch_size
 z_all = zeros(Float32, q_size, 1, num_batches * batch_size)
 for i in 1:num_batches
     st_rng = seed_rand(model; rng = rng)
@@ -90,18 +91,20 @@ function slerp(z1, z2, t)
     return (sin((1.0f0 - t) * omega) / s) .* z1 .+ (sin(t * omega) / s) .* z2
 end
 
-# Select spread-out pairs
-z_means = dropdims(mean(z_all; dims = 3); dims = 3)
-dists_from_mean = dropdims(sum((z_all .- z_means) .^ 2; dims = (1, 2)); dims = (1, 2))
-candidates = sortperm(vec(dists_from_mean))[1:min(20, size(z_all, 3))]
+# Select pairs far apart in latent space
+N = size(z_all, 3)
+pair_dists = Dict{Tuple{Int, Int}, Float32}()
+for i in 1:N, j in (i + 1):N
+    pair_dists[(i, j)] = sum((z_all[:, :, i] .- z_all[:, :, j]) .^ 2)
+end
+sorted_pairs = sort(collect(pair_dists); by = last, rev = true)
 
 pairs = Tuple{Int, Int}[]
 used = Set{Int}()
-for i in candidates, j in candidates
-    i >= j && continue
-    (i in used || j in used) && continue
-    push!(pairs, (i, j))
-    push!(used, i, j)
+for (p, _) in sorted_pairs
+    (p[1] in used || p[2] in used) && continue
+    push!(pairs, p)
+    push!(used, p[1], p[2])
     length(pairs) >= num_pairs && break
 end
 println("Selected pairs: $pairs")
@@ -125,9 +128,8 @@ for (row, (i, j)) in enumerate(pairs)
     x_decoded = Array(decode_compiled(ps.gen, st_kan.gen, st_lux.gen, pu(z_batch)))
     for ci in 1:num_cols
         raw = clamp.(x_decoded[:, :, :, ci], 0.0f0, 1.0f0)
-        img = permutedims(raw, (2, 1, 3))
-        rgb = RGB.(img[:, :, 1], img[:, :, 2], img[:, :, 3])
-        all_rgb[row, ci] = reverse(rgb; dims = 2)
+        rgb = RGB.(raw[:, :, 1], raw[:, :, 2], raw[:, :, 3])
+        all_rgb[row, ci] = rgb
     end
 end
 
@@ -135,14 +137,15 @@ end
 cell = 48
 gap = 2
 row_gap = 6
+header_h = 16
 fig_w = num_cols * cell + (num_cols - 1) * gap
-fig_h = num_pairs * cell + (num_pairs - 1) * row_gap
+fig_h = header_h + num_pairs * cell + (num_pairs - 1) * row_gap
 
 fig = Figure(size = (fig_w, fig_h), backgroundcolor = :white, figure_padding = (2, 2, 2, 2))
 
 for row in 1:num_pairs, col in 1:num_cols
     ax = CairoMakie.Axis(
-        fig[row, col],
+        fig[row + 1, col],
         aspect = DataAspect(),
         width = Fixed(cell),
         height = Fixed(cell),
@@ -152,8 +155,12 @@ for row in 1:num_pairs, col in 1:num_cols
     image!(ax, all_rgb[row, col])
 end
 
+Label(fig[1, 1], L"\boldsymbol{z}_A", fontsize = 10, halign = :center, valign = :bottom)
+Label(fig[1, num_cols], L"\boldsymbol{z}_B", fontsize = 10, halign = :center, valign = :bottom)
+
 colgap!(fig.layout, gap)
 rowgap!(fig.layout, row_gap)
+rowsize!(fig.layout, 1, Fixed(header_h))
 
 save(save_dir * "slerp.png", fig, px_per_unit = 5)
 println("Saved to $(save_dir)slerp.png")
