@@ -1,0 +1,159 @@
+using ConfParser, Random, JLD2, ComponentArrays, Lux, Reactant, Statistics
+using CairoMakie, LaTeXStrings, Colors
+
+ENV["DEVICE"] = "cpu"
+CairoMakie.activate!(type = "png")
+
+dataset = length(ARGS) >= 1 ? ARGS[1] : "CELEBA"
+
+dataset_configs = Dict(
+    "CELEBA" => (config = "config/celeba_config.ini", resize = (64, 64)),
+    "SVHN" => (config = "config/svhn_config.ini", resize = (32, 32)),
+)
+
+haskey(dataset_configs, dataset) || error("Unknown dataset: $dataset. Use one of: $(keys(dataset_configs))")
+ds = dataset_configs[dataset]
+
+file_loc = "logs/Vanilla/$(dataset)/ULA/mixture/"
+save_dir = "figures/interpolations/$(dataset)/"
+mkpath(save_dir)
+
+num_interp_steps = 8
+num_pairs = 4
+
+conf = ConfParse(ds.config)
+parse_conf!(conf)
+commit!(conf, "THERMODYNAMIC_INTEGRATION", "num_temps", "-1")
+ENV["DEVICE"] = retrieve(conf, "TRAINING", "device")
+ENV["PERCEPTUAL"] = retrieve(conf, "TRAINING", "use_perceptual_loss")
+
+include("src/utils.jl")
+using .Utils
+
+include("src/pipeline/trainer.jl")
+using .trainer
+using .trainer: seed_rand
+using .trainer.KAEM_model: load_params
+
+# Load model
+saved_data = load(file_loc * "saved_model.jld2")
+rng = Random.MersenneTwister(1)
+t = init_trainer(rng, conf, dataset; img_resize = ds.resize, file_loc = file_loc, save_model = false)
+
+t.ps = load_params(saved_data) |> pu
+t.st_kan = saved_data["kan_state"] |> pu
+t.st_lux = saved_data["lux_state"] |> pu
+
+model = t.model
+ps = t.ps
+st_kan = t.st_kan
+st_lux = Lux.testmode(t.st_lux)
+q_size = model.prior.q_size
+batch_size = model.batch_size
+
+# Sample from prior
+num_batches = max(div(2 * num_pairs, batch_size), 1) + 1
+z_all = zeros(Float32, q_size, 1, 0)
+for i in 1:num_batches
+    st_rng = seed_rand(model; rng = rng)
+    z, _ = Reactant.@jit model.sample_prior(model, ps, st_kan, st_lux, st_rng)
+    z_all = cat(z_all, Array(z); dims = 3)
+end
+println("Sampled $(size(z_all, 3)) latent vectors")
+
+# Compile decoder
+function decode(ps_gen, st_kan_gen, st_lux_gen, z)
+    x̂, _ = model.lkhood.generator(ps_gen, st_kan_gen, st_lux_gen, z)
+    return model.lkhood.output_activation(x̂)
+end
+
+z_dummy = pu(zeros(Float32, q_size, 1, batch_size))
+decode_compiled = Reactant.@compile decode(ps.gen, st_kan.gen, st_lux.gen, z_dummy)
+println("Decoder compiled.")
+
+# SLERP: spherical linear interpolation
+function slerp(z1, z2, t)
+    z1_flat = vec(z1)
+    z2_flat = vec(z2)
+    n1 = z1_flat / max(norm(z1_flat), eps(Float32))
+    n2 = z2_flat / max(norm(z2_flat), eps(Float32))
+    omega = acos(clamp(dot(n1, n2), -1.0f0, 1.0f0))
+    if omega < 1.0f-6
+        return (1.0f0 - t) .* z1 .+ t .* z2
+    end
+    s = sin(omega)
+    return (sin((1.0f0 - t) * omega) / s) .* z1 .+ (sin(t * omega) / s) .* z2
+end
+
+# Select spread-out pairs
+z_means = dropdims(mean(z_all; dims = 3); dims = 3)
+dists_from_mean = dropdims(sum((z_all .- z_means) .^ 2; dims = (1, 2)); dims = (1, 2))
+candidates = sortperm(vec(dists_from_mean))[1:min(20, size(z_all, 3))]
+
+pairs = Tuple{Int, Int}[]
+used = Set{Int}()
+for i in candidates, j in candidates
+    i >= j && continue
+    (i in used || j in used) && continue
+    push!(pairs, (i, j))
+    push!(used, i, j)
+    length(pairs) >= num_pairs && break
+end
+println("Selected pairs: $pairs")
+
+# Total columns: z_a + num_interp_steps intermediates + z_b
+num_cols = num_interp_steps + 2
+ts = range(0.0f0, 1.0f0; length = num_cols)
+
+# Decode all interpolations
+all_rgb = Array{Matrix{RGB{Float32}}}(undef, num_pairs, num_cols)
+
+for (row, (i, j)) in enumerate(pairs)
+    z_a = z_all[:, :, i:i]
+    z_b = z_all[:, :, j:j]
+
+    z_batch = repeat(z_a, 1, 1, batch_size)
+    for (ci, t_val) in enumerate(ts)
+        z_batch[:, :, ci] .= slerp(z_a, z_b, t_val)
+    end
+
+    x_decoded = Array(decode_compiled(ps.gen, st_kan.gen, st_lux.gen, pu(z_batch)))
+    for ci in 1:num_cols
+        raw = clamp.(x_decoded[:, :, :, ci], 0.0f0, 1.0f0)
+        img = permutedims(raw, (2, 1, 3))
+        all_rgb[row, ci] = RGB.(img[:, :, 1], img[:, :, 2], img[:, :, 3])
+    end
+end
+
+# Plot
+cell = 48
+gap = 2
+row_gap = 6
+label_w = 12
+fig_w = label_w + num_cols * cell + (num_cols - 1) * gap
+fig_h = num_pairs * cell + (num_pairs - 1) * row_gap
+
+fig = Figure(size = (fig_w, fig_h), backgroundcolor = :white, figure_padding = (2, 2, 2, 2))
+
+for row in 1:num_pairs, col in 1:num_cols
+    ax = CairoMakie.Axis(
+        fig[row, col + 1],
+        aspect = DataAspect(),
+        width = Fixed(cell),
+        height = Fixed(cell),
+    )
+    hidedecorations!(ax)
+    hidespines!(ax)
+    image!(ax, all_rgb[row, col])
+end
+
+for row in 1:num_pairs
+    Label(fig[row, 1], "$row", fontsize = 10, halign = :right)
+end
+
+colgap!(fig.layout, gap)
+rowgap!(fig.layout, row_gap)
+colsize!(fig.layout, 1, Fixed(label_w))
+
+save(save_dir * "slerp.png", fig, px_per_unit = 5)
+println("Saved to $(save_dir)slerp.png")
