@@ -68,11 +68,10 @@ end
 
 println("Collected $(size(z_all, 3)) prior samples")
 
-# Per-dimension sweep range: mean ± 3σ from empirical prior
+# Per-dimension stats for sweep range (± 3σ centered on each anchor)
 z_means = dropdims(mean(z_all; dims = 3); dims = 3)
 z_stds = dropdims(std(z_all; dims = 3); dims = 3)
 sweep_range = range(-3.0f0, 3.0f0; length = num_steps)
-z_percentiles = z_means .* ones(Float32, 1, num_steps) .+ z_stds .* sweep_range'
 
 # Compile
 function decode(ps_gen, st_kan_gen, st_lux_gen, z)
@@ -84,16 +83,34 @@ z_dummy = pu(zeros(Float32, q_size, 1, batch_size))
 decode_compiled = Reactant.@compile decode(ps.gen, st_kan.gen, st_lux.gen, z_dummy)
 println("Decoder compiled.")
 
+# Select base samples: closest to prior mean, then spread by max distance
+dists = dropdims(sum((z_all .- z_means) .^ 2; dims = (1, 2)); dims = (1, 2))
+sorted_idxs = sortperm(vec(dists))
+base_idxs = [sorted_idxs[1]]
+for _ in 2:num_base_samples
+    best_idx, best_dist = 0, -Inf
+    for j in sorted_idxs
+        j in base_idxs && continue
+        min_d = minimum(sum((z_all[:, :, j:j] .- z_all[:, :, k:k]) .^ 2) for k in base_idxs)
+        if min_d > best_dist
+            best_idx, best_dist = j, min_d
+        end
+    end
+    push!(base_idxs, best_idx)
+end
+println("Selected base samples: $base_idxs")
+
 # Traverse each dim, measure variation, and save grids
-for base_idx in 1:num_base_samples
+for (plot_idx, base_idx) in enumerate(base_idxs)
     z_anchor = z_all[:, :, base_idx:base_idx]
     variation = zeros(Float32, q_size)
     decoded_per_dim = Dict{Int, Array{Float32}}()
 
     for dim in 1:q_size
         z_batch = repeat(z_anchor, 1, 1, batch_size)
+        anchor_val = z_anchor[dim, 1, 1]
         for qi in 1:num_steps
-            z_batch[dim, 1, qi] = z_percentiles[dim, qi]
+            z_batch[dim, 1, qi] = anchor_val + z_stds[dim, 1] * sweep_range[qi]
         end
 
         x_decoded = Array(decode_compiled(ps.gen, st_kan.gen, st_lux.gen, pu(z_batch)))
@@ -102,7 +119,12 @@ for base_idx in 1:num_base_samples
     end
 
     top_dims = sortperm(variation; rev = true)[1:min(num_top_dims, q_size)]
-    println("Base $base_idx — top dims: $top_dims")
+    println("Base $(plot_idx) (sample $base_idx) — top dims: $top_dims")
+    for dim in top_dims
+        lo = z_anchor[dim, 1, 1] + z_stds[dim, 1] * sweep_range[1]
+        hi = z_anchor[dim, 1, 1] + z_stds[dim, 1] * sweep_range[end]
+        println("  z_$dim: anchor=$(round(z_anchor[dim, 1, 1]; digits = 3)), σ=$(round(z_stds[dim, 1]; digits = 3)), sweep [$(round(lo; digits = 3)), $(round(hi; digits = 3))], pixel var=$(round(variation[dim]; digits = 5))")
+    end
 
     # Decode unmodified base sample for reference
     z_base_batch = repeat(z_anchor, 1, 1, batch_size)
@@ -112,11 +134,11 @@ for base_idx in 1:num_base_samples
     base_rgb = RGB.(base_img[:, :, 1], base_img[:, :, 2], base_img[:, :, 3])
 
     # Layout: label_col | seed_col | separator | num_steps sweep columns
-    cell_size = 80
-    gap = 3
-    sep_gap = 12
-    label_col_width = 50
-    header_row_height = 24
+    cell_size = 100
+    gap = 4
+    sep_gap = 16
+    label_col_width = 70
+    header_row_height = 32
     total_cols = num_steps + 2
     fig_w = label_col_width + cell_size + sep_gap + num_steps * cell_size + (num_steps - 1) * gap
     fig_h = header_row_height + num_top_dims * cell_size + (num_top_dims - 1) * gap
@@ -161,22 +183,22 @@ for base_idx in 1:num_base_samples
 
     # Row labels
     for (row, dim) in enumerate(top_dims)
-        Label(fig[row + 1, 1], L"z_{%$dim}", fontsize = 16, halign = :right)
+        Label(fig[row + 1, 1], L"z_{%$dim}", fontsize = 22, halign = :right)
     end
 
     # Column headers
-    Label(fig[1, 2], "seed", fontsize = 14, halign = :center, valign = :bottom)
-    Label(fig[1, 3], L"-3\sigma", fontsize = 14, halign = :center, valign = :bottom)
-    Label(fig[1, num_steps + 2], L"+3\sigma", fontsize = 14, halign = :center, valign = :bottom)
+    Label(fig[1, 2], "seed", fontsize = 20, halign = :center, valign = :bottom)
+    Label(fig[1, 3], L"-3\sigma", fontsize = 20, halign = :center, valign = :bottom)
+    Label(fig[1, num_steps + 2], L"+3\sigma", fontsize = 20, halign = :center, valign = :bottom)
 
     colgap!(fig.layout, gap)
     rowgap!(fig.layout, gap)
-    colgap!(fig.layout, 2, sep_gap)  # wider gap between seed and traversal
+    colgap!(fig.layout, 2, sep_gap)
     colsize!(fig.layout, 1, Fixed(label_col_width))
     rowsize!(fig.layout, 1, Fixed(header_row_height))
 
-    save(save_dir * "traversal_base$(base_idx).png", fig, px_per_unit = 3)
-    println("Saved traversal_base$(base_idx).png")
+    save(save_dir * "traversal_$(plot_idx).png", fig, px_per_unit = 3)
+    println("Saved traversal_$(plot_idx).png")
 end
 
 println("Results in $save_dir")
