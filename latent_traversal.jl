@@ -59,17 +59,11 @@ end
 
 println("Collected $(size(z_all, 3)) prior samples")
 
-# Per-dimension percentile ranges
-quantile_vals = range(0.05, 0.95; length = num_steps)
-z_percentiles = zeros(Float32, q_size, num_steps)
-
-for d in 1:q_size
-    vals = sort(vec(z_all[d, 1, :]))
-    for (qi, qv) in enumerate(quantile_vals)
-        idx = clamp(round(Int, qv * length(vals)), 1, length(vals))
-        z_percentiles[d, qi] = vals[idx]
-    end
-end
+# Per-dimension sweep range: mean ± 3σ from empirical prior
+z_means = dropdims(mean(z_all; dims = 3); dims = 3)     # (q_size, 1)
+z_stds = dropdims(std(z_all; dims = 3); dims = 3)        # (q_size, 1)
+sweep_range = range(-3.0f0, 3.0f0; length = num_steps)
+z_percentiles = z_means .* ones(Float32, 1, num_steps) .+ z_stds .* sweep_range'
 
 # Compile
 function decode(ps_gen, st_kan_gen, st_lux_gen, z)
@@ -101,17 +95,17 @@ for base_idx in 1:num_base_samples
     top_dims = sortperm(variation; rev = true)[1:min(num_top_dims, q_size)]
     println("Base $base_idx — top dims: $top_dims")
 
-    cell_size = 64
-    label_col_width = 40
-    header_row_height = 20
-    fig_w = label_col_width + num_steps * cell_size + (num_steps - 1) * 2
-    fig_h = header_row_height + num_top_dims * cell_size + (num_top_dims - 1) * 2
+    cell_size = 80
+    gap = 3
+    label_col_width = 50
+    header_row_height = 24
+    fig_w = label_col_width + num_steps * cell_size + (num_steps - 1) * gap
+    fig_h = header_row_height + num_top_dims * cell_size + (num_top_dims - 1) * gap
 
     fig = Figure(
         size = (fig_w, fig_h),
-        fontsize = 10,
         backgroundcolor = :white,
-        figure_padding = (4, 4, 4, 4),
+        figure_padding = (4, 8, 4, 4),
     )
 
     # Image grid
@@ -133,19 +127,17 @@ for base_idx in 1:num_base_samples
         end
     end
 
-    # Row labels (latent dimension)
+    # Row labels
     for (row, dim) in enumerate(top_dims)
-        Label(fig[row + 1, 1], L"z_{%$dim}", fontsize = 10, halign = :right)
+        Label(fig[row + 1, 1], L"z_{%$dim}", fontsize = 16, halign = :right)
     end
 
-    # Column headers (quantile values)
-    for qi in 1:num_steps
-        qv = round(quantile_vals[qi]; digits = 2)
-        Label(fig[1, qi + 1], "$qv", fontsize = 8, valign = :bottom)
-    end
+    # Column header
+    Label(fig[1, 2], L"-3\sigma", fontsize = 14, halign = :center, valign = :bottom)
+    Label(fig[1, num_steps + 1], L"+3\sigma", fontsize = 14, halign = :center, valign = :bottom)
 
-    colgap!(fig.layout, 2)
-    rowgap!(fig.layout, 2)
+    colgap!(fig.layout, gap)
+    rowgap!(fig.layout, gap)
     colsize!(fig.layout, 1, Fixed(label_col_width))
     rowsize!(fig.layout, 1, Fixed(header_row_height))
 
