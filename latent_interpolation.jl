@@ -23,7 +23,7 @@ save_dir = "figures/interpolations/$(dataset)/$(mode)/"
 mkpath(save_dir)
 
 num_interp_steps = 8
-num_pairs = 4
+num_pairs = 6
 
 conf = ConfParse(ds.config)
 parse_conf!(conf)
@@ -126,7 +126,8 @@ for (row, (i, j)) in enumerate(pairs)
     for ci in 1:num_cols
         raw = clamp.(x_decoded[:, :, :, ci], 0.0f0, 1.0f0)
         img = permutedims(raw, (2, 1, 3))
-        all_rgb[row, ci] = RGB.(img[:, :, 1], img[:, :, 2], img[:, :, 3])
+        rgb = RGB.(img[:, :, 1], img[:, :, 2], img[:, :, 3])
+        all_rgb[row, ci] = reverse(rgb; dims = 2)
     end
 end
 
@@ -134,15 +135,14 @@ end
 cell = 48
 gap = 2
 row_gap = 6
-label_w = 12
-fig_w = label_w + num_cols * cell + (num_cols - 1) * gap
+fig_w = num_cols * cell + (num_cols - 1) * gap
 fig_h = num_pairs * cell + (num_pairs - 1) * row_gap
 
 fig = Figure(size = (fig_w, fig_h), backgroundcolor = :white, figure_padding = (2, 2, 2, 2))
 
 for row in 1:num_pairs, col in 1:num_cols
     ax = CairoMakie.Axis(
-        fig[row, col + 1],
+        fig[row, col],
         aspect = DataAspect(),
         width = Fixed(cell),
         height = Fixed(cell),
@@ -152,13 +152,8 @@ for row in 1:num_pairs, col in 1:num_cols
     image!(ax, all_rgb[row, col])
 end
 
-for row in 1:num_pairs
-    Label(fig[row, 1], "$row", fontsize = 10, halign = :right)
-end
-
 colgap!(fig.layout, gap)
 rowgap!(fig.layout, row_gap)
-colsize!(fig.layout, 1, Fixed(label_w))
 
 save(save_dir * "slerp.png", fig, px_per_unit = 5)
 println("Saved to $(save_dir)slerp.png")
