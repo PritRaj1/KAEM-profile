@@ -101,16 +101,29 @@ for base_idx in 1:num_base_samples
     top_dims = sortperm(variation; rev = true)[1:min(num_top_dims, q_size)]
     println("Base $base_idx — top dims: $top_dims")
 
+    cell_size = 64
+    label_col_width = 40
+    header_row_height = 20
+    fig_w = label_col_width + num_steps * cell_size + (num_steps - 1) * 2
+    fig_h = header_row_height + num_top_dims * cell_size + (num_top_dims - 1) * 2
+
     fig = Figure(
-        size = (100 * num_steps + 120, 100 * num_top_dims + 80),
-        fontsize = 14,
+        size = (fig_w, fig_h),
+        fontsize = 10,
         backgroundcolor = :white,
+        figure_padding = (4, 4, 4, 4),
     )
 
+    # Image grid
     for (row, dim) in enumerate(top_dims)
         x_decoded = decoded_per_dim[dim]
         for qi in 1:num_steps
-            ax = CairoMakie.Axis(fig[row, qi], aspect = DataAspect())
+            ax = CairoMakie.Axis(
+                fig[row + 1, qi + 1],
+                aspect = DataAspect(),
+                width = Fixed(cell_size),
+                height = Fixed(cell_size),
+            )
             hidedecorations!(ax)
             hidespines!(ax)
             raw = clamp.(x_decoded[:, :, :, qi], 0.0f0, 1.0f0)
@@ -120,21 +133,23 @@ for base_idx in 1:num_base_samples
         end
     end
 
+    # Row labels (latent dimension)
     for (row, dim) in enumerate(top_dims)
-        Label(fig[row, 0], L"z_{%$dim}", fontsize = 16, halign = :right, padding = (0, 8, 0, 0))
+        Label(fig[row + 1, 1], L"z_{%$dim}", fontsize = 10, halign = :right)
     end
 
+    # Column headers (quantile values)
     for qi in 1:num_steps
         qv = round(quantile_vals[qi]; digits = 2)
-        Label(fig[0, qi], "$qv", fontsize = 12, valign = :bottom)
+        Label(fig[1, qi + 1], "$qv", fontsize = 8, valign = :bottom)
     end
-
-    Label(fig[0, 1:num_steps], L"\text{Prior quantile}", fontsize = 16, valign = :top, padding = (0, 0, 0, 4))
 
     colgap!(fig.layout, 2)
     rowgap!(fig.layout, 2)
+    colsize!(fig.layout, 1, Fixed(label_col_width))
+    rowsize!(fig.layout, 1, Fixed(header_row_height))
 
-    save(save_dir * "traversal_base$(base_idx).png", fig, px_per_unit = 2)
+    save(save_dir * "traversal_base$(base_idx).png", fig, px_per_unit = 3)
     println("Saved traversal_base$(base_idx).png")
 end
 
