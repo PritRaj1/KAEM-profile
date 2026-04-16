@@ -104,11 +104,21 @@ for base_idx in 1:num_base_samples
     top_dims = sortperm(variation; rev = true)[1:min(num_top_dims, q_size)]
     println("Base $base_idx — top dims: $top_dims")
 
+    # Decode unmodified base sample for reference
+    z_base_batch = repeat(z_anchor, 1, 1, batch_size)
+    x_base = Array(decode_compiled(ps.gen, st_kan.gen, st_lux.gen, pu(z_base_batch)))
+    base_raw = clamp.(x_base[:, :, :, 1], 0.0f0, 1.0f0)
+    base_img = permutedims(base_raw, (2, 1, 3))
+    base_rgb = RGB.(base_img[:, :, 1], base_img[:, :, 2], base_img[:, :, 3])
+
+    # Layout: label_col | seed_col | separator | num_steps sweep columns
     cell_size = 80
     gap = 3
+    sep_gap = 12
     label_col_width = 50
     header_row_height = 24
-    fig_w = label_col_width + num_steps * cell_size + (num_steps - 1) * gap
+    total_cols = num_steps + 2
+    fig_w = label_col_width + cell_size + sep_gap + num_steps * cell_size + (num_steps - 1) * gap
     fig_h = header_row_height + num_top_dims * cell_size + (num_top_dims - 1) * gap
 
     fig = Figure(
@@ -117,12 +127,25 @@ for base_idx in 1:num_base_samples
         figure_padding = (4, 8, 4, 4),
     )
 
-    # Image grid
+    # Seed column (same base image repeated for every row)
+    for (row, _) in enumerate(top_dims)
+        ax = CairoMakie.Axis(
+            fig[row + 1, 2],
+            aspect = DataAspect(),
+            width = Fixed(cell_size),
+            height = Fixed(cell_size),
+        )
+        hidedecorations!(ax)
+        hidespines!(ax)
+        image!(ax, base_rgb)
+    end
+
+    # Traversal grid
     for (row, dim) in enumerate(top_dims)
         x_decoded = decoded_per_dim[dim]
         for qi in 1:num_steps
             ax = CairoMakie.Axis(
-                fig[row + 1, qi + 1],
+                fig[row + 1, qi + 2],
                 aspect = DataAspect(),
                 width = Fixed(cell_size),
                 height = Fixed(cell_size),
@@ -141,12 +164,14 @@ for base_idx in 1:num_base_samples
         Label(fig[row + 1, 1], L"z_{%$dim}", fontsize = 16, halign = :right)
     end
 
-    # Column header
-    Label(fig[1, 2], L"-3\sigma", fontsize = 14, halign = :center, valign = :bottom)
-    Label(fig[1, num_steps + 1], L"+3\sigma", fontsize = 14, halign = :center, valign = :bottom)
+    # Column headers
+    Label(fig[1, 2], "seed", fontsize = 14, halign = :center, valign = :bottom)
+    Label(fig[1, 3], L"-3\sigma", fontsize = 14, halign = :center, valign = :bottom)
+    Label(fig[1, num_steps + 2], L"+3\sigma", fontsize = 14, halign = :center, valign = :bottom)
 
     colgap!(fig.layout, gap)
     rowgap!(fig.layout, gap)
+    colgap!(fig.layout, 2, sep_gap)  # wider gap between seed and traversal
     colsize!(fig.layout, 1, Fixed(label_col_width))
     rowsize!(fig.layout, 1, Fixed(header_row_height))
 
