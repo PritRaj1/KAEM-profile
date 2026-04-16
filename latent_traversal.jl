@@ -5,8 +5,17 @@ ENV["DEVICE"] = "cpu"
 
 CairoMakie.activate!(type = "png")
 
-dataset = "CELEBA"
-file_loc = "logs/Vanilla/CELEBA/ULA/mixture/"
+dataset = length(ARGS) >= 1 ? ARGS[1] : "CELEBA"
+
+dataset_configs = Dict(
+    "CELEBA" => (config = "config/celeba_config.ini", resize = (64, 64)),
+    "SVHN" => (config = "config/svhn_config.ini", resize = (32, 32)),
+)
+
+haskey(dataset_configs, dataset) || error("Unknown dataset: $dataset. Use one of: $(keys(dataset_configs))")
+ds = dataset_configs[dataset]
+
+file_loc = "logs/Vanilla/$(dataset)/ULA/mixture/"
 save_dir = file_loc * "traversals/"
 mkpath(save_dir)
 
@@ -15,7 +24,7 @@ num_prior_samples = 500
 num_base_samples = 3
 num_top_dims = 10
 
-conf = ConfParse("config/celeba_config.ini")
+conf = ConfParse(ds.config)
 parse_conf!(conf)
 commit!(conf, "THERMODYNAMIC_INTEGRATION", "num_temps", "-1")
 
@@ -33,7 +42,7 @@ using .trainer.KAEM_model: load_params
 # Load model
 saved_data = load(file_loc * "saved_model.jld2")
 rng = Random.MersenneTwister(1)
-t = init_trainer(rng, conf, dataset; img_resize = (64, 64), file_loc = file_loc, save_model = false)
+t = init_trainer(rng, conf, dataset; img_resize = ds.resize, file_loc = file_loc, save_model = false)
 
 t.ps = load_params(saved_data) |> pu
 t.st_kan = saved_data["kan_state"] |> pu
@@ -60,8 +69,8 @@ end
 println("Collected $(size(z_all, 3)) prior samples")
 
 # Per-dimension sweep range: mean ± 3σ from empirical prior
-z_means = dropdims(mean(z_all; dims = 3); dims = 3)     # (q_size, 1)
-z_stds = dropdims(std(z_all; dims = 3); dims = 3)        # (q_size, 1)
+z_means = dropdims(mean(z_all; dims = 3); dims = 3)
+z_stds = dropdims(std(z_all; dims = 3); dims = 3)
 sweep_range = range(-3.0f0, 3.0f0; length = num_steps)
 z_percentiles = z_means .* ones(Float32, 1, num_steps) .+ z_stds .* sweep_range'
 
