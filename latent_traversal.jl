@@ -6,6 +6,7 @@ ENV["DEVICE"] = "cpu"
 CairoMakie.activate!(type = "png")
 
 dataset = length(ARGS) >= 1 ? ARGS[1] : "CELEBA"
+mode = length(ARGS) >= 2 ? ARGS[2] : "vanilla"
 
 dataset_configs = Dict(
     "CELEBA" => (config = "config/celeba_config.ini", resize = (64, 64)),
@@ -15,8 +16,11 @@ dataset_configs = Dict(
 haskey(dataset_configs, dataset) || error("Unknown dataset: $dataset. Use one of: $(keys(dataset_configs))")
 ds = dataset_configs[dataset]
 
-file_loc = "logs/Vanilla/$(dataset)/ULA/mixture/"
-save_dir = "figures/traversals/$(dataset)/"
+file_loc = (
+    mode == "thermo" ? "logs/Thermodynamic/$(dataset)/ULA/mixture/" :
+        "logs/Vanilla/$(dataset)/ULA/mixture/"
+)
+save_dir = "figures/traversals/$(dataset)/$(mode)/"
 mkpath(save_dir)
 
 num_steps = 10
