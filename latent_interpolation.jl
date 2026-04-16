@@ -130,7 +130,7 @@ for (row, (i, j)) in enumerate(pairs)
         raw = clamp.(x_decoded[:, :, :, ci], 0.0f0, 1.0f0)
         img = permutedims(raw, (2, 1, 3))
         rgb = RGB.(img[:, :, 1], img[:, :, 2], img[:, :, 3])
-        all_rgb[row, ci] = reverse(rgb; dims = 1)
+        all_rgb[row, ci] = reverse(rgb; dims = 2)
     end
 end
 
