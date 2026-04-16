@@ -1,4 +1,4 @@
-using ConfParser, Random, JLD2, ComponentArrays, Lux, Reactant, Statistics
+using ConfParser, Random, JLD2, ComponentArrays, Lux, Reactant, Statistics, LinearAlgebra
 using CairoMakie, LaTeXStrings, Colors
 
 ENV["DEVICE"] = "cpu"
