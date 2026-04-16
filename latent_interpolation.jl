@@ -137,7 +137,7 @@ end
 cell = 48
 gap = 2
 row_gap = 6
-header_h = 16
+header_h = 20
 fig_w = num_cols * cell + (num_cols - 1) * gap
 fig_h = header_h + num_pairs * cell + (num_pairs - 1) * row_gap
 
@@ -155,8 +155,9 @@ for row in 1:num_pairs, col in 1:num_cols
     image!(ax, all_rgb[row, col])
 end
 
-Label(fig[1, 1], L"\mathbf{z}_A", fontsize = 10, halign = :center, valign = :bottom)
-Label(fig[1, num_cols], L"\mathbf{z}_B", fontsize = 10, halign = :center, valign = :bottom)
+Label(fig[1, 1], L"z_A", fontsize = 14, halign = :center, valign = :bottom)
+Label(fig[1, div(num_cols, 2):(div(num_cols, 2) + 1)], L"\longrightarrow", fontsize = 14, halign = :center, valign = :bottom)
+Label(fig[1, num_cols], L"z_B", fontsize = 14, halign = :center, valign = :bottom)
 
 colgap!(fig.layout, gap)
 rowgap!(fig.layout, row_gap)
