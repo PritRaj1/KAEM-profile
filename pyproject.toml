@@ -28,6 +28,9 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
+dev = [
+    "ruff",
+]
 notebook = [
     "jupyter",
     "nbformat",
