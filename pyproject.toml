@@ -18,16 +18,18 @@ dependencies = [
     "torch",
     "torch_fidelity",
     "scikit-learn",
-    "pillow",
+    "pillow>=12.2.0",
     "imageio",
     "diffusers",
     "accelerate",
     "tqdm",
+    "Pygments>=2.20.0",
+    "requests>=2.33.0",
 ]
 
 [project.optional-dependencies]
 dev = [
-    "pytest",
+    "pytest>=9.0.3",
     "pytest-cov",
     "ruff",
     "mypy",
