@@ -128,9 +128,8 @@ for (row, (i, j)) in enumerate(pairs)
     x_decoded = Array(decode_compiled(ps.gen, st_kan.gen, st_lux.gen, pu(z_batch)))
     for ci in 1:num_cols
         raw = clamp.(x_decoded[:, :, :, ci], 0.0f0, 1.0f0)
-        img = permutedims(raw, (2, 1, 3))
-        rgb = RGB.(img[:, :, 1], img[:, :, 2], img[:, :, 3])
-        all_rgb[row, ci] = reverse(rgb; dims = 2)
+        rgb = RGB.(raw[:, :, 1], raw[:, :, 2], raw[:, :, 3])
+        all_rgb[row, ci] = rotr90(rgb)
     end
 end
 
