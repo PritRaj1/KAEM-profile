@@ -16,7 +16,7 @@ haskey(dataset_configs, dataset) || error("Unknown dataset: $dataset. Use one of
 ds = dataset_configs[dataset]
 
 file_loc = "logs/Vanilla/$(dataset)/ULA/mixture/"
-save_dir = file_loc * "traversals/"
+save_dir = "figures/traversals/$(dataset)/"
 mkpath(save_dir)
 
 num_steps = 10
@@ -134,19 +134,18 @@ for (plot_idx, base_idx) in enumerate(base_idxs)
     base_rgb = RGB.(base_img[:, :, 1], base_img[:, :, 2], base_img[:, :, 3])
 
     # Layout: label_col | seed_col | separator | num_steps sweep columns
-    cell_size = 100
-    gap = 4
-    sep_gap = 16
-    label_col_width = 70
-    header_row_height = 32
-    total_cols = num_steps + 2
+    cell_size = 55
+    gap = 2
+    sep_gap = 8
+    label_col_width = 45
+    header_row_height = 20
     fig_w = label_col_width + cell_size + sep_gap + num_steps * cell_size + (num_steps - 1) * gap
     fig_h = header_row_height + num_top_dims * cell_size + (num_top_dims - 1) * gap
 
     fig = Figure(
         size = (fig_w, fig_h),
         backgroundcolor = :white,
-        figure_padding = (4, 8, 4, 4),
+        figure_padding = (2, 4, 2, 2),
     )
 
     # Seed column (same base image repeated for every row)
@@ -183,13 +182,13 @@ for (plot_idx, base_idx) in enumerate(base_idxs)
 
     # Row labels
     for (row, dim) in enumerate(top_dims)
-        Label(fig[row + 1, 1], L"z_{%$dim}", fontsize = 22, halign = :right)
+        Label(fig[row + 1, 1], L"z_{%$dim}", fontsize = 11, halign = :right)
     end
 
     # Column headers
-    Label(fig[1, 2], "seed", fontsize = 20, halign = :center, valign = :bottom)
-    Label(fig[1, 3], L"-3\sigma", fontsize = 20, halign = :center, valign = :bottom)
-    Label(fig[1, num_steps + 2], L"+3\sigma", fontsize = 20, halign = :center, valign = :bottom)
+    Label(fig[1, 2], "seed", fontsize = 11, halign = :center, valign = :bottom)
+    Label(fig[1, 3], L"-3\sigma", fontsize = 11, halign = :center, valign = :bottom)
+    Label(fig[1, num_steps + 2], L"+3\sigma", fontsize = 11, halign = :center, valign = :bottom)
 
     colgap!(fig.layout, gap)
     rowgap!(fig.layout, gap)
@@ -197,7 +196,7 @@ for (plot_idx, base_idx) in enumerate(base_idxs)
     colsize!(fig.layout, 1, Fixed(label_col_width))
     rowsize!(fig.layout, 1, Fixed(header_row_height))
 
-    save(save_dir * "traversal_$(plot_idx).png", fig, px_per_unit = 3)
+    save(save_dir * "traversal_$(plot_idx).png", fig, px_per_unit = 4)
     println("Saved traversal_$(plot_idx).png")
 end
 
