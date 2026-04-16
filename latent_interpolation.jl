@@ -57,11 +57,12 @@ batch_size = model.batch_size
 
 # Sample from prior
 num_batches = max(div(2 * num_pairs, batch_size), 1) + 1
-z_all = zeros(Float32, q_size, 1, 0)
+z_all = zeros(Float32, q_size, 1, num_batches * batch_size)
 for i in 1:num_batches
     st_rng = seed_rand(model; rng = rng)
     z, _ = Reactant.@jit model.sample_prior(model, ps, st_kan, st_lux, st_rng)
-    z_all = cat(z_all, Array(z); dims = 3)
+    idx = ((i - 1) * batch_size + 1):(i * batch_size)
+    z_all[:, :, idx] = Array(z)
 end
 println("Sampled $(size(z_all, 3)) latent vectors")
 
