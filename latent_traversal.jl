@@ -134,7 +134,8 @@ for (plot_idx, base_idx) in enumerate(base_idxs)
     z_base_batch = repeat(z_anchor, 1, 1, batch_size)
     x_base = Array(decode_compiled(ps.gen, st_kan.gen, st_lux.gen, pu(z_base_batch)))
     base_raw = clamp.(x_base[:, :, :, 1], 0.0f0, 1.0f0)
-    base_rgb = RGB.(base_raw[:, :, 1], base_raw[:, :, 2], base_raw[:, :, 3])
+    base_img = permutedims(base_raw, (2, 1, 3))
+    base_rgb = reverse(RGB.(base_img[:, :, 1], base_img[:, :, 2], base_img[:, :, 3]); dims = 1)
 
     # Layout: label_col | seed_col | separator | num_steps sweep columns
     cell_size = 55
@@ -177,7 +178,8 @@ for (plot_idx, base_idx) in enumerate(base_idxs)
             hidedecorations!(ax)
             hidespines!(ax)
             raw = clamp.(x_decoded[:, :, :, qi], 0.0f0, 1.0f0)
-            rgb = RGB.(raw[:, :, 1], raw[:, :, 2], raw[:, :, 3])
+            img = permutedims(raw, (2, 1, 3))
+            rgb = reverse(RGB.(img[:, :, 1], img[:, :, 2], img[:, :, 3]); dims = 1)
             image!(ax, rgb)
         end
     end

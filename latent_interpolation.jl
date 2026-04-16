@@ -128,8 +128,9 @@ for (row, (i, j)) in enumerate(pairs)
     x_decoded = Array(decode_compiled(ps.gen, st_kan.gen, st_lux.gen, pu(z_batch)))
     for ci in 1:num_cols
         raw = clamp.(x_decoded[:, :, :, ci], 0.0f0, 1.0f0)
-        rgb = RGB.(raw[:, :, 1], raw[:, :, 2], raw[:, :, 3])
-        all_rgb[row, ci] = rgb
+        img = permutedims(raw, (2, 1, 3))
+        rgb = RGB.(img[:, :, 1], img[:, :, 2], img[:, :, 3])
+        all_rgb[row, ci] = reverse(rgb; dims = 1)
     end
 end
 
@@ -155,8 +156,8 @@ for row in 1:num_pairs, col in 1:num_cols
     image!(ax, all_rgb[row, col])
 end
 
-Label(fig[1, 1], L"\boldsymbol{z}_A", fontsize = 10, halign = :center, valign = :bottom)
-Label(fig[1, num_cols], L"\boldsymbol{z}_B", fontsize = 10, halign = :center, valign = :bottom)
+Label(fig[1, 1], L"\mathbf{z}_A", fontsize = 10, halign = :center, valign = :bottom)
+Label(fig[1, num_cols], L"\mathbf{z}_B", fontsize = 10, halign = :center, valign = :bottom)
 
 colgap!(fig.layout, gap)
 rowgap!(fig.layout, row_gap)
