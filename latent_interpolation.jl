@@ -129,7 +129,7 @@ for (row, (i, j)) in enumerate(pairs)
     for ci in 1:num_cols
         raw = clamp.(x_decoded[:, :, :, ci], 0.0f0, 1.0f0)
         rgb = RGB.(raw[:, :, 1], raw[:, :, 2], raw[:, :, 3])
-        all_rgb[row, ci] = rotr90(rgb)
+        all_rgb[row, ci] = rotl90(rgb)
     end
 end
 
