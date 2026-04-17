@@ -1,6 +1,7 @@
 using ConfParser, Random, JLD2, ComponentArrays, Lux, Reactant, Statistics, LinearAlgebra
 using CairoMakie, LaTeXStrings, Colors, Accessors
 using NNlib: softmax
+using MLDataDevices: cpu_device
 
 ENV["DEVICE"] = "cpu"
 CairoMakie.activate!(type = "png")
@@ -81,11 +82,15 @@ decode_compiled = Reactant.@compile decode(ps.gen, st_kan.gen, st_lux.gen, z_dum
 println("Decoder compiled.")
 
 function marginalise_prior(model, ps, st_kan, st_lux)
+    cpu = cpu_device()
     prior = model.prior
-    st_quad = st_kan.quad
+    ps_cpu = cpu(ps)
+    st_kan_cpu = cpu(st_kan)
+    st_lux_cpu = cpu(st_lux)
+    st_quad = st_kan_cpu.quad
 
-    z_grid = first(get_gausslegendre(prior, st_kan.ebm, st_quad.init_nodes, st_quad.init_weights))
-    pi_0 = prior.π_pdf(z_grid, ps.ebm.dist.π_μ, ps.ebm.dist.π_σ)
+    z_grid = first(get_gausslegendre(prior, st_kan_cpu.ebm, st_quad.init_nodes, st_quad.init_weights))
+    pi_0 = prior.π_pdf(z_grid, ps_cpu.ebm.dist.π_μ, ps_cpu.ebm.dist.π_σ)
 
     prior_copy = prior
     for i in 1:prior_copy.depth
@@ -93,12 +98,12 @@ function marginalise_prior(model, ps, st_kan, st_lux)
     end
     @reset prior_copy.s_size = prior_copy.N_quad
 
-    f = first(prior_copy(ps.ebm, st_kan.ebm, st_lux.ebm, z_grid))
+    f = first(prior_copy(ps_cpu.ebm, st_kan_cpu.ebm, st_lux_cpu.ebm, z_grid))
 
-    alpha = prior.bool_config.train_props ? ps.ebm.dist.α : zero(ps.ebm.dist.α) .+ 1.0f0
+    alpha = prior.bool_config.train_props ? ps_cpu.ebm.dist.α : zero(ps_cpu.ebm.dist.α) .+ 1.0f0
     alpha = softmax(alpha; dims = 2)
 
-    Z_all = first(prior_copy.quad(prior_copy, ps.ebm, st_kan.ebm, st_lux.ebm, st_quad))
+    Z_all = first(prior_copy.quad(prior_copy, ps_cpu.ebm, st_kan_cpu.ebm, st_lux_cpu.ebm, st_quad))
     Z = dropdims(sum(Z_all; dims = 3); dims = 3)
 
     Q, P = prior.q_size, prior.p_size
