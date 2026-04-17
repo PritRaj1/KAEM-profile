@@ -1,6 +1,5 @@
 using ConfParser, Random, JLD2, ComponentArrays, Lux, Reactant, Statistics, LinearAlgebra
-using CairoMakie, LaTeXStrings, Colors, Accessors
-using NNlib: softmax
+using CairoMakie, LaTeXStrings, Colors
 
 ENV["DEVICE"] = "gpu"
 CairoMakie.activate!(type = "png")
@@ -41,62 +40,20 @@ include("src/pipeline/trainer.jl")
 using .trainer
 using .trainer: seed_rand
 using .trainer.KAEM_model: load_params
-using .trainer.KAEM_model.Quadrature: get_gausslegendre
-
 saved_data = load(file_loc * "saved_model.jld2")
 rng = Random.MersenneTwister(1)
 t = init_trainer(rng, conf, dataset; img_resize = ds.resize, file_loc = file_loc, save_model = false)
 
-ps_cpu = load_params(saved_data)
-st_kan_cpu = saved_data["kan_state"]
-st_lux_cpu = Lux.testmode(saved_data["lux_state"])
+t.ps = load_params(saved_data) |> pu
+t.st_kan = saved_data["kan_state"] |> pu
+t.st_lux = saved_data["lux_state"] |> pu
 
 model = t.model
+ps = t.ps
+st_kan = t.st_kan
+st_lux = Lux.testmode(t.st_lux)
 q_size = model.prior.q_size
 batch_size = model.batch_size
-
-function marginalise_prior(model, ps, st_kan, st_lux)
-    prior = model.prior
-    st_quad = st_kan.quad
-
-    z_grid = first(get_gausslegendre(prior, st_kan.ebm, st_quad.init_nodes, st_quad.init_weights))
-    pi_0 = prior.π_pdf(z_grid, ps.ebm.dist.π_μ, ps.ebm.dist.π_σ)
-
-    prior_copy = prior
-    for i in 1:prior_copy.depth
-        @reset prior_copy.fcns_qp[i].basis_function.S = prior_copy.N_quad
-    end
-    @reset prior_copy.s_size = prior_copy.N_quad
-
-    f = first(prior_copy(ps.ebm, st_kan.ebm, st_lux.ebm, z_grid))
-
-    alpha = prior.bool_config.train_props ? ps.ebm.dist.α : zero(ps.ebm.dist.α) .+ 1.0f0
-    alpha = softmax(alpha; dims = 2)
-
-    Z_all = first(prior_copy.quad(prior_copy, ps.ebm, st_kan.ebm, st_lux.ebm, st_quad))
-    Z = dropdims(sum(Z_all; dims = 3); dims = 3)
-
-    Q, P = prior.q_size, prior.p_size
-    N = size(z_grid, 2)
-    z_nodes = Vector{Float32}(z_grid[1, :])
-
-    densities = zeros(Float32, Q, N)
-    for q in 1:Q
-        for p in 1:P
-            component_density = exp.(f[q, p, :]) .* pi_0[1, :, 1] ./ Z[q, p]
-            densities[q, :] .+= alpha[q, p] .* component_density
-        end
-    end
-
-    return z_nodes, densities
-end
-
-z_nodes, densities = marginalise_prior(model, ps_cpu, st_kan_cpu, st_lux_cpu)
-println("Computed prior densities for $q_size dims")
-
-ps = ps_cpu |> pu
-st_kan = st_kan_cpu |> pu
-st_lux = st_lux_cpu |> pu
 
 # Sample from prior
 num_batches = num_prior_samples ÷ batch_size
@@ -200,7 +157,7 @@ for (pair_idx, (i, j)) in enumerate(pairs)
     Label(fig[1, div(num_cols, 2):(div(num_cols, 2) + 1)], L"\longrightarrow", fontsize = 12, halign = :center, valign = :bottom)
     Label(fig[1, num_cols], L"z_B", fontsize = 12, halign = :center, valign = :bottom)
 
-    # Density plots
+    # Prior density plots (empirical KDE from prior samples)
     dim_colors = [:royalblue, :firebrick, :forestgreen]
     for (di, dim) in enumerate(top_dims)
         is_last = di == num_density_dims
@@ -217,8 +174,8 @@ for (pair_idx, (i, j)) in enumerate(pairs)
         !is_last && hidexdecorations!(ax; ticks = false)
         hidespines!(ax, :t, :r)
 
-        band!(ax, z_nodes, zeros(Float32, length(z_nodes)), densities[dim, :]; color = (dim_colors[di], 0.15))
-        lines!(ax, z_nodes, densities[dim, :]; color = (dim_colors[di], 0.8), linewidth = 1.5)
+        samples_dim = vec(z_all[dim, 1, :])
+        density!(ax, samples_dim; color = (dim_colors[di], 0.15), strokecolor = (dim_colors[di], 0.8), strokewidth = 1.5)
         vlines!(ax, [z_a[dim, 1, 1]]; color = :black, linewidth = 1.5, linestyle = :solid, label = L"z_A")
         vlines!(ax, [z_b[dim, 1, 1]]; color = :black, linewidth = 1.5, linestyle = :dash, label = L"z_B")
 
