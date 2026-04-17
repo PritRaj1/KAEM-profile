@@ -136,13 +136,15 @@ for (pair_idx, (i, j)) in enumerate(pairs)
     # Figure layout
     cell = 48
     gap = 2
-    header_h = 18
+    header_h = 22
     density_h = 70
     density_gap = 8
-    fig_w = num_cols * cell + (num_cols - 1) * gap
-    fig_h = header_h + cell + density_gap + num_density_dims * density_h + (num_density_dims - 1) * gap
+    legend_h = 16
+    left_pad = 40
+    fig_w = left_pad + num_cols * cell + (num_cols - 1) * gap + 4
+    fig_h = header_h + cell + density_gap + num_density_dims * density_h + (num_density_dims - 1) * gap + legend_h
 
-    fig = Figure(size = (fig_w, fig_h), backgroundcolor = :white, figure_padding = (4, 4, 2, 2))
+    fig = Figure(size = (fig_w, fig_h), backgroundcolor = :white, figure_padding = (left_pad, 4, 2, 2))
 
     # Image row
     for col in 1:num_cols
@@ -153,9 +155,9 @@ for (pair_idx, (i, j)) in enumerate(pairs)
     end
 
     # Header
-    Label(fig[1, 1], L"z_A", fontsize = 12, halign = :center, valign = :bottom)
-    Label(fig[1, div(num_cols, 2):(div(num_cols, 2) + 1)], L"\longrightarrow", fontsize = 12, halign = :center, valign = :bottom)
-    Label(fig[1, num_cols], L"z_B", fontsize = 12, halign = :center, valign = :bottom)
+    Label(fig[1, 1], L"z_A", fontsize = 14, halign = :center, valign = :bottom)
+    Label(fig[1, div(num_cols, 2):(div(num_cols, 2) + 1)], L"\longrightarrow", fontsize = 14, halign = :center, valign = :bottom)
+    Label(fig[1, num_cols], L"z_B", fontsize = 14, halign = :center, valign = :bottom)
 
     # Prior density plots (empirical KDE from prior samples)
     dim_colors = [:royalblue, :firebrick, :forestgreen]
@@ -176,11 +178,24 @@ for (pair_idx, (i, j)) in enumerate(pairs)
 
         samples_dim = vec(z_all[dim, 1, :])
         density!(ax, samples_dim; color = (dim_colors[di], 0.15), strokecolor = (dim_colors[di], 0.8), strokewidth = 1.5)
-        vlines!(ax, [z_a[dim, 1, 1]]; color = :black, linewidth = 1.5, linestyle = :solid, label = L"z_A")
-        vlines!(ax, [z_b[dim, 1, 1]]; color = :black, linewidth = 1.5, linestyle = :dash, label = L"z_B")
-
-        di == 1 && axislegend(ax; position = :rt, framevisible = false, labelsize = 8, patchsize = (12, 8))
+        vlines!(ax, [z_a[dim, 1, 1]]; color = :black, linewidth = 1.5, linestyle = :solid)
+        vlines!(ax, [z_b[dim, 1, 1]]; color = :black, linewidth = 1.5, linestyle = :dash)
     end
+
+    legend_entries = [
+        LineElement(color = :black, linewidth = 1.5, linestyle = :solid),
+        LineElement(color = :black, linewidth = 1.5, linestyle = :dash),
+    ]
+    Legend(
+        fig[2 + num_density_dims + 1, 1:num_cols],
+        legend_entries,
+        [L"z_A", L"z_B"],
+        orientation = :horizontal,
+        framevisible = false,
+        labelsize = 10,
+        patchsize = (15, 8),
+        height = Fixed(legend_h),
+    )
 
     colgap!(fig.layout, gap)
     rowgap!(fig.layout, gap)
