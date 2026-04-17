@@ -1,5 +1,6 @@
 using ConfParser, Random, JLD2, ComponentArrays, Lux, Reactant, Statistics, LinearAlgebra
-using CairoMakie, LaTeXStrings, Colors
+using CairoMakie, LaTeXStrings, Colors, Accessors
+using NNlib: softmax
 
 ENV["DEVICE"] = "cpu"
 CairoMakie.activate!(type = "png")
@@ -25,6 +26,7 @@ mkpath(save_dir)
 num_interp_steps = 8
 num_pairs = 6
 num_prior_samples = 500
+num_density_dims = 3
 
 conf = ConfParse(ds.config)
 parse_conf!(conf)
@@ -39,6 +41,7 @@ include("src/pipeline/trainer.jl")
 using .trainer
 using .trainer: seed_rand
 using .trainer.KAEM_model: load_params
+using .trainer.KAEM_model.Quadrature: get_gausslegendre
 
 # Load model
 saved_data = load(file_loc * "saved_model.jld2")
@@ -77,7 +80,46 @@ z_dummy = pu(zeros(Float32, q_size, 1, batch_size))
 decode_compiled = Reactant.@compile decode(ps.gen, st_kan.gen, st_lux.gen, z_dummy)
 println("Decoder compiled.")
 
-# SLERP: spherical linear interpolation
+function marginalise_prior(model, ps, st_kan, st_lux)
+    prior = model.prior
+    st_quad = st_kan.quad
+
+    z_grid = first(get_gausslegendre(prior, st_kan.ebm, st_quad.init_nodes, st_quad.init_weights))
+    pi_0 = prior.π_pdf(z_grid, ps.ebm.dist.π_μ, ps.ebm.dist.π_σ)
+
+    prior_copy = prior
+    for i in 1:prior_copy.depth
+        @reset prior_copy.fcns_qp[i].basis_function.S = prior_copy.N_quad
+    end
+    @reset prior_copy.s_size = prior_copy.N_quad
+
+    f = first(prior_copy(ps.ebm, st_kan.ebm, st_lux.ebm, z_grid))
+
+    alpha = prior.bool_config.train_props ? ps.ebm.dist.α : zero(ps.ebm.dist.α) .+ 1.0f0
+    alpha = softmax(alpha; dims = 2)
+
+    Z_all = first(prior_copy.quad(prior_copy, ps.ebm, st_kan.ebm, st_lux.ebm, st_quad))
+    Z = dropdims(sum(Z_all; dims = 3); dims = 3)
+
+    Q, P = prior.q_size, prior.p_size
+    N = size(z_grid, 2)
+    z_nodes = Vector{Float32}(z_grid[1, :])
+
+    densities = zeros(Float32, Q, N)
+    for q in 1:Q
+        for p in 1:P
+            component_density = exp.(f[q, p, :]) .* pi_0[1, :, 1] ./ Z[q, p]
+            densities[q, :] .+= alpha[q, p] .* component_density
+        end
+    end
+
+    return z_nodes, densities
+end
+
+z_nodes, densities = marginalise_prior(model, ps, st_kan, st_lux)
+println("Computed prior densities for $q_size dimensions")
+
+# SLERP
 function slerp(z1, z2, t)
     z1_flat = vec(z1)
     z2_flat = vec(z2)
@@ -91,7 +133,7 @@ function slerp(z1, z2, t)
     return (sin((1.0f0 - t) * omega) / s) .* z1 .+ (sin(t * omega) / s) .* z2
 end
 
-# Select pairs far apart in latent space
+# Select pairs far apart
 N = size(z_all, 3)
 pair_dists = Dict{Tuple{Int, Int}, Float32}()
 for i in 1:N, j in (i + 1):N
@@ -109,59 +151,88 @@ for (p, _) in sorted_pairs
 end
 println("Selected pairs: $pairs")
 
-# Total columns: z_a + num_interp_steps intermediates + z_b
+# Interpolate and plot each pair
 num_cols = num_interp_steps + 2
 ts = range(0.0f0, 1.0f0; length = num_cols)
 
-# Decode all interpolations
-all_rgb = Array{Matrix{RGB{Float32}}}(undef, num_pairs, num_cols)
-
-for (row, (i, j)) in enumerate(pairs)
+for (pair_idx, (i, j)) in enumerate(pairs)
     z_a = z_all[:, :, i:i]
     z_b = z_all[:, :, j:j]
 
+    # Decode interpolation
     z_batch = repeat(z_a, 1, 1, batch_size)
     for (ci, t_val) in enumerate(ts)
         z_batch[:, :, ci] .= slerp(z_a, z_b, t_val)
     end
-
     x_decoded = Array(decode_compiled(ps.gen, st_kan.gen, st_lux.gen, pu(z_batch)))
+
+    all_rgb = Matrix{RGB{Float32}}[]
     for ci in 1:num_cols
         raw = clamp.(x_decoded[:, :, :, ci], 0.0f0, 1.0f0)
         rgb = RGB.(raw[:, :, 1], raw[:, :, 2], raw[:, :, 3])
-        all_rgb[row, ci] = rot180(rgb)
+        push!(all_rgb, rot180(rgb))
     end
+
+    # Pick dims with largest difference between endpoints
+    zdiff = abs.(vec(z_a[:, 1, 1]) .- vec(z_b[:, 1, 1]))
+    top_dims = sortperm(zdiff; rev = true)[1:num_density_dims]
+
+    cell = 48
+    gap = 2
+    header_h = 20
+    density_h = 80
+    density_gap = 8
+    fig_w = num_cols * cell + (num_cols - 1) * gap
+    fig_h = header_h + cell + density_gap + num_density_dims * density_h + (num_density_dims - 1) * gap
+
+    fig = Figure(size = (fig_w, fig_h), backgroundcolor = :white, figure_padding = (4, 4, 2, 2))
+
+    # Image row
+    for col in 1:num_cols
+        ax = CairoMakie.Axis(
+            fig[2, col],
+            aspect = DataAspect(),
+            width = Fixed(cell),
+            height = Fixed(cell),
+        )
+        hidedecorations!(ax)
+        hidespines!(ax)
+        image!(ax, all_rgb[col])
+    end
+
+    # Header labels
+    Label(fig[1, 1], L"z_A", fontsize = 12, halign = :center, valign = :bottom)
+    Label(fig[1, div(num_cols, 2):(div(num_cols, 2) + 1)], L"\longrightarrow", fontsize = 12, halign = :center, valign = :bottom)
+    Label(fig[1, num_cols], L"z_B", fontsize = 12, halign = :center, valign = :bottom)
+
+    # Density plots
+    colors = [:royalblue, :firebrick, :forestgreen]
+    for (di, dim) in enumerate(top_dims)
+        ax = CairoMakie.Axis(
+            fig[2 + di, 1:num_cols],
+            ylabel = L"p(z_{%$dim})",
+            height = Fixed(density_h),
+            xgridvisible = false,
+            ygridvisible = false,
+        )
+        hidexdecorations!(ax)
+        hidespines!(ax, :t, :r, :b)
+
+        lines!(ax, z_nodes, densities[dim, :]; color = (colors[di], 0.7), linewidth = 1.5)
+        band!(ax, z_nodes, zeros(Float32, length(z_nodes)), densities[dim, :]; color = (colors[di], 0.15))
+
+        vlines!(ax, [z_a[dim, 1, 1]]; color = :black, linewidth = 1.5, linestyle = :solid)
+        vlines!(ax, [z_b[dim, 1, 1]]; color = :black, linewidth = 1.5, linestyle = :dash)
+    end
+
+    colgap!(fig.layout, gap)
+    rowgap!(fig.layout, gap)
+    rowgap!(fig.layout, 1, 0)
+    rowgap!(fig.layout, 2, density_gap)
+    rowsize!(fig.layout, 1, Fixed(header_h))
+
+    save(save_dir * "slerp_$(pair_idx).png", fig, px_per_unit = 5)
+    println("Saved slerp_$(pair_idx).png")
 end
 
-# Plot
-cell = 48
-gap = 2
-row_gap = 6
-header_h = 20
-fig_w = num_cols * cell + (num_cols - 1) * gap
-fig_h = header_h + num_pairs * cell + (num_pairs - 1) * row_gap
-
-fig = Figure(size = (fig_w, fig_h), backgroundcolor = :white, figure_padding = (2, 2, 2, 2))
-
-for row in 1:num_pairs, col in 1:num_cols
-    ax = CairoMakie.Axis(
-        fig[row + 1, col],
-        aspect = DataAspect(),
-        width = Fixed(cell),
-        height = Fixed(cell),
-    )
-    hidedecorations!(ax)
-    hidespines!(ax)
-    image!(ax, all_rgb[row, col])
-end
-
-Label(fig[1, 1], L"z_A", fontsize = 14, halign = :center, valign = :bottom)
-Label(fig[1, div(num_cols, 2):(div(num_cols, 2) + 1)], L"\longrightarrow", fontsize = 14, halign = :center, valign = :bottom)
-Label(fig[1, num_cols], L"z_B", fontsize = 14, halign = :center, valign = :bottom)
-
-colgap!(fig.layout, gap)
-rowgap!(fig.layout, row_gap)
-rowsize!(fig.layout, 1, Fixed(header_h))
-
-save(save_dir * "slerp.png", fig, px_per_unit = 5)
-println("Saved to $(save_dir)slerp.png")
+println("Results in $save_dir")
