@@ -160,18 +160,21 @@ for (pair_idx, (i, j)) in enumerate(pairs)
     Label(fig[1, num_cols], L"z_B", fontsize = 14, halign = :center, valign = :bottom)
 
     # Prior density plots (empirical KDE from prior samples)
+    # Dimensions selected by largest |z_A - z_B| difference
     dim_colors = [:royalblue, :firebrick, :forestgreen]
     for (di, dim) in enumerate(top_dims)
         is_last = di == num_density_dims
         ax = CairoMakie.Axis(
             fig[2 + di, 1:num_cols],
-            ylabel = L"p(z_{%$dim})",
+            ylabel = L"p_{f,%$dim}(z_{%$dim})",
             height = Fixed(density_h),
             xgridvisible = false,
             ygridvisible = false,
-            ylabelsize = 10,
+            ylabelsize = 11,
             yticklabelsize = 8,
             xticklabelsize = is_last ? 8 : 0,
+            xlabel = is_last ? L"z_q" : "",
+            xlabelsize = 10,
         )
         !is_last && hidexdecorations!(ax; ticks = false)
         hidespines!(ax, :t, :r)
