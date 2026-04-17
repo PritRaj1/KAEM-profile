@@ -1,9 +1,8 @@
 using ConfParser, Random, JLD2, ComponentArrays, Lux, Reactant, Statistics, LinearAlgebra
 using CairoMakie, LaTeXStrings, Colors, Accessors
 using NNlib: softmax
-using MLDataDevices: cpu_device
 
-ENV["DEVICE"] = "cpu"
+ENV["DEVICE"] = "gpu"
 CairoMakie.activate!(type = "png")
 
 dataset = length(ARGS) >= 1 ? ARGS[1] : "CELEBA"
@@ -44,21 +43,60 @@ using .trainer: seed_rand
 using .trainer.KAEM_model: load_params
 using .trainer.KAEM_model.Quadrature: get_gausslegendre
 
-# Load model
 saved_data = load(file_loc * "saved_model.jld2")
 rng = Random.MersenneTwister(1)
 t = init_trainer(rng, conf, dataset; img_resize = ds.resize, file_loc = file_loc, save_model = false)
 
-t.ps = load_params(saved_data) |> pu
-t.st_kan = saved_data["kan_state"] |> pu
-t.st_lux = saved_data["lux_state"] |> pu
+ps_cpu = load_params(saved_data)
+st_kan_cpu = saved_data["kan_state"]
+st_lux_cpu = Lux.testmode(saved_data["lux_state"])
 
 model = t.model
-ps = t.ps
-st_kan = t.st_kan
-st_lux = Lux.testmode(t.st_lux)
 q_size = model.prior.q_size
 batch_size = model.batch_size
+
+function marginalise_prior(model, ps, st_kan, st_lux)
+    prior = model.prior
+    st_quad = st_kan.quad
+
+    z_grid = first(get_gausslegendre(prior, st_kan.ebm, st_quad.init_nodes, st_quad.init_weights))
+    pi_0 = prior.π_pdf(z_grid, ps.ebm.dist.π_μ, ps.ebm.dist.π_σ)
+
+    prior_copy = prior
+    for i in 1:prior_copy.depth
+        @reset prior_copy.fcns_qp[i].basis_function.S = prior_copy.N_quad
+    end
+    @reset prior_copy.s_size = prior_copy.N_quad
+
+    f = first(prior_copy(ps.ebm, st_kan.ebm, st_lux.ebm, z_grid))
+
+    alpha = prior.bool_config.train_props ? ps.ebm.dist.α : zero(ps.ebm.dist.α) .+ 1.0f0
+    alpha = softmax(alpha; dims = 2)
+
+    Z_all = first(prior_copy.quad(prior_copy, ps.ebm, st_kan.ebm, st_lux.ebm, st_quad))
+    Z = dropdims(sum(Z_all; dims = 3); dims = 3)
+
+    Q, P = prior.q_size, prior.p_size
+    N = size(z_grid, 2)
+    z_nodes = Vector{Float32}(z_grid[1, :])
+
+    densities = zeros(Float32, Q, N)
+    for q in 1:Q
+        for p in 1:P
+            component_density = exp.(f[q, p, :]) .* pi_0[1, :, 1] ./ Z[q, p]
+            densities[q, :] .+= alpha[q, p] .* component_density
+        end
+    end
+
+    return z_nodes, densities
+end
+
+z_nodes, densities = marginalise_prior(model, ps_cpu, st_kan_cpu, st_lux_cpu)
+println("Computed prior densities for $q_size dims")
+
+ps = ps_cpu |> pu
+st_kan = st_kan_cpu |> pu
+st_lux = st_lux_cpu |> pu
 
 # Sample from prior
 num_batches = num_prior_samples ÷ batch_size
@@ -80,49 +118,6 @@ end
 z_dummy = pu(zeros(Float32, q_size, 1, batch_size))
 decode_compiled = Reactant.@compile decode(ps.gen, st_kan.gen, st_lux.gen, z_dummy)
 println("Decoder compiled.")
-
-function marginalise_prior(model, ps, st_kan, st_lux)
-    cpu = cpu_device()
-    prior = model.prior
-    ps_cpu = cpu(ps)
-    st_kan_cpu = cpu(st_kan)
-    st_lux_cpu = cpu(st_lux)
-    st_quad = st_kan_cpu.quad
-
-    z_grid = first(get_gausslegendre(prior, st_kan_cpu.ebm, st_quad.init_nodes, st_quad.init_weights))
-    pi_0 = prior.π_pdf(z_grid, ps_cpu.ebm.dist.π_μ, ps_cpu.ebm.dist.π_σ)
-
-    prior_copy = prior
-    for i in 1:prior_copy.depth
-        @reset prior_copy.fcns_qp[i].basis_function.S = prior_copy.N_quad
-    end
-    @reset prior_copy.s_size = prior_copy.N_quad
-
-    f = first(prior_copy(ps_cpu.ebm, st_kan_cpu.ebm, st_lux_cpu.ebm, z_grid))
-
-    alpha = prior.bool_config.train_props ? ps_cpu.ebm.dist.α : zero(ps_cpu.ebm.dist.α) .+ 1.0f0
-    alpha = softmax(alpha; dims = 2)
-
-    Z_all = first(prior_copy.quad(prior_copy, ps_cpu.ebm, st_kan_cpu.ebm, st_lux_cpu.ebm, st_quad))
-    Z = dropdims(sum(Z_all; dims = 3); dims = 3)
-
-    Q, P = prior.q_size, prior.p_size
-    N = size(z_grid, 2)
-    z_nodes = Vector{Float32}(z_grid[1, :])
-
-    densities = zeros(Float32, Q, N)
-    for q in 1:Q
-        for p in 1:P
-            component_density = exp.(f[q, p, :]) .* pi_0[1, :, 1] ./ Z[q, p]
-            densities[q, :] .+= alpha[q, p] .* component_density
-        end
-    end
-
-    return z_nodes, densities
-end
-
-z_nodes, densities = marginalise_prior(model, ps, st_kan, st_lux)
-println("Computed prior densities for $q_size dimensions")
 
 # SLERP
 function slerp(z1, z2, t)
@@ -164,7 +159,6 @@ for (pair_idx, (i, j)) in enumerate(pairs)
     z_a = z_all[:, :, i:i]
     z_b = z_all[:, :, j:j]
 
-    # Decode interpolation
     z_batch = repeat(z_a, 1, 1, batch_size)
     for (ci, t_val) in enumerate(ts)
         z_batch[:, :, ci] .= slerp(z_a, z_b, t_val)
@@ -178,14 +172,15 @@ for (pair_idx, (i, j)) in enumerate(pairs)
         push!(all_rgb, rot180(rgb))
     end
 
-    # Pick dims with largest difference between endpoints
+    # Dimensions with largest difference between endpoints
     zdiff = abs.(vec(z_a[:, 1, 1]) .- vec(z_b[:, 1, 1]))
     top_dims = sortperm(zdiff; rev = true)[1:num_density_dims]
 
+    # Figure layout
     cell = 48
     gap = 2
-    header_h = 20
-    density_h = 80
+    header_h = 18
+    density_h = 70
     density_gap = 8
     fig_w = num_cols * cell + (num_cols - 1) * gap
     fig_h = header_h + cell + density_gap + num_density_dims * density_h + (num_density_dims - 1) * gap
@@ -194,40 +189,40 @@ for (pair_idx, (i, j)) in enumerate(pairs)
 
     # Image row
     for col in 1:num_cols
-        ax = CairoMakie.Axis(
-            fig[2, col],
-            aspect = DataAspect(),
-            width = Fixed(cell),
-            height = Fixed(cell),
-        )
+        ax = CairoMakie.Axis(fig[2, col], aspect = DataAspect(), width = Fixed(cell), height = Fixed(cell))
         hidedecorations!(ax)
         hidespines!(ax)
         image!(ax, all_rgb[col])
     end
 
-    # Header labels
+    # Header
     Label(fig[1, 1], L"z_A", fontsize = 12, halign = :center, valign = :bottom)
     Label(fig[1, div(num_cols, 2):(div(num_cols, 2) + 1)], L"\longrightarrow", fontsize = 12, halign = :center, valign = :bottom)
     Label(fig[1, num_cols], L"z_B", fontsize = 12, halign = :center, valign = :bottom)
 
     # Density plots
-    colors = [:royalblue, :firebrick, :forestgreen]
+    dim_colors = [:royalblue, :firebrick, :forestgreen]
     for (di, dim) in enumerate(top_dims)
+        is_last = di == num_density_dims
         ax = CairoMakie.Axis(
             fig[2 + di, 1:num_cols],
             ylabel = L"p(z_{%$dim})",
             height = Fixed(density_h),
             xgridvisible = false,
             ygridvisible = false,
+            ylabelsize = 10,
+            yticklabelsize = 8,
+            xticklabelsize = is_last ? 8 : 0,
         )
-        hidexdecorations!(ax)
-        hidespines!(ax, :t, :r, :b)
+        !is_last && hidexdecorations!(ax; ticks = false)
+        hidespines!(ax, :t, :r)
 
-        lines!(ax, z_nodes, densities[dim, :]; color = (colors[di], 0.7), linewidth = 1.5)
-        band!(ax, z_nodes, zeros(Float32, length(z_nodes)), densities[dim, :]; color = (colors[di], 0.15))
+        band!(ax, z_nodes, zeros(Float32, length(z_nodes)), densities[dim, :]; color = (dim_colors[di], 0.15))
+        lines!(ax, z_nodes, densities[dim, :]; color = (dim_colors[di], 0.8), linewidth = 1.5)
+        vlines!(ax, [z_a[dim, 1, 1]]; color = :black, linewidth = 1.5, linestyle = :solid, label = L"z_A")
+        vlines!(ax, [z_b[dim, 1, 1]]; color = :black, linewidth = 1.5, linestyle = :dash, label = L"z_B")
 
-        vlines!(ax, [z_a[dim, 1, 1]]; color = :black, linewidth = 1.5, linestyle = :solid)
-        vlines!(ax, [z_b[dim, 1, 1]]; color = :black, linewidth = 1.5, linestyle = :dash)
+        di == 1 && axislegend(ax; position = :rt, framevisible = false, labelsize = 8, patchsize = (12, 8))
     end
 
     colgap!(fig.layout, gap)
