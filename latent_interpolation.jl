@@ -178,7 +178,7 @@ for (pair_idx, (i, j)) in enumerate(pairs)
         [L"z_A", L"z_B"],
         orientation = :horizontal,
         framevisible = false,
-        labelsize = 14,
+        labelsize = 18,
     )
 
     for col in 1:num_cols
