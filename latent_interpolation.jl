@@ -109,7 +109,7 @@ end
 println("Selected pairs: $pairs")
 
 # Interpolate and plot each pair
-num_cols = num_interp_steps
+num_cols = num_interp_steps + 2
 ts = range(0.0f0, 1.0f0; length = num_cols)
 
 for (pair_idx, (i, j)) in enumerate(pairs)
@@ -181,6 +181,9 @@ for (pair_idx, (i, j)) in enumerate(pairs)
         labelsize = 14,
     )
 
+    for col in 1:num_cols
+        colsize!(fig.layout, col, Relative(1 / num_cols))
+    end
     rowgap!(fig.layout, 4)
     rowgap!(fig.layout, 2, 12)
 
