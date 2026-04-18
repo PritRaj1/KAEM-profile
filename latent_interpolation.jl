@@ -140,11 +140,14 @@ for (pair_idx, (i, j)) in enumerate(pairs)
     density_h = 70
     density_gap = 8
     legend_h = 16
-    left_pad = 40
-    fig_w = left_pad + num_cols * cell + (num_cols - 1) * gap + 4
-    fig_h = header_h + cell + density_gap + num_density_dims * density_h + (num_density_dims - 1) * gap + legend_h
+    left_pad = 45
+    right_pad = 10
+    top_pad = 4
+    bottom_pad = 20
+    fig_w = left_pad + num_cols * cell + (num_cols - 1) * gap + right_pad
+    fig_h = top_pad + header_h + cell + density_gap + num_density_dims * density_h + (num_density_dims - 1) * gap + legend_h + bottom_pad
 
-    fig = Figure(size = (fig_w, fig_h), backgroundcolor = :white, figure_padding = (left_pad, 4, 2, 2))
+    fig = Figure(size = (fig_w, fig_h), backgroundcolor = :white, figure_padding = (left_pad, right_pad, top_pad, bottom_pad))
 
     # Image row
     for col in 1:num_cols
