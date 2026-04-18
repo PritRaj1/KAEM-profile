@@ -109,7 +109,7 @@ end
 println("Selected pairs: $pairs")
 
 # Interpolate and plot each pair
-num_cols = num_interp_steps + 2
+num_cols = num_interp_steps
 ts = range(0.0f0, 1.0f0; length = num_cols)
 
 for (pair_idx, (i, j)) in enumerate(pairs)
@@ -129,11 +129,10 @@ for (pair_idx, (i, j)) in enumerate(pairs)
         push!(all_rgb, rot180(rgb))
     end
 
-    # Dimensions with largest difference between endpoints
+    # Dims with largest difference between endpoints
     zdiff = abs.(vec(z_a[:, 1, 1]) .- vec(z_b[:, 1, 1]))
     top_dims = sortperm(zdiff; rev = true)[1:num_density_dims]
 
-    # Figure — generous size, let Makie handle layout. LaTeX scales to \columnwidth.
     fig = Figure(size = (700, 550), backgroundcolor = :white)
 
     # Image row
