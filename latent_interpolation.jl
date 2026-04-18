@@ -90,7 +90,7 @@ function slerp(z1, z2, t)
     return (sin((1.0f0 - t) * omega) / s) .* z1 .+ (sin(t * omega) / s) .* z2
 end
 
-# Select pairs far apart
+# Pairs far apart
 N = size(z_all, 3)
 pair_dists = Dict{Tuple{Int, Int}, Float32}()
 for i in 1:N, j in (i + 1):N
@@ -129,9 +129,35 @@ for (pair_idx, (i, j)) in enumerate(pairs)
         push!(all_rgb, rot180(rgb))
     end
 
-    # Dims with largest difference between endpoints
+    # Dims that are multimodal and have good z_A/z_B separation
+    function count_modes(samples, nbins = 30)
+        lo, hi = extrema(samples)
+        edges = range(lo - 0.01f0, hi + 0.01f0; length = nbins + 1)
+        counts = zeros(Int, nbins)
+        for s in samples
+            bin = clamp(searchsortedlast(edges, s), 1, nbins)
+            counts[bin] += 1
+        end
+
+        # Smooth with a 3-wide moving average to suppress noise
+        smoothed = [mean(counts[max(1, i - 1):min(nbins, i + 1)]) for i in 1:nbins]
+
+        # Count local maxima
+        n_modes = 0
+        for i in 2:(nbins - 1)
+            if smoothed[i] > smoothed[i - 1] && smoothed[i] > smoothed[i + 1]
+                n_modes += 1
+            end
+        end
+        return max(n_modes, 1)
+    end
+
     zdiff = abs.(vec(z_a[:, 1, 1]) .- vec(z_b[:, 1, 1]))
-    top_dims = sortperm(zdiff; rev = true)[1:num_density_dims]
+    mode_counts = [count_modes(vec(z_all[d, 1, :])) for d in 1:q_size]
+
+    # Score: prefer multimodal dims, break ties by z_A/z_B separation
+    scores = mode_counts .* zdiff
+    top_dims = sortperm(scores; rev = true)[1:num_density_dims]
 
     fig = Figure(size = (700, 550), backgroundcolor = :white)
 
