@@ -133,34 +133,21 @@ for (pair_idx, (i, j)) in enumerate(pairs)
     zdiff = abs.(vec(z_a[:, 1, 1]) .- vec(z_b[:, 1, 1]))
     top_dims = sortperm(zdiff; rev = true)[1:num_density_dims]
 
-    # Figure layout
-    cell = 48
-    gap = 2
-    header_h = 22
-    density_h = 70
-    density_gap = 8
-    legend_h = 16
-    left_pad = 45
-    right_pad = 10
-    top_pad = 4
-    bottom_pad = 20
-    fig_w = left_pad + num_cols * cell + (num_cols - 1) * gap + right_pad
-    fig_h = top_pad + header_h + cell + density_gap + num_density_dims * density_h + (num_density_dims - 1) * gap + legend_h + bottom_pad
-
-    fig = Figure(size = (fig_w, fig_h), backgroundcolor = :white, figure_padding = (left_pad, right_pad, top_pad, bottom_pad))
+    # Figure — generous size, let Makie handle layout. LaTeX scales to \columnwidth.
+    fig = Figure(size = (700, 550), backgroundcolor = :white)
 
     # Image row
     for col in 1:num_cols
-        ax = CairoMakie.Axis(fig[2, col], aspect = DataAspect(), width = Fixed(cell), height = Fixed(cell))
+        ax = CairoMakie.Axis(fig[2, col], aspect = DataAspect())
         hidedecorations!(ax)
         hidespines!(ax)
         image!(ax, all_rgb[col])
     end
 
     # Header
-    Label(fig[1, 1], L"z_A", fontsize = 14, halign = :center, valign = :bottom)
-    Label(fig[1, div(num_cols, 2):(div(num_cols, 2) + 1)], L"\longrightarrow", fontsize = 14, halign = :center, valign = :bottom)
-    Label(fig[1, num_cols], L"z_B", fontsize = 14, halign = :center, valign = :bottom)
+    Label(fig[1, 1], L"z_A", fontsize = 18, halign = :center, valign = :bottom)
+    Label(fig[1, div(num_cols, 2):(div(num_cols, 2) + 1)], L"\longrightarrow", fontsize = 18, halign = :center, valign = :bottom)
+    Label(fig[1, num_cols], L"z_B", fontsize = 18, halign = :center, valign = :bottom)
 
     # Prior density plots (empirical KDE from prior samples)
     # Dimensions selected by largest |z_A - z_B| difference
@@ -170,14 +157,9 @@ for (pair_idx, (i, j)) in enumerate(pairs)
         ax = CairoMakie.Axis(
             fig[2 + di, 1:num_cols],
             ylabel = L"p_{f,%$dim}(z_{%$dim})",
-            height = Fixed(density_h),
+            xlabel = is_last ? L"z_q" : "",
             xgridvisible = false,
             ygridvisible = false,
-            ylabelsize = 11,
-            yticklabelsize = 8,
-            xticklabelsize = is_last ? 8 : 0,
-            xlabel = is_last ? L"z_q" : "",
-            xlabelsize = 10,
         )
         !is_last && hidexdecorations!(ax; ticks = false)
         hidespines!(ax, :t, :r)
@@ -188,26 +170,20 @@ for (pair_idx, (i, j)) in enumerate(pairs)
         vlines!(ax, [z_b[dim, 1, 1]]; color = :black, linewidth = 1.5, linestyle = :dash)
     end
 
-    legend_entries = [
-        LineElement(color = :black, linewidth = 1.5, linestyle = :solid),
-        LineElement(color = :black, linewidth = 1.5, linestyle = :dash),
-    ]
     Legend(
         fig[2 + num_density_dims + 1, 1:num_cols],
-        legend_entries,
+        [
+            LineElement(color = :black, linewidth = 1.5, linestyle = :solid),
+            LineElement(color = :black, linewidth = 1.5, linestyle = :dash),
+        ],
         [L"z_A", L"z_B"],
         orientation = :horizontal,
         framevisible = false,
-        labelsize = 10,
-        patchsize = (15, 8),
-        height = Fixed(legend_h),
+        labelsize = 14,
     )
 
-    colgap!(fig.layout, gap)
-    rowgap!(fig.layout, gap)
-    rowgap!(fig.layout, 1, 0)
-    rowgap!(fig.layout, 2, density_gap)
-    rowsize!(fig.layout, 1, Fixed(header_h))
+    rowgap!(fig.layout, 4)
+    rowgap!(fig.layout, 2, 12)
 
     save(save_dir * "slerp_$(pair_idx).png", fig, px_per_unit = 5)
     println("Saved slerp_$(pair_idx).png")
