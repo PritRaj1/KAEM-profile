@@ -20,7 +20,7 @@ conf = Dict(
 )[dataset]
 parse_conf!(conf)
 
-ENV["GPU"] = retrieve(conf, "TRAINING", "use_gpu")
+ENV["DEVICE"] = retrieve(conf, "TRAINING", "device")
 ENV["PERCEPTUAL"] = retrieve(conf, "TRAINING", "use_perceptual_loss")
 
 # EDIT:

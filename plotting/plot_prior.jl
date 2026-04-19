@@ -4,7 +4,7 @@ using JLD2,
     Random,
     ComponentArrays
 
-ENV["GPU"] = "false"
+ENV["DEVICE"] = "cpu"
 
 include("../src/utils.jl")
 using .Utils

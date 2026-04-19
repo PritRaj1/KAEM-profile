@@ -18,7 +18,7 @@ conf = Dict(
 parse_conf!(conf)
 
 ENV["THERMO"] = "false"
-ENV["GPU"] = retrieve(conf, "TRAINING", "use_gpu")
+ENV["DEVICE"] = retrieve(conf, "TRAINING", "device")
 ENV["PERCEPTUAL"] = retrieve(conf, "TRAINING", "use_perceptual_loss")
 
 num_trials = parse(Int, retrieve(conf, "TUNING", "num_trials"))

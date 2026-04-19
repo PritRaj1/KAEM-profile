@@ -14,6 +14,8 @@ conf = Dict(
 )[dataset_name]
 parse_conf!(conf)
 
+ENV["DEVICE"] = retrieve(conf, "TRAINING", "device")
+
 include("src/baseline/training/trainer.jl")
 using .Baseline: init_trainer, train!
 
