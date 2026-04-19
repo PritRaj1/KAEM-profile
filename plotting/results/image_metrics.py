@@ -244,10 +244,10 @@ if __name__ == "__main__":
             #     get_real_samples_path("SVHN"),
             # ),
             # # Baselines - VAE
-            (
-                "logs/Baseline/CIFAR10/VAE/generated_images.h5",
-                get_real_samples_path("CIFAR10"),
-            ),
+            # (
+            #     "logs/Baseline/CIFAR10/VAE/generated_images.h5",
+            #     get_real_samples_path("CIFAR10"),
+            # ),
             # (
             #     "logs/Baseline/CELEBA/VAE/generated_images.h5",
             #     get_real_samples_path("CELEBA"),

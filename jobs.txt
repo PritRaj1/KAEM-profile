@@ -29,7 +29,7 @@
 # SVHN thermo
 # CELEBA thermo
 # CIFAR10 vanilla
-CIFAR10 thermo
+# CIFAR10 thermo
 # DARCY_FLOW vanilla
 
 # ==================== Baseline Jobs ====================

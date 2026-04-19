@@ -100,18 +100,18 @@ GIF_CONFIGS = {
         "filename": "cifar10_thermo_ULA_mixture_evolution.gif",
         "is_baseline": False,
     },
-    # Baseline - CIFAR10
-    "CIFAR10_baseline_vae": {
-        "dataset": "CIFAR10",
-        "method_type": "Baseline",
-        "model_type": "VAE",
-        "grid_size": 7,
-        "cmap": None,
-        "epochs": list(range(10, 100, 10)),
-        "samples_per_frame": 1,
-        "filename": "cifar10_baseline_vae_evolution.gif",
-        "is_baseline": True,
-    },
+    # # Baseline - CIFAR10
+    # "CIFAR10_baseline_vae": {
+    #     "dataset": "CIFAR10",
+    #     "method_type": "Baseline",
+    #     "model_type": "VAE",
+    #     "grid_size": 7,
+    #     "cmap": None,
+    #     "epochs": list(range(10, 100, 10)),
+    #     "samples_per_frame": 1,
+    #     "filename": "cifar10_baseline_vae_evolution.gif",
+    #     "is_baseline": True,
+    # },
     # "CIFAR10_baseline_gan": {
     #     "dataset": "CIFAR10",
     #     "method_type": "Baseline",
