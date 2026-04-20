@@ -567,7 +567,7 @@ function train!(t::Trainer)
             loss, ps, opt_state, opt_state_gen, opt_state_disc, st = call_train_step(batch_args)
             loss_val = Float32(loss)
             train_loss += loss_val
-            println("Iter: $train_idx, Loss: $loss_val")
+            # println("Iter: $train_idx, Loss: $loss_val")
             train_idx += 1
         end
 
@@ -577,9 +577,9 @@ function train!(t::Trainer)
 
         if t.gen_every > 0 && epoch % t.gen_every == 0
             test_loss = compute_test()
-            println(
-                "Epoch: $epoch, Train Loss: $train_loss, Test Loss: $test_loss"
-            )
+            # println(
+            #     "Epoch: $epoch, Train Loss: $train_loss, Test Loss: $test_loss"
+            # )
             num_batches_gen = 1 # Save only 1 batch for visualization during training
 
             if num_batches_gen > 0
