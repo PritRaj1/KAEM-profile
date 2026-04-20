@@ -28,23 +28,23 @@ DATASETS = {
 }
 
 METHOD_CONFIGS = {
-    "vanilla_ULA_mixture": {
-        "method_type": "Vanilla",
-        "sampler": "ULA",
-        "model_type": "mixture",
-        "is_baseline": False,
-    },
-    "thermo_ULA_mixture": {
-        "method_type": "Thermodynamic",
-        "sampler": "ULA",
-        "model_type": "mixture",
-        "is_baseline": False,
-    },
-    # "baseline_vae": {
-    #     "method_type": "Baseline",
-    #     "model_type": "VAE",
-    #     "is_baseline": True,
+    # "vanilla_ULA_mixture": {
+    #     "method_type": "Vanilla",
+    #     "sampler": "ULA",
+    #     "model_type": "mixture",
+    #     "is_baseline": False,
     # },
+    # "thermo_ULA_mixture": {
+    #     "method_type": "Thermodynamic",
+    #     "sampler": "ULA",
+    #     "model_type": "mixture",
+    #     "is_baseline": False,
+    # },
+    "baseline_vae": {
+        "method_type": "Baseline",
+        "model_type": "VAE",
+        "is_baseline": True,
+    },
     # "baseline_gan": {
     #     "method_type": "Baseline",
     #     "model_type": "GAN",

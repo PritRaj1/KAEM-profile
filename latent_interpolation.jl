@@ -10,6 +10,7 @@ mode = length(ARGS) >= 2 ? ARGS[2] : "vanilla"
 dataset_configs = Dict(
     "CELEBA" => (config = "config/celeba_config.ini", resize = (64, 64)),
     "SVHN" => (config = "config/svhn_config.ini", resize = (32, 32)),
+    "CIFAR10" => (config = "config/cifar_config.ini", resize = (32, 32)),
 )
 
 haskey(dataset_configs, dataset) || error("Unknown dataset: $dataset. Use one of: $(keys(dataset_configs))")
