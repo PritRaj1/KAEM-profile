@@ -66,17 +66,27 @@ function init_DDPM(
         num_timesteps
     )
 
-    # Strided denoising schedule
+    # Strided denoising schedule with respaced betas (matches OpenAI improved-diffusion /
+    # HF diffusers). ᾱ' at sampling position i equals ᾱ at the original strided timestep;
+    # respaced α'[i] = ᾱ[t_i] / ᾱ[t_{i+1}] so one-step reverse updates are unbiased.
     sampling_num_steps = cld(num_timesteps, sampling_stride)
     timesteps_idx = [max(num_timesteps - (i - 1) * sampling_stride, 1) for i in 1:sampling_num_steps]
+
+    respaced_alphas_cumprod = alphas_cumprod[timesteps_idx]
+    respaced_alphas = Vector{Float32}(undef, sampling_num_steps)
+    for i in 1:sampling_num_steps
+        prev_cumprod = i < sampling_num_steps ? alphas_cumprod[timesteps_idx[i + 1]] : 1.0f0
+        respaced_alphas[i] = respaced_alphas_cumprod[i] / prev_cumprod
+    end
+    respaced_betas = 1.0f0 .- respaced_alphas
 
     ndims_x = length(x_shape) + 1  # (H, W, C, batch)
     broadcast_shape = (ones(Int, ndims_x)..., sampling_num_steps)
 
     sampling_timesteps = repeat(Float32.(timesteps_idx)', batch_size, 1)
-    sampling_alphas = reshape(alphas[timesteps_idx], broadcast_shape...)
-    sampling_alphas_cumprod = reshape(alphas_cumprod[timesteps_idx], broadcast_shape...)
-    sampling_betas = reshape(betas[timesteps_idx], broadcast_shape...)
+    sampling_alphas = reshape(respaced_alphas, broadcast_shape...)
+    sampling_alphas_cumprod = reshape(respaced_alphas_cumprod, broadcast_shape...)
+    sampling_betas = reshape(respaced_betas, broadcast_shape...)
     sampling_noise_masks = reshape(vcat(ones(Float32, sampling_num_steps - 1), 0.0f0), broadcast_shape...)
     sampling_step_masks = Matrix{Float32}(I, sampling_num_steps, sampling_num_steps)
 
