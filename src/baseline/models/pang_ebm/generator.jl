@@ -102,7 +102,7 @@ function (gen::PangGenerator)(z, ps, st)
         if is_last
             h = NNlib.sigmoid(h)
         else
-            h = NNlib.leakyrelu(h)
+            h = NNlib.relu(h)
         end
     end
 
