@@ -24,351 +24,271 @@ RESULTS_DIR = Path("benches/results")
 FIGURES_DIR = Path("figures/benchmark")
 FIGURES_DIR.mkdir(parents=True, exist_ok=True)
 
-METRICS = ["Time (s)", "Memory Estimate (GiB)", "Garbage Collection (%)", "Allocations"]
-METRIC_TITLES = ["Time", "Memory", "GC", "Allocations"]
+METRICS = ["Time (s)", "Memory Estimate (GiB)", "Allocations"]
+METRIC_TITLES = ["Time", "Memory", "Allocations"]
+
+PALETTE = {
+    "KAEM": "#2ecc71",
+    "VAE": "#3498db",
+    "Pang": "#e67e22",
+}
+
+COL_RENAME = {
+    "time_mean": "Time (s)",
+    "time_std": "Time Std (s)",
+    "memory_estimate": "Memory Estimate (GiB)",
+    "allocations": "Allocations",
+}
 
 
 def load_csv_safe(path: Path) -> pd.DataFrame | None:
-    """Load CSV file if it exists, return None otherwise."""
     if path.exists():
         return pd.read_csv(path)
     print(f"Warning: {path} not found, skipping.")
     return None
 
 
-def plot_single_benchmark(
-    df: pd.DataFrame,
-    x_key: str,
-    title: str,
-    output_name: str,
-    reference: dict | None = None,
-    reference_label: str = "",
-    colour_palette: str = "viridis",
-    time_std_col: str | None = "Time Std (s)",
-):
-    fig, axs = plt.subplots(1, 4, figsize=(20, 5))
-    colors = sns.color_palette(colour_palette, n_colors=max(4, len(df)))
-
-    for idx, (metric, metric_title) in enumerate(zip(METRICS, METRIC_TITLES)):
-        ax = axs[idx]
-        color = colors[min(idx, len(colors) - 1)]
-
-        # Add error bars if std is available
-        if (
-            metric == "Time (s)"
-            and time_std_col is not None
-            and time_std_col in df.columns
-        ):
-            ax.bar(
-                range(len(df)),
-                df[metric],
-                yerr=df[time_std_col],
-                color=color,
-                capsize=5,
-                error_kw={"elinewidth": 2, "capthick": 2},
-            )
-            ax.set_xticks(range(len(df)))
-            ax.set_xticklabels(df[x_key], fontsize=14)
-        else:
-            sns.barplot(x=x_key, y=metric, data=df, ax=ax, color=color)
-
-        if reference is not None and metric in reference:
-            ax.axhline(
-                y=reference[metric],
-                color="red",
-                linestyle="--",
-                linewidth=2,
-                label=reference_label,
-            )
-            ax.legend(fontsize=12, loc="upper left")
-
-        ax.set_xlabel(x_key, fontsize=18)
-        ax.set_ylabel(metric, fontsize=18)
-        ax.set_title(f"{title} - {metric_title}", fontsize=18)
-        ax.tick_params(axis="both", labelsize=14)
-
-        if metric == "Garbage Collection (%)":
-            ax.set_ylim(0, max(1, df[metric].max() * 1.1))
-
-    plt.tight_layout()
-    plt.savefig(FIGURES_DIR / output_name, dpi=300, bbox_inches="tight")
-    plt.close()
+def normalize(df: pd.DataFrame, key: str, model: str, q_from_n_z: bool):
+    out = df.rename(columns=COL_RENAME).copy()
+    out["Model"] = model
+    out["Latent Dim"] = (2 * df[key] + 1) if q_from_n_z else df[key]
+    return out
 
 
-def plot_comparison(
-    kaem_df: pd.DataFrame,
-    vae_df: pd.DataFrame,
-    kaem_key: str,
-    vae_key: str,
+def plot_grouped_bars(
+    entries: list[tuple[pd.DataFrame, str]],
     title: str,
     output_name: str,
 ):
-    """Plot KAEM vs VAE comparison with grouped bars side by side."""
-    fig, axs = plt.subplots(1, 4, figsize=(22, 6))
+    """Plot grouped bars across models. entries: list of (dataframe, label)."""
+    fig, axs = plt.subplots(1, 3, figsize=(18, 5.5))
 
-    col_rename = {
-        "time_mean": "Time (s)",
-        "time_std": "Time Std (s)",
-        "memory_estimate": "Memory Estimate (GiB)",
-        "gc_percent": "Garbage Collection (%)",
-        "allocations": "Allocations",
-    }
-
-    kaem_data = kaem_df.rename(columns=col_rename).copy()
-    kaem_data["Model"] = "KAEM"
-
-    # Convert n_z to Q = 2*n_z + 1 (the actual latent dimension)
-    kaem_data["Latent Dim"] = 2 * kaem_df[kaem_key] + 1
-
-    vae_data = vae_df.rename(columns=col_rename).copy()
-    vae_data["Model"] = "VAE"
-
-    # VAE already uses Q directly as latent_dim
-    vae_data["Latent Dim"] = vae_df[vae_key]
-
-    combined = pd.concat([kaem_data, vae_data], ignore_index=True)
-
-    palette = {"KAEM": "#2ecc71", "VAE": "#3498db"}
-    latent_dims = sorted(kaem_data["Latent Dim"].unique())
-
-    for idx, (metric, metric_title) in enumerate(zip(METRICS, METRIC_TITLES)):
-        ax = axs[idx]
-
-        if metric == "Time (s)" and "Time Std (s)" in kaem_data.columns:
-            x = np.arange(len(latent_dims))
-            width = 0.35
-
-            kaem_times = [
-                kaem_data[kaem_data["Latent Dim"] == ld]["Time (s)"].values[0]
-                for ld in latent_dims
-            ]
-            kaem_stds = [
-                kaem_data[kaem_data["Latent Dim"] == ld]["Time Std (s)"].values[0]
-                for ld in latent_dims
-            ]
-            vae_times = [
-                vae_data[vae_data["Latent Dim"] == ld]["Time (s)"].values[0]
-                for ld in latent_dims
-            ]
-            vae_stds = [
-                vae_data[vae_data["Latent Dim"] == ld]["Time Std (s)"].values[0]
-                for ld in latent_dims
-            ]
-
-            ax.bar(
-                x - width / 2,
-                kaem_times,
-                width,
-                yerr=kaem_stds,
-                label="KAEM",
-                color=palette["KAEM"],
-                capsize=4,
-                error_kw={"elinewidth": 2, "capthick": 2},
-            )
-            ax.bar(
-                x + width / 2,
-                vae_times,
-                width,
-                yerr=vae_stds,
-                label="VAE",
-                color=palette["VAE"],
-                capsize=4,
-                error_kw={"elinewidth": 2, "capthick": 2},
-            )
-
-            ax.set_xticks(x)
-            ax.set_xticklabels(latent_dims, fontsize=14)
-        else:
-            sns.barplot(
-                x="Latent Dim",
-                y=metric,
-                hue="Model",
-                data=combined,
-                ax=ax,
-                palette=palette,
-            )
-
-        ax.set_xlabel(r"Latent Dim, $Q$", fontsize=18)
-        ax.set_ylabel(metric, fontsize=18)
-        ax.set_title(f"{title} - {metric_title}", fontsize=18)
-        ax.legend(fontsize=14)
-        ax.tick_params(axis="both", labelsize=14)
-
-        if metric == "Garbage Collection (%)":
-            ax.set_ylim(0, max(1, combined[metric].max() * 1.1))
-
-    plt.tight_layout()
-    plt.savefig(FIGURES_DIR / output_name, dpi=300, bbox_inches="tight")
-    plt.close()
-
-
-def plot_sampling_time_only(
-    kaem_df: pd.DataFrame,
-    vae_df: pd.DataFrame,
-    kaem_key: str,
-    vae_key: str,
-    output_name: str,
-    title: str = "Sampling Time: KAEM vs VAE",
-):
-    """Plot just the sampling time comparison."""
-    fig, ax = plt.subplots(figsize=(8, 6))
-
-    col_rename = {
-        "time_mean": "Time (s)",
-        "time_std": "Time Std (s)",
-    }
-
-    kaem_data = kaem_df.rename(columns=col_rename).copy()
-    kaem_data["Latent Dim"] = 2 * kaem_df[kaem_key] + 1
-
-    vae_data = vae_df.rename(columns=col_rename).copy()
-    vae_data["Latent Dim"] = vae_df[vae_key]
-
-    palette = {"KAEM": "#2ecc71", "VAE": "#3498db"}
-    latent_dims = sorted(kaem_data["Latent Dim"].unique())
-
+    latent_dims = sorted(entries[0][0]["Latent Dim"].unique())
+    n_models = len(entries)
+    width = 0.8 / n_models
     x = np.arange(len(latent_dims))
-    width = 0.35
 
-    kaem_times = [
-        kaem_data[kaem_data["Latent Dim"] == ld]["Time (s)"].values[0]
-        for ld in latent_dims
-    ]
-    kaem_stds = [
-        kaem_data[kaem_data["Latent Dim"] == ld]["Time Std (s)"].values[0]
-        for ld in latent_dims
-    ]
-    vae_times = [
-        vae_data[vae_data["Latent Dim"] == ld]["Time (s)"].values[0]
-        for ld in latent_dims
-    ]
-    vae_stds = [
-        vae_data[vae_data["Latent Dim"] == ld]["Time Std (s)"].values[0]
-        for ld in latent_dims
-    ]
+    for idx, (metric, metric_title) in enumerate(zip(METRICS, METRIC_TITLES)):
+        ax = axs[idx]
 
-    ax.bar(
-        x - width / 2,
-        kaem_times,
-        width,
-        yerr=kaem_stds,
-        label="KAEM",
-        color=palette["KAEM"],
-        capsize=5,
-        error_kw={"elinewidth": 2, "capthick": 2},
+        for m_idx, (df, label) in enumerate(entries):
+            offset = (m_idx - (n_models - 1) / 2) * width
+            values = [
+                df[df["Latent Dim"] == ld][metric].values[0] for ld in latent_dims
+            ]
+            kwargs = {
+                "label": label,
+                "color": PALETTE[label],
+                "edgecolor": "white",
+                "linewidth": 0.5,
+            }
+
+            if metric == "Time (s)" and "Time Std (s)" in df.columns:
+                stds = [
+                    df[df["Latent Dim"] == ld]["Time Std (s)"].values[0]
+                    for ld in latent_dims
+                ]
+                ax.bar(
+                    x + offset,
+                    values,
+                    width,
+                    yerr=stds,
+                    capsize=3,
+                    error_kw={"elinewidth": 1.2, "capthick": 1.2, "alpha": 0.8},
+                    **kwargs,
+                )
+            else:
+                ax.bar(x + offset, values, width, **kwargs)
+
+        ax.set_xticks(x)
+        ax.set_xticklabels(latent_dims, fontsize=14)
+        ax.set_xlabel(r"Latent Dim, $Q$", fontsize=16)
+        ax.set_ylabel(metric, fontsize=16)
+        ax.set_title(metric_title, fontsize=17, pad=8)
+        ax.tick_params(axis="both", labelsize=13)
+        ax.grid(axis="y", alpha=0.3, linestyle="--", linewidth=0.5)
+        ax.set_axisbelow(True)
+        ax.spines["top"].set_visible(False)
+        ax.spines["right"].set_visible(False)
+
+    handles, labels = axs[0].get_legend_handles_labels()
+    fig.legend(
+        handles,
+        labels,
+        loc="upper center",
+        bbox_to_anchor=(0.5, 1.02),
+        ncol=n_models,
+        fontsize=15,
+        frameon=False,
     )
-    ax.bar(
-        x + width / 2,
-        vae_times,
-        width,
-        yerr=vae_stds,
-        label="VAE",
-        color=palette["VAE"],
-        capsize=5,
-        error_kw={"elinewidth": 2, "capthick": 2},
-    )
+    fig.suptitle(title, fontsize=19, y=1.08)
+
+    plt.tight_layout()
+    plt.savefig(FIGURES_DIR / output_name, dpi=300, bbox_inches="tight")
+    plt.close()
+
+
+def plot_time_only(
+    entries: list[tuple[pd.DataFrame, str]],
+    title: str,
+    output_name: str,
+):
+    fig, ax = plt.subplots(figsize=(8, 5.5))
+    latent_dims = sorted(entries[0][0]["Latent Dim"].unique())
+    n_models = len(entries)
+    width = 0.8 / n_models
+    x = np.arange(len(latent_dims))
+
+    for m_idx, (df, label) in enumerate(entries):
+        offset = (m_idx - (n_models - 1) / 2) * width
+        times = [df[df["Latent Dim"] == ld]["Time (s)"].values[0] for ld in latent_dims]
+        stds = [
+            df[df["Latent Dim"] == ld]["Time Std (s)"].values[0] for ld in latent_dims
+        ]
+        ax.bar(
+            x + offset,
+            times,
+            width,
+            yerr=stds,
+            label=label,
+            color=PALETTE[label],
+            capsize=4,
+            error_kw={"elinewidth": 1.5, "capthick": 1.5, "alpha": 0.8},
+            edgecolor="white",
+            linewidth=0.5,
+        )
 
     ax.set_xticks(x)
-    ax.set_xticklabels(latent_dims, fontsize=16)
-    ax.set_xlabel(r"Latent Dim, $Q$", fontsize=20)
-    ax.set_ylabel("Time (s)", fontsize=20)
-    ax.set_title(title, fontsize=22)
-    ax.legend(fontsize=16)
-    ax.tick_params(axis="both", labelsize=16)
+    ax.set_xticklabels(latent_dims, fontsize=15)
+    ax.set_xlabel(r"Latent Dim, $Q$", fontsize=18)
+    ax.set_ylabel("Time (s)", fontsize=18)
+    ax.set_title(title, fontsize=19, pad=10)
+    ax.legend(fontsize=14, frameon=False, loc="upper left")
+    ax.tick_params(axis="both", labelsize=14)
+    ax.grid(axis="y", alpha=0.3, linestyle="--", linewidth=0.5)
+    ax.set_axisbelow(True)
+    ax.spines["top"].set_visible(False)
+    ax.spines["right"].set_visible(False)
 
+    plt.tight_layout()
+    plt.savefig(FIGURES_DIR / output_name, dpi=300, bbox_inches="tight")
+    plt.close()
+
+
+def plot_temperatures(df: pd.DataFrame, output_name: str):
+    fig, axs = plt.subplots(1, 3, figsize=(18, 5.5))
+    color = sns.color_palette("viridis", n_colors=4)[1]
+
+    for idx, (metric, metric_title) in enumerate(zip(METRICS, METRIC_TITLES)):
+        ax = axs[idx]
+        col_map = {
+            "Time (s)": "time_mean",
+            "Memory Estimate (GiB)": "memory_estimate",
+            "Allocations": "allocations",
+        }
+        values = df[col_map[metric]].values
+        x = np.arange(len(df))
+
+        if metric == "Time (s)":
+            ax.bar(
+                x,
+                values,
+                yerr=df["time_std"].values,
+                color=color,
+                capsize=4,
+                error_kw={"elinewidth": 1.5, "capthick": 1.5, "alpha": 0.8},
+                edgecolor="white",
+                linewidth=0.5,
+            )
+        else:
+            ax.bar(x, values, color=color, edgecolor="white", linewidth=0.5)
+
+        ax.set_xticks(x)
+        ax.set_xticklabels(df["N_t"].values, fontsize=14)
+        ax.set_xlabel(r"$N_t$", fontsize=16)
+        ax.set_ylabel(metric, fontsize=16)
+        ax.set_title(metric_title, fontsize=17, pad=8)
+        ax.tick_params(axis="both", labelsize=13)
+        ax.grid(axis="y", alpha=0.3, linestyle="--", linewidth=0.5)
+        ax.set_axisbelow(True)
+        ax.spines["top"].set_visible(False)
+        ax.spines["right"].set_visible(False)
+
+    fig.suptitle("Power Posteriors", fontsize=19, y=1.02)
     plt.tight_layout()
     plt.savefig(FIGURES_DIR / output_name, dpi=300, bbox_inches="tight")
     plt.close()
 
 
 def main():
-    latent_dim_df = load_csv_safe(RESULTS_DIR / "latent_dim.csv")
-    temperatures_df = load_csv_safe(RESULTS_DIR / "temperatures.csv")
-    its_sampling_df = load_csv_safe(RESULTS_DIR / "ITS_generation.csv")
+    kaem_train = load_csv_safe(RESULTS_DIR / "latent_dim.csv")
+    kaem_sample = load_csv_safe(RESULTS_DIR / "ITS_generation.csv")
+    temperatures = load_csv_safe(RESULTS_DIR / "temperatures.csv")
 
-    vae_latent_dim_df = load_csv_safe(RESULTS_DIR / "vae_latent_dim.csv")
-    vae_sampling_df = load_csv_safe(RESULTS_DIR / "vae_sampling.csv")
+    vae_train = load_csv_safe(RESULTS_DIR / "vae_latent_dim.csv")
+    vae_sample = load_csv_safe(RESULTS_DIR / "vae_sampling.csv")
 
-    ref_nz40 = None
-    if latent_dim_df is not None:
-        nz40_row = latent_dim_df[latent_dim_df["n_z"] == 40]
-        if not nz40_row.empty:
-            ref_nz40 = {
-                "Time (s)": nz40_row.iloc[0]["time_mean"],
-                "Memory Estimate (GiB)": nz40_row.iloc[0]["memory_estimate"],
-                "Garbage Collection (%)": nz40_row.iloc[0]["gc_percent"],
-                "Allocations": nz40_row.iloc[0]["allocations"],
-            }
+    pang_train = load_csv_safe(RESULTS_DIR / "pang_latent_dim.csv")
+    pang_sample = load_csv_safe(RESULTS_DIR / "pang_sampling.csv")
 
-    # Plot 1: KAEM vs VAE Training Comparison (side by side)
-    if latent_dim_df is not None and vae_latent_dim_df is not None:
-        plot_comparison(
-            latent_dim_df,
-            vae_latent_dim_df,
-            "n_z",
-            "latent_dim",
-            "Training Cost: KAEM vs VAE",
-            "01_kaem_vs_vae_training_comparison.png",
+    # Training comparison
+    train_entries = []
+    if kaem_train is not None:
+        train_entries.append((normalize(kaem_train, "n_z", "KAEM", True), "KAEM"))
+    if vae_train is not None:
+        train_entries.append((normalize(vae_train, "latent_dim", "VAE", False), "VAE"))
+    if pang_train is not None:
+        train_entries.append(
+            (normalize(pang_train, "latent_dim", "Pang", False), "Pang")
         )
-        print("Saved: 01_kaem_vs_vae_training_comparison.png")
 
-        # Plot 1b: Just the training time comparison
-        plot_sampling_time_only(
-            latent_dim_df,
-            vae_latent_dim_df,
-            "n_z",
-            "latent_dim",
+    if len(train_entries) >= 2:
+        plot_grouped_bars(
+            train_entries,
+            "Training Cost",
+            "01_training_comparison.png",
+        )
+        print("Saved: 01_training_comparison.png")
+
+        plot_time_only(
+            train_entries,
+            "Training Time",
             "01b_training_time_only.png",
-            title="Training Time: KAEM vs VAE",
         )
         print("Saved: 01b_training_time_only.png")
 
-    # Plot 2: KAEM vs VAE Sampling Comparison (side by side)
-    if its_sampling_df is not None and vae_sampling_df is not None:
-        plot_comparison(
-            its_sampling_df,
-            vae_sampling_df,
-            "n_z",
-            "latent_dim",
-            "Sampling Cost: KAEM vs VAE",
-            "02_kaem_vs_vae_sampling_comparison.png",
+    # Sampling comparison
+    sample_entries = []
+    if kaem_sample is not None:
+        sample_entries.append((normalize(kaem_sample, "n_z", "KAEM", True), "KAEM"))
+    if vae_sample is not None:
+        sample_entries.append(
+            (normalize(vae_sample, "latent_dim", "VAE", False), "VAE")
         )
-        print("Saved: 02_kaem_vs_vae_sampling_comparison.png")
+    if pang_sample is not None:
+        sample_entries.append(
+            (normalize(pang_sample, "latent_dim", "Pang", False), "Pang")
+        )
 
-        # Plot 2b: Just the sampling time comparison
-        plot_sampling_time_only(
-            its_sampling_df,
-            vae_sampling_df,
-            "n_z",
-            "latent_dim",
+    if len(sample_entries) >= 2:
+        plot_grouped_bars(
+            sample_entries,
+            "Sampling Cost",
+            "02_sampling_comparison.png",
+        )
+        print("Saved: 02_sampling_comparison.png")
+
+        plot_time_only(
+            sample_entries,
+            "Sampling Time",
             "02b_sampling_time_only.png",
-            title="Sampling Time: KAEM vs VAE",
         )
         print("Saved: 02b_sampling_time_only.png")
 
-    # Plot 3: Thermodynamic Integration (Power Posteriors)
-    if temperatures_df is not None:
-        temps = pd.DataFrame(
-            {
-                r"$N_{t}$": temperatures_df["N_t"],
-                "Time (s)": temperatures_df["time_mean"],
-                "Time Std (s)": temperatures_df["time_std"],
-                "Memory Estimate (GiB)": temperatures_df["memory_estimate"],
-                "Garbage Collection (%)": temperatures_df["gc_percent"],
-                "Allocations": temperatures_df["allocations"],
-            }
-        )
-        ref_label = r"Reference KAEM ($Q=81$, $N_t=1$)"
-        plot_single_benchmark(
-            temps,
-            r"$N_{t}$",
-            "Power Posteriors",
-            "03_kaem_training_vs_num_temperatures.png",
-            reference=ref_nz40,
-            reference_label=ref_label,
-            colour_palette="viridis",
-        )
-        print("Saved: 03_kaem_training_vs_num_temperatures.png")
+    # Power posteriors
+    if temperatures is not None:
+        plot_temperatures(temperatures, "03_training_vs_num_temperatures.png")
+        print("Saved: 03_training_vs_num_temperatures.png")
 
 
 if __name__ == "__main__":
