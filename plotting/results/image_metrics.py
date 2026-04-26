@@ -245,15 +245,15 @@ if __name__ == "__main__":
             # ),
             # Baselines - VAE
             (
-                "logs/Baseline/CIFAR10/PANG/generated_images.h5",
+                "logs/Baseline/CIFAR10/DDPM/generated_images.h5",
                 get_real_samples_path("CIFAR10"),
             ),
             (
-                "logs/Baseline/CELEBA/PANG/generated_images.h5",
+                "logs/Baseline/CELEBA/DDPM/generated_images.h5",
                 get_real_samples_path("CELEBA"),
             ),
             (
-                "logs/Baseline/SVHN/PANG/generated_images.h5",
+                "logs/Baseline/SVHN/DDPM/generated_images.h5",
                 get_real_samples_path("SVHN"),
             ),
             # (
