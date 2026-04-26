@@ -27,9 +27,9 @@
 # SVHN vanilla
 # CELEBA vanilla
 # CELEBA thermo
-SVHN thermo
+# SVHN thermo
 # CIFAR10 vanilla
-CIFAR10 thermo
+# CIFAR10 thermo
 # DARCY_FLOW vanilla
 
 # ==================== Baseline Jobs ====================
@@ -37,13 +37,16 @@ CIFAR10 thermo
 # CIFAR10 baseline-vae
 # CIFAR10 baseline-gan
 # CIFAR10 baseline-ddpm
+CIFAR10 baseline-pang
 
 # CelebA baselines
 # CELEBA baseline-vae
 # CELEBA baseline-gan
 # CELEBA baseline-ddpm
+CELEBA baseline-pang
 
 # SVHN baselines
 # SVHN baseline-vae
 # SVHN baseline-gan
 # SVHN baseline-ddpm
+SVHN baseline-pang

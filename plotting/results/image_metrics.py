@@ -221,10 +221,10 @@ if __name__ == "__main__":
             #     "logs/Vanilla/CIFAR10/ULA/mixture/generated_images.h5",
             #     get_real_samples_path("CIFAR10"),
             # ),
-            (
-                "logs/Thermodynamic/CIFAR10/ULA/mixture/generated_images.h5",
-                get_real_samples_path("CIFAR10"),
-            ),
+            # (
+            #     "logs/Thermodynamic/CIFAR10/ULA/mixture/generated_images.h5",
+            #     get_real_samples_path("CIFAR10"),
+            # ),
             # # KAEM - CELEBA
             # (
             #     "logs/Vanilla/CELEBA/ULA/mixture/generated_images.h5",
@@ -239,23 +239,23 @@ if __name__ == "__main__":
             #     "logs/Vanilla/SVHN/ULA/mixture/generated_images.h5",
             #     get_real_samples_path("SVHN"),
             # ),
-            (
-                "logs/Thermodynamic/SVHN/ULA/mixture/generated_images.h5",
-                get_real_samples_path("SVHN"),
-            ),
-            # # Baselines - VAE
             # (
-            #     "logs/Baseline/CIFAR10/VAE/generated_images.h5",
-            #     get_real_samples_path("CIFAR10"),
-            # ),
-            # (
-            #     "logs/Baseline/CELEBA/VAE/generated_images.h5",
-            #     get_real_samples_path("CELEBA"),
-            # ),
-            # (
-            #     "logs/Baseline/SVHN/VAE/generated_images.h5",
+            #     "logs/Thermodynamic/SVHN/ULA/mixture/generated_images.h5",
             #     get_real_samples_path("SVHN"),
             # ),
+            # Baselines - VAE
+            (
+                "logs/Baseline/CIFAR10/PANG/generated_images.h5",
+                get_real_samples_path("CIFAR10"),
+            ),
+            (
+                "logs/Baseline/CELEBA/PANG/generated_images.h5",
+                get_real_samples_path("CELEBA"),
+            ),
+            (
+                "logs/Baseline/SVHN/PANG/generated_images.h5",
+                get_real_samples_path("SVHN"),
+            ),
             # (
             #     "logs/Baseline/CIFAR10/GAN/generated_images.h5",
             #     get_real_samples_path("CIFAR10"),
