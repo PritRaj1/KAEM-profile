@@ -56,6 +56,14 @@ def normalize(df: pd.DataFrame, key: str, model: str, q_from_n_z: bool):
     return out
 
 
+def _scale_spans_decades(values: list[float], threshold: float = 5.0) -> bool:
+    """True if max(values) / min(positive values) exceeds threshold."""
+    pos = [v for v in values if v > 0]
+    if len(pos) < 2:
+        return False
+    return max(pos) / min(pos) > threshold
+
+
 def plot_grouped_bars(
     entries: list[tuple[pd.DataFrame, str]],
     title: str,
@@ -64,6 +72,8 @@ def plot_grouped_bars(
 ):
     """Plot grouped bars across models, with constant-cost references as
     horizontal dashed lines. entries / references: list of (dataframe, label).
+    Switches a panel to log-y when the values span more than one order of
+    magnitude (e.g. when a DDPM reference dwarfs the bars).
     """
     fig, axs = plt.subplots(1, 3, figsize=(18, 5.5))
     references = references or []
@@ -75,12 +85,14 @@ def plot_grouped_bars(
 
     for idx, (metric, metric_title) in enumerate(zip(METRICS, METRIC_TITLES)):
         ax = axs[idx]
+        all_values: list[float] = []
 
         for m_idx, (df, label) in enumerate(entries):
             offset = (m_idx - (n_models - 1) / 2) * width
             values = [
                 df[df["Latent Dim"] == ld][metric].values[0] for ld in latent_dims
             ]
+            all_values.extend(float(v) for v in values)
             kwargs = {
                 "label": label,
                 "color": PALETTE[label],
@@ -107,6 +119,7 @@ def plot_grouped_bars(
 
         for df, label in references:
             value = float(df[metric].iloc[0])
+            all_values.append(value)
             ax.axhline(
                 value,
                 color=PALETTE[label],
@@ -115,6 +128,9 @@ def plot_grouped_bars(
                 alpha=0.9,
                 label=label,
             )
+
+        if _scale_spans_decades(all_values):
+            ax.set_yscale("log")
 
         ax.set_xticks(x)
         ax.set_xticklabels(latent_dims, fontsize=14)
@@ -150,12 +166,13 @@ def plot_time_only(
     output_name: str,
     references: list[tuple[pd.DataFrame, str]] | None = None,
 ):
-    fig, ax = plt.subplots(figsize=(8, 5.5))
+    fig, ax = plt.subplots(figsize=(9, 5.5))
     references = references or []
     latent_dims = sorted(entries[0][0]["Latent Dim"].unique())
     n_models = len(entries)
     width = 0.8 / n_models
     x = np.arange(len(latent_dims))
+    all_values: list[float] = []
 
     for m_idx, (df, label) in enumerate(entries):
         offset = (m_idx - (n_models - 1) / 2) * width
@@ -163,6 +180,7 @@ def plot_time_only(
         stds = [
             df[df["Latent Dim"] == ld]["Time Std (s)"].values[0] for ld in latent_dims
         ]
+        all_values.extend(float(t) for t in times)
         ax.bar(
             x + offset,
             times,
@@ -178,6 +196,7 @@ def plot_time_only(
 
     for df, label in references:
         value = float(df["Time (s)"].iloc[0])
+        all_values.append(value)
         ax.axhline(
             value,
             color=PALETTE[label],
@@ -187,12 +206,21 @@ def plot_time_only(
             label=label,
         )
 
+    if _scale_spans_decades(all_values):
+        ax.set_yscale("log")
+
     ax.set_xticks(x)
     ax.set_xticklabels(latent_dims, fontsize=15)
     ax.set_xlabel(r"Latent Dim, $Q$", fontsize=18)
     ax.set_ylabel("Time (s)", fontsize=18)
     ax.set_title(title, fontsize=19, pad=10)
-    ax.legend(fontsize=14, frameon=False, loc="upper left")
+    ax.legend(
+        fontsize=13,
+        frameon=False,
+        loc="upper left",
+        bbox_to_anchor=(1.02, 1.0),
+        borderaxespad=0,
+    )
     ax.tick_params(axis="both", labelsize=14)
     ax.grid(axis="y", alpha=0.3, linestyle="--", linewidth=0.5)
     ax.set_axisbelow(True)
@@ -299,7 +327,7 @@ def main():
             )
             print("Saved: 01b_training_time_only.png")
 
-    # Training comparison — KAEM with importance sampling
+    # Training comparison, KAEM with importance sampling
     if kaem_train_importance is not None:
         is_entries = [
             (normalize(kaem_train_importance, "n_z", "KAEM", True), "KAEM"),
