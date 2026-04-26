@@ -250,7 +250,8 @@ def plot_temperatures(df: pd.DataFrame, output_name: str):
 
 
 def main():
-    kaem_train = load_csv_safe(RESULTS_DIR / "latent_dim.csv")
+    kaem_train_ula = load_csv_safe(RESULTS_DIR / "latent_dim_ula.csv")
+    kaem_train_importance = load_csv_safe(RESULTS_DIR / "latent_dim_importance.csv")
     kaem_sample = load_csv_safe(RESULTS_DIR / "ITS_generation.csv")
     temperatures = load_csv_safe(RESULTS_DIR / "temperatures.csv")
 
@@ -263,36 +264,63 @@ def main():
     ddpm_train = load_csv_safe(RESULTS_DIR / "ddpm_latent_dim.csv")
     ddpm_sample = load_csv_safe(RESULTS_DIR / "ddpm_sampling.csv")
 
-    # Training comparison
-    train_entries = []
     train_refs = []
-    if kaem_train is not None:
-        train_entries.append((normalize(kaem_train, "n_z", "KAEM", True), "KAEM"))
-    if vae_train is not None:
-        train_entries.append((normalize(vae_train, "latent_dim", "VAE", False), "VAE"))
-    if pang_train is not None:
-        train_entries.append(
-            (normalize(pang_train, "latent_dim", "Pang", False), "Pang")
-        )
     if ddpm_train is not None:
         train_refs.append((normalize(ddpm_train, "latent_dim", "DDPM", False), "DDPM"))
 
-    if len(train_entries) >= 2:
-        plot_grouped_bars(
-            train_entries,
-            "Training Cost",
-            "01_training_comparison.png",
-            references=train_refs,
-        )
-        print("Saved: 01_training_comparison.png")
+    def baseline_train_entries():
+        entries = []
+        if vae_train is not None:
+            entries.append((normalize(vae_train, "latent_dim", "VAE", False), "VAE"))
+        if pang_train is not None:
+            entries.append((normalize(pang_train, "latent_dim", "Pang", False), "Pang"))
+        return entries
 
-        plot_time_only(
-            train_entries,
-            "Training Time",
-            "01b_training_time_only.png",
-            references=train_refs,
-        )
-        print("Saved: 01b_training_time_only.png")
+    # Training comparison — KAEM with ULA posterior sampling
+    if kaem_train_ula is not None:
+        ula_entries = [
+            (normalize(kaem_train_ula, "n_z", "KAEM", True), "KAEM"),
+            *baseline_train_entries(),
+        ]
+        if len(ula_entries) >= 2:
+            plot_grouped_bars(
+                ula_entries,
+                "Training Cost (KAEM with ULA)",
+                "01_training_comparison.png",
+                references=train_refs,
+            )
+            print("Saved: 01_training_comparison.png")
+
+            plot_time_only(
+                ula_entries,
+                "Training Time (KAEM with ULA)",
+                "01b_training_time_only.png",
+                references=train_refs,
+            )
+            print("Saved: 01b_training_time_only.png")
+
+    # Training comparison — KAEM with importance sampling
+    if kaem_train_importance is not None:
+        is_entries = [
+            (normalize(kaem_train_importance, "n_z", "KAEM", True), "KAEM"),
+            *baseline_train_entries(),
+        ]
+        if len(is_entries) >= 2:
+            plot_grouped_bars(
+                is_entries,
+                "Training Cost (KAEM with Importance Sampling)",
+                "01_training_comparison_importance.png",
+                references=train_refs,
+            )
+            print("Saved: 01_training_comparison_importance.png")
+
+            plot_time_only(
+                is_entries,
+                "Training Time (KAEM with Importance Sampling)",
+                "01b_training_time_only_importance.png",
+                references=train_refs,
+            )
+            print("Saved: 01b_training_time_only_importance.png")
 
     # Sampling comparison
     sample_entries = []
