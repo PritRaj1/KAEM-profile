@@ -34,23 +34,57 @@ function setup_ddpm_model()
 
     st_rng = seed_rng(model; rng = rng, sampling = true)
 
-    return model, ps, st, st_rng
+    # Pre-resident the schedule tensors on device. Doing `|> pu` inside the
+    # traced benchmark function confuses Reactant's @trace while loop, which
+    # cannot wrap captured ConcretePJRTArrays in a RefValue.
+    timesteps = model.sampling_timesteps |> pu
+    alphas = model.sampling_alphas |> pu
+    alphas_cumprod = model.sampling_alphas_cumprod |> pu
+    betas = model.sampling_betas |> pu
+    noise_masks = model.sampling_noise_masks |> pu
+    step_masks = model.sampling_step_masks |> pu
+
+    return (
+        model.unet,
+        ps,
+        st,
+        st_rng,
+        timesteps,
+        alphas,
+        alphas_cumprod,
+        betas,
+        noise_masks,
+        step_masks,
+        model.sampling_num_steps,
+    )
 end
 
-function benchmark_ddpm_sample(model, ps, st, st_rng)
+function benchmark_ddpm_sample(
+        unet,
+        ps,
+        st,
+        st_rng,
+        timesteps,
+        alphas,
+        alphas_cumprod,
+        betas,
+        noise_masks,
+        step_masks,
+        num_steps,
+    )
     return first(
         sample_loop(
-            model.unet,
+            unet,
             ps,
             Lux.testmode(st),
             st_rng,
-            model.sampling_timesteps |> pu,
-            model.sampling_alphas |> pu,
-            model.sampling_alphas_cumprod |> pu,
-            model.sampling_betas |> pu,
-            model.sampling_noise_masks |> pu,
-            model.sampling_step_masks |> pu,
-            model.sampling_num_steps,
+            timesteps,
+            alphas,
+            alphas_cumprod,
+            betas,
+            noise_masks,
+            step_masks,
+            num_steps,
         ),
     )
 end
@@ -67,22 +101,37 @@ results = DataFrame(
 # DDPM operates in pixel space and has no latent dimension.
 println("Benchmarking DDPM sampling...")
 
-model, ps, st, st_rng = setup_ddpm_model()
+(unet, ps, st, st_rng, timesteps, alphas, alphas_cumprod,
+    betas, noise_masks, step_masks, num_steps) = setup_ddpm_model()
 
 b = @benchmark begin
     result = f(
-        $model,
+        $unet,
         $ps,
         $st,
         $st_rng,
+        $timesteps,
+        $alphas,
+        $alphas_cumprod,
+        $betas,
+        $noise_masks,
+        $step_masks,
+        $num_steps,
     )
     Reactant.synchronize(result)
 end setup = (
     f = Reactant.@compile sync = true benchmark_ddpm_sample(
-        $model,
+        $unet,
         $ps,
         $st,
         $st_rng,
+        $timesteps,
+        $alphas,
+        $alphas_cumprod,
+        $betas,
+        $noise_masks,
+        $step_masks,
+        $num_steps,
     )
 )
 
