@@ -31,7 +31,7 @@ PALETTE = {
     "KAEM": "#2ecc71",
     "VAE": "#3498db",
     "Neural Latent EBM": "#e67e22",
-    "DDPM": "#9b59b6",
+    "DDPM": "#7f1d1d",
 }
 
 COL_RENAME = {
@@ -95,170 +95,77 @@ def _formatter(metric: str):
     return _format_count
 
 
-def plot_grouped_bars(
-    entries: list[tuple[pd.DataFrame, str]],
-    title: str,
-    output_name: str,
-    references: list[tuple[pd.DataFrame, str]] | None = None,
+_BREAK_RATIO = 5.0
+_HEIGHT_RATIO = 3.5  # bottom : top for broken-axis panels
+
+
+def _draw_break_marks(ax_top, ax_bot, height_ratio: float = _HEIGHT_RATIO):
+    """Draw diagonal break marks at the top of ax_bot and bottom of ax_top."""
+    d = 0.015
+    d_bot = d / height_ratio
+    kw_top = dict(transform=ax_top.transAxes, color="black", clip_on=False, linewidth=1)
+    ax_top.plot((-d, +d), (-d, +d), **kw_top)
+    ax_top.plot((1 - d, 1 + d), (-d, +d), **kw_top)
+    kw_bot = dict(transform=ax_bot.transAxes, color="black", clip_on=False, linewidth=1)
+    ax_bot.plot((-d, +d), (1 - d_bot, 1 + d_bot), **kw_bot)
+    ax_bot.plot((1 - d, 1 + d), (1 - d_bot, 1 + d_bot), **kw_bot)
+
+
+def _draw_bars_on_axis(
+    ax,
+    entries,
+    metric: str,
+    latent_dims,
+    width: float,
+    x,
+    fmt,
+    legend_handles: dict,
 ):
-    """Plot grouped bars across models, with constant-cost references as
-    horizontal dashed lines. entries / references: list of (dataframe, label).
-    Switches a panel to log-y when the values span more than one order of
-    magnitude (e.g. when a DDPM reference dwarfs the bars).
-    """
-    fig, axs = plt.subplots(1, 3, figsize=(15, 5.5))
-    references = references or []
-
-    latent_dims = sorted(entries[0][0]["Latent Dim"].unique())
     n_models = len(entries)
-    width = 0.8 / n_models
-    x = np.arange(len(latent_dims))
-
-    for idx, (metric, metric_title) in enumerate(zip(METRICS, METRIC_TITLES)):
-        ax = axs[idx]
-        all_values: list[float] = []
-        fmt = _formatter(metric)
-
-        for m_idx, (df, label) in enumerate(entries):
-            offset = (m_idx - (n_models - 1) / 2) * width
-            values = [
-                df[df["Latent Dim"] == ld][metric].values[0] for ld in latent_dims
-            ]
-            all_values.extend(float(v) for v in values)
-            kwargs = {
-                "label": label,
-                "color": PALETTE[label],
-                "edgecolor": "white",
-                "linewidth": 0.5,
-            }
-
-            if metric == "Time (s)" and "Time Std (s)" in df.columns:
-                stds = [
-                    df[df["Latent Dim"] == ld]["Time Std (s)"].values[0]
-                    for ld in latent_dims
-                ]
-                bars = ax.bar(
-                    x + offset,
-                    values,
-                    width,
-                    yerr=stds,
-                    capsize=3,
-                    error_kw={"elinewidth": 1.2, "capthick": 1.2, "alpha": 0.8},
-                    **kwargs,
-                )
-            else:
-                bars = ax.bar(x + offset, values, width, **kwargs)
-
-            ax.bar_label(
-                bars,
-                labels=[fmt(float(v)) for v in values],
-                padding=3,
-                fontsize=11,
-                rotation=90,
-            )
-
-        for df, label in references:
-            value = float(df[metric].iloc[0])
-            all_values.append(value)
-            ax.axhline(
-                value,
-                color=PALETTE[label],
-                linestyle="--",
-                linewidth=1.8,
-                alpha=0.9,
-                label=label,
-            )
-            ax.text(
-                -0.5,
-                value,
-                rf"{label}: {fmt(value)} ",
-                color=PALETTE[label],
-                fontsize=14,
-                verticalalignment="bottom",
-                horizontalalignment="left",
-            )
-
-        if _scale_spans_decades(all_values):
-            ax.set_yscale("log")
-            ax.set_ylim(top=ax.get_ylim()[1] * 6.0)
-        else:
-            ax.set_ylim(top=ax.get_ylim()[1] * 1.45)
-
-        ax.set_xticks(x)
-        ax.set_xticklabels(latent_dims, fontsize=18)
-        ax.set_xlabel(r"Latent Dim, $Q$", fontsize=21)
-        ax.set_ylabel(metric, fontsize=21)
-        ax.set_title(metric_title, fontsize=22, pad=10)
-        ax.tick_params(axis="both", labelsize=17)
-        ax.grid(axis="y", alpha=0.3, linestyle="--", linewidth=0.5)
-        ax.set_axisbelow(True)
-        ax.spines["top"].set_visible(False)
-        ax.spines["right"].set_visible(False)
-
-    handles, labels = axs[0].get_legend_handles_labels()
-    fig.legend(
-        handles,
-        labels,
-        loc="upper center",
-        bbox_to_anchor=(0.5, 1.02),
-        ncol=len(handles),
-        fontsize=19,
-        frameon=False,
-    )
-    fig.suptitle(title, fontsize=24, y=1.10)
-
-    plt.tight_layout()
-    plt.savefig(FIGURES_DIR / output_name, dpi=300, bbox_inches="tight")
-    plt.close()
-
-
-def plot_time_only(
-    entries: list[tuple[pd.DataFrame, str]],
-    title: str,
-    output_name: str,
-    references: list[tuple[pd.DataFrame, str]] | None = None,
-):
-    fig, ax = plt.subplots(figsize=(9, 5.5))
-    references = references or []
-    latent_dims = sorted(entries[0][0]["Latent Dim"].unique())
-    n_models = len(entries)
-    width = 0.8 / n_models
-    x = np.arange(len(latent_dims))
-    all_values: list[float] = []
-
-    fmt = _format_time
-
     for m_idx, (df, label) in enumerate(entries):
         offset = (m_idx - (n_models - 1) / 2) * width
-        times = [df[df["Latent Dim"] == ld]["Time (s)"].values[0] for ld in latent_dims]
-        stds = [
-            df[df["Latent Dim"] == ld]["Time Std (s)"].values[0] for ld in latent_dims
+        values = [
+            float(df[df["Latent Dim"] == ld][metric].values[0]) for ld in latent_dims
         ]
-        all_values.extend(float(t) for t in times)
-        bars = ax.bar(
-            x + offset,
-            times,
-            width,
-            yerr=stds,
-            label=label,
-            color=PALETTE[label],
-            capsize=4,
-            error_kw={"elinewidth": 1.5, "capthick": 1.5, "alpha": 0.8},
-            edgecolor="white",
-            linewidth=0.5,
-        )
+        kwargs = {
+            "label": label,
+            "color": PALETTE[label],
+            "edgecolor": "white",
+            "linewidth": 0.5,
+        }
+        if metric == "Time (s)" and "Time Std (s)" in df.columns:
+            stds = [
+                float(df[df["Latent Dim"] == ld]["Time Std (s)"].values[0])
+                for ld in latent_dims
+            ]
+            bars = ax.bar(
+                x + offset,
+                values,
+                width,
+                yerr=stds,
+                capsize=3,
+                error_kw={"elinewidth": 1.2, "capthick": 1.2, "alpha": 0.8},
+                **kwargs,
+            )
+        else:
+            bars = ax.bar(x + offset, values, width, **kwargs)
+
         ax.bar_label(
             bars,
-            labels=[fmt(float(t)) for t in times],
-            padding=4,
-            fontsize=8,
-            rotation=45,
+            labels=[fmt(float(v)) for v in values],
+            padding=3,
+            fontsize=11,
+            rotation=90,
         )
+        legend_handles.setdefault(label, bars)
 
+
+def _draw_reference_on_axis(
+    ax, references, metric: str, fmt, legend_handles: dict, label_fontsize: int
+):
     for df, label in references:
-        value = float(df["Time (s)"].iloc[0])
-        all_values.append(value)
-        ax.axhline(
+        value = float(df[metric].iloc[0])
+        line = ax.axhline(
             value,
             color=PALETTE[label],
             linestyle="--",
@@ -271,42 +178,252 @@ def plot_time_only(
             value,
             rf"{label}: {fmt(value)} ",
             color=PALETTE[label],
-            fontsize=10,
+            fontsize=label_fontsize,
             verticalalignment="bottom",
             horizontalalignment="left",
         )
+        legend_handles.setdefault(label, line)
 
-    if _scale_spans_decades(all_values):
-        ax.set_yscale("log")
-        ax.set_ylim(top=ax.get_ylim()[1] * 3.0)
+
+def plot_grouped_bars(
+    entries: list[tuple[pd.DataFrame, str]],
+    title: str,
+    output_name: str,
+    references: list[tuple[pd.DataFrame, str]] | None = None,
+):
+    """Plot grouped bars with constant-cost references"""
+    references = references or []
+    fig = plt.figure(figsize=(24, 6.0))
+    outer_gs = fig.add_gridspec(1, 3, wspace=0.28)
+
+    latent_dims = sorted(entries[0][0]["Latent Dim"].unique())
+    n_models = len(entries)
+    width = 0.8 / n_models
+    x = np.arange(len(latent_dims))
+
+    legend_handles: dict[str, object] = {}
+
+    for idx, (metric, metric_title) in enumerate(zip(METRICS, METRIC_TITLES)):
+        fmt = _formatter(metric)
+
+        bar_values = [
+            float(df[df["Latent Dim"] == ld][metric].values[0])
+            for df, _ in entries
+            for ld in latent_dims
+        ]
+        ref_values = [float(df[metric].iloc[0]) for df, _ in references]
+        bar_max = max(bar_values) if bar_values else 0.0
+        ref_max = max(ref_values, default=0.0)
+        needs_break = bool(ref_values) and bar_max > 0 and ref_max > _BREAK_RATIO * bar_max
+
+        if needs_break:
+            sub = outer_gs[0, idx].subgridspec(
+                2, 1, height_ratios=[1, _HEIGHT_RATIO], hspace=0.06
+            )
+            ax_top = fig.add_subplot(sub[0])
+            ax_bot = fig.add_subplot(sub[1])
+        else:
+            ax_top = None
+            ax_bot = fig.add_subplot(outer_gs[0, idx])
+
+        _draw_bars_on_axis(
+            ax_bot, entries, metric, latent_dims, width, x, fmt, legend_handles
+        )
+        target_ax = ax_top if needs_break else ax_bot
+        _draw_reference_on_axis(target_ax, references, metric, fmt, legend_handles, 14)
+
+        if needs_break:
+            ax_bot.set_ylim(0, bar_max * 1.45)
+            ref_min = min(ref_values)
+            span = max(ref_max - ref_min, ref_max * 0.05)
+            ax_top.set_ylim(ref_min - span * 0.6, ref_max + span * 0.6)
+            ax_top.set_xlim(ax_bot.get_xlim())
+
+            ax_bot.spines["top"].set_visible(False)
+            ax_top.spines["bottom"].set_visible(False)
+            ax_top.tick_params(
+                axis="x", which="both", bottom=False, labelbottom=False
+            )
+            ax_top.set_xticks([])
+            _draw_break_marks(ax_top, ax_bot)
+
+            ax_top.set_title(metric_title, fontsize=22, pad=10)
+            ax_top.tick_params(axis="y", labelsize=17)
+            ax_top.grid(axis="y", alpha=0.3, linestyle="--", linewidth=0.5)
+            ax_top.set_axisbelow(True)
+            ax_top.spines["right"].set_visible(False)
+            ax_top.spines["top"].set_visible(False)
+        else:
+            ax_bot.set_title(metric_title, fontsize=22, pad=10)
+            ax_bot.set_ylim(top=ax_bot.get_ylim()[1] * 1.45)
+            ax_bot.spines["top"].set_visible(False)
+
+        ax_bot.set_xticks(x)
+        ax_bot.set_xticklabels(latent_dims, fontsize=18)
+        ax_bot.set_xlabel(r"Latent Dim, $Q$", fontsize=21)
+        ax_bot.set_ylabel(metric, fontsize=21)
+        ax_bot.tick_params(axis="both", labelsize=17)
+        ax_bot.grid(axis="y", alpha=0.3, linestyle="--", linewidth=0.5)
+        ax_bot.set_axisbelow(True)
+        ax_bot.spines["right"].set_visible(False)
+
+    handles = list(legend_handles.values())
+    labels = list(legend_handles.keys())
+    fig.legend(
+        handles,
+        labels,
+        loc="upper center",
+        bbox_to_anchor=(0.5, 1.02),
+        ncol=len(handles),
+        fontsize=19,
+        frameon=False,
+    )
+    fig.suptitle(title, fontsize=24, y=1.10)
+
+    plt.savefig(FIGURES_DIR / output_name, dpi=300, bbox_inches="tight")
+    plt.close()
+
+
+def plot_time_only(
+    entries: list[tuple[pd.DataFrame, str]],
+    title: str,
+    output_name: str,
+    references: list[tuple[pd.DataFrame, str]] | None = None,
+):
+    """Single-panel time plot."""
+    references = references or []
+    latent_dims = sorted(entries[0][0]["Latent Dim"].unique())
+    n_models = len(entries)
+    width = 0.8 / n_models
+    x = np.arange(len(latent_dims))
+    fmt = _format_time
+
+    times_all = [
+        float(df[df["Latent Dim"] == ld]["Time (s)"].values[0])
+        for df, _ in entries
+        for ld in latent_dims
+    ]
+    ref_values = [float(df["Time (s)"].iloc[0]) for df, _ in references]
+    bar_max = max(times_all) if times_all else 0.0
+    ref_max = max(ref_values, default=0.0)
+    needs_break = bool(ref_values) and bar_max > 0 and ref_max > _BREAK_RATIO * bar_max
+
+    if needs_break:
+        fig = plt.figure(figsize=(9, 6.5))
+        gs = fig.add_gridspec(2, 1, height_ratios=[1, _HEIGHT_RATIO], hspace=0.06)
+        ax_top = fig.add_subplot(gs[0])
+        ax_bot = fig.add_subplot(gs[1])
     else:
-        ax.set_ylim(top=ax.get_ylim()[1] * 1.18)
+        fig, ax_bot = plt.subplots(figsize=(9, 5.5))
+        ax_top = None
 
-    ax.set_xticks(x)
-    ax.set_xticklabels(latent_dims, fontsize=15)
-    ax.set_xlabel(r"Latent Dim, $Q$", fontsize=18)
-    ax.set_ylabel("Time (s)", fontsize=18)
-    ax.set_title(title, fontsize=19, pad=10)
-    ax.legend(
+    legend_handles: dict[str, object] = {}
+
+    for m_idx, (df, label) in enumerate(entries):
+        offset = (m_idx - (n_models - 1) / 2) * width
+        times = [
+            float(df[df["Latent Dim"] == ld]["Time (s)"].values[0])
+            for ld in latent_dims
+        ]
+        stds = [
+            float(df[df["Latent Dim"] == ld]["Time Std (s)"].values[0])
+            for ld in latent_dims
+        ]
+        bars = ax_bot.bar(
+            x + offset,
+            times,
+            width,
+            yerr=stds,
+            label=label,
+            color=PALETTE[label],
+            capsize=4,
+            error_kw={"elinewidth": 1.5, "capthick": 1.5, "alpha": 0.8},
+            edgecolor="white",
+            linewidth=0.5,
+        )
+        ax_bot.bar_label(
+            bars,
+            labels=[fmt(float(t)) for t in times],
+            padding=4,
+            fontsize=10,
+            rotation=45,
+        )
+        legend_handles.setdefault(label, bars)
+
+    target_ax = ax_top if needs_break else ax_bot
+    for df, label in references:
+        value = float(df["Time (s)"].iloc[0])
+        line = target_ax.axhline(
+            value,
+            color=PALETTE[label],
+            linestyle="--",
+            linewidth=1.8,
+            alpha=0.9,
+            label=label,
+        )
+        target_ax.text(
+            -0.5,
+            value,
+            rf"{label}: {fmt(value)} ",
+            color=PALETTE[label],
+            fontsize=11,
+            verticalalignment="top",
+            horizontalalignment="left",
+        )
+        legend_handles.setdefault(label, line)
+
+    if needs_break:
+        ax_bot.set_ylim(0, bar_max * 1.45)
+        ref_min = min(ref_values)
+        span = max(ref_max - ref_min, ref_max * 0.05)
+        ax_top.set_ylim(ref_min - span * 0.6, ref_max + span * 0.6)
+        ax_top.set_xlim(ax_bot.get_xlim())
+
+        ax_bot.spines["top"].set_visible(False)
+        ax_top.spines["bottom"].set_visible(False)
+        ax_top.tick_params(axis="x", which="both", bottom=False, labelbottom=False)
+        ax_top.set_xticks([])
+        _draw_break_marks(ax_top, ax_bot)
+
+        ax_top.set_title(title, fontsize=19, pad=10)
+        ax_top.tick_params(axis="y", labelsize=14)
+        ax_top.grid(axis="y", alpha=0.3, linestyle="--", linewidth=0.5)
+        ax_top.set_axisbelow(True)
+        ax_top.spines["right"].set_visible(False)
+        ax_top.spines["top"].set_visible(False)
+    else:
+        ax_bot.set_title(title, fontsize=19, pad=10)
+        ax_bot.set_ylim(top=ax_bot.get_ylim()[1] * 1.18)
+        ax_bot.spines["top"].set_visible(False)
+
+    ax_bot.set_xticks(x)
+    ax_bot.set_xticklabels(latent_dims, fontsize=15)
+    ax_bot.set_xlabel(r"Latent Dim, $Q$", fontsize=18)
+    ax_bot.set_ylabel("Time (s)", fontsize=18)
+    ax_bot.tick_params(axis="both", labelsize=14)
+    ax_bot.grid(axis="y", alpha=0.3, linestyle="--", linewidth=0.5)
+    ax_bot.set_axisbelow(True)
+    ax_bot.spines["right"].set_visible(False)
+
+    handles = list(legend_handles.values())
+    labels = list(legend_handles.keys())
+    legend_target = ax_top if needs_break else ax_bot
+    legend_target.legend(
+        handles,
+        labels,
         fontsize=13,
         frameon=False,
         loc="upper left",
         bbox_to_anchor=(1.02, 1.0),
         borderaxespad=0,
     )
-    ax.tick_params(axis="both", labelsize=14)
-    ax.grid(axis="y", alpha=0.3, linestyle="--", linewidth=0.5)
-    ax.set_axisbelow(True)
-    ax.spines["top"].set_visible(False)
-    ax.spines["right"].set_visible(False)
 
-    plt.tight_layout()
     plt.savefig(FIGURES_DIR / output_name, dpi=300, bbox_inches="tight")
     plt.close()
 
 
 def plot_temperatures(df: pd.DataFrame, output_name: str):
-    fig, axs = plt.subplots(1, 3, figsize=(15, 5.5))
+    fig, axs = plt.subplots(1, 3, figsize=(24, 5.5))
     color = sns.color_palette("viridis", n_colors=4)[1]
 
     for idx, (metric, metric_title) in enumerate(zip(METRICS, METRIC_TITLES)):
