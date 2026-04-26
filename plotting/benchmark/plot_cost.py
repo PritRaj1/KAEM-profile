@@ -30,7 +30,7 @@ METRIC_TITLES = ["Time", "Memory", "Allocations"]
 PALETTE = {
     "KAEM": "#2ecc71",
     "VAE": "#3498db",
-    "Pang": "#e67e22",
+    "Neural Latent EBM": "#e67e22",
     "DDPM": "#9b59b6",
 }
 
@@ -106,7 +106,7 @@ def plot_grouped_bars(
     Switches a panel to log-y when the values span more than one order of
     magnitude (e.g. when a DDPM reference dwarfs the bars).
     """
-    fig, axs = plt.subplots(1, 3, figsize=(22, 6.5))
+    fig, axs = plt.subplots(1, 3, figsize=(15, 5.5))
     references = references or []
 
     latent_dims = sorted(entries[0][0]["Latent Dim"].unique())
@@ -152,9 +152,9 @@ def plot_grouped_bars(
             ax.bar_label(
                 bars,
                 labels=[fmt(float(v)) for v in values],
-                padding=4,
-                fontsize=14,
-                rotation=45,
+                padding=3,
+                fontsize=11,
+                rotation=90,
             )
 
         for df, label in references:
@@ -180,9 +180,9 @@ def plot_grouped_bars(
 
         if _scale_spans_decades(all_values):
             ax.set_yscale("log")
-            ax.set_ylim(top=ax.get_ylim()[1] * 4.5)
+            ax.set_ylim(top=ax.get_ylim()[1] * 6.0)
         else:
-            ax.set_ylim(top=ax.get_ylim()[1] * 1.28)
+            ax.set_ylim(top=ax.get_ylim()[1] * 1.45)
 
         ax.set_xticks(x)
         ax.set_xticklabels(latent_dims, fontsize=18)
@@ -306,7 +306,7 @@ def plot_time_only(
 
 
 def plot_temperatures(df: pd.DataFrame, output_name: str):
-    fig, axs = plt.subplots(1, 3, figsize=(22, 6.5))
+    fig, axs = plt.subplots(1, 3, figsize=(15, 5.5))
     color = sns.color_palette("viridis", n_colors=4)[1]
 
     for idx, (metric, metric_title) in enumerate(zip(METRICS, METRIC_TITLES)):
@@ -343,15 +343,17 @@ def plot_temperatures(df: pd.DataFrame, output_name: str):
         else:
             label_strings = [fmt(float(v)) for v in values]
 
+        # Single-series chart with many bars — vertical labels avoid the
+        # diagonal overlap that 45° rotation produces when bars are narrow.
         ax.bar_label(
             bars,
             labels=label_strings,
             padding=4,
-            fontsize=16,
-            rotation=45,
+            fontsize=14,
+            rotation=90,
         )
 
-        ax.set_ylim(top=ax.get_ylim()[1] * 1.28)
+        ax.set_ylim(top=ax.get_ylim()[1] * 1.45)
 
         ax.set_xticks(x)
         ax.set_xticklabels(df["N_t"].values, fontsize=18)
@@ -394,7 +396,12 @@ def main():
         if vae_train is not None:
             entries.append((normalize(vae_train, "latent_dim", "VAE", False), "VAE"))
         if pang_train is not None:
-            entries.append((normalize(pang_train, "latent_dim", "Pang", False), "Pang"))
+            entries.append(
+                (
+                    normalize(pang_train, "latent_dim", "Neural Latent EBM", False),
+                    "Neural Latent EBM",
+                )
+            )
         return entries
 
     # Training comparison — KAEM with ULA posterior sampling
@@ -454,7 +461,10 @@ def main():
         )
     if pang_sample is not None:
         sample_entries.append(
-            (normalize(pang_sample, "latent_dim", "Pang", False), "Pang")
+            (
+                normalize(pang_sample, "latent_dim", "Neural Latent EBM", False),
+                "Neural Latent EBM",
+            )
         )
     if ddpm_sample is not None:
         sample_refs.append(
