@@ -367,7 +367,7 @@ def plot_time_only(
             rf"{label}: {fmt(value)} ",
             color=PALETTE[label],
             fontsize=11,
-            verticalalignment="top",
+            verticalalignment="bottom",
             horizontalalignment="left",
         )
         legend_handles.setdefault(label, line)
