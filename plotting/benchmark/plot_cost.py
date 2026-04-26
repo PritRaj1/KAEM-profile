@@ -31,6 +31,7 @@ PALETTE = {
     "KAEM": "#2ecc71",
     "VAE": "#3498db",
     "Pang": "#e67e22",
+    "DDPM": "#9b59b6",
 }
 
 COL_RENAME = {
@@ -59,9 +60,13 @@ def plot_grouped_bars(
     entries: list[tuple[pd.DataFrame, str]],
     title: str,
     output_name: str,
+    references: list[tuple[pd.DataFrame, str]] | None = None,
 ):
-    """Plot grouped bars across models. entries: list of (dataframe, label)."""
+    """Plot grouped bars across models, with constant-cost references as
+    horizontal dashed lines. entries / references: list of (dataframe, label).
+    """
     fig, axs = plt.subplots(1, 3, figsize=(18, 5.5))
+    references = references or []
 
     latent_dims = sorted(entries[0][0]["Latent Dim"].unique())
     n_models = len(entries)
@@ -100,6 +105,17 @@ def plot_grouped_bars(
             else:
                 ax.bar(x + offset, values, width, **kwargs)
 
+        for df, label in references:
+            value = float(df[metric].iloc[0])
+            ax.axhline(
+                value,
+                color=PALETTE[label],
+                linestyle="--",
+                linewidth=1.8,
+                alpha=0.9,
+                label=label,
+            )
+
         ax.set_xticks(x)
         ax.set_xticklabels(latent_dims, fontsize=14)
         ax.set_xlabel(r"Latent Dim, $Q$", fontsize=16)
@@ -117,7 +133,7 @@ def plot_grouped_bars(
         labels,
         loc="upper center",
         bbox_to_anchor=(0.5, 1.02),
-        ncol=n_models,
+        ncol=len(handles),
         fontsize=15,
         frameon=False,
     )
@@ -132,8 +148,10 @@ def plot_time_only(
     entries: list[tuple[pd.DataFrame, str]],
     title: str,
     output_name: str,
+    references: list[tuple[pd.DataFrame, str]] | None = None,
 ):
     fig, ax = plt.subplots(figsize=(8, 5.5))
+    references = references or []
     latent_dims = sorted(entries[0][0]["Latent Dim"].unique())
     n_models = len(entries)
     width = 0.8 / n_models
@@ -156,6 +174,17 @@ def plot_time_only(
             error_kw={"elinewidth": 1.5, "capthick": 1.5, "alpha": 0.8},
             edgecolor="white",
             linewidth=0.5,
+        )
+
+    for df, label in references:
+        value = float(df["Time (s)"].iloc[0])
+        ax.axhline(
+            value,
+            color=PALETTE[label],
+            linestyle="--",
+            linewidth=1.8,
+            alpha=0.9,
+            label=label,
         )
 
     ax.set_xticks(x)
@@ -231,8 +260,12 @@ def main():
     pang_train = load_csv_safe(RESULTS_DIR / "pang_latent_dim.csv")
     pang_sample = load_csv_safe(RESULTS_DIR / "pang_sampling.csv")
 
+    ddpm_train = load_csv_safe(RESULTS_DIR / "ddpm_latent_dim.csv")
+    ddpm_sample = load_csv_safe(RESULTS_DIR / "ddpm_sampling.csv")
+
     # Training comparison
     train_entries = []
+    train_refs = []
     if kaem_train is not None:
         train_entries.append((normalize(kaem_train, "n_z", "KAEM", True), "KAEM"))
     if vae_train is not None:
@@ -241,12 +274,15 @@ def main():
         train_entries.append(
             (normalize(pang_train, "latent_dim", "Pang", False), "Pang")
         )
+    if ddpm_train is not None:
+        train_refs.append((normalize(ddpm_train, "latent_dim", "DDPM", False), "DDPM"))
 
     if len(train_entries) >= 2:
         plot_grouped_bars(
             train_entries,
             "Training Cost",
             "01_training_comparison.png",
+            references=train_refs,
         )
         print("Saved: 01_training_comparison.png")
 
@@ -254,11 +290,13 @@ def main():
             train_entries,
             "Training Time",
             "01b_training_time_only.png",
+            references=train_refs,
         )
         print("Saved: 01b_training_time_only.png")
 
     # Sampling comparison
     sample_entries = []
+    sample_refs = []
     if kaem_sample is not None:
         sample_entries.append((normalize(kaem_sample, "n_z", "KAEM", True), "KAEM"))
     if vae_sample is not None:
@@ -269,12 +307,17 @@ def main():
         sample_entries.append(
             (normalize(pang_sample, "latent_dim", "Pang", False), "Pang")
         )
+    if ddpm_sample is not None:
+        sample_refs.append(
+            (normalize(ddpm_sample, "latent_dim", "DDPM", False), "DDPM")
+        )
 
     if len(sample_entries) >= 2:
         plot_grouped_bars(
             sample_entries,
             "Sampling Cost",
             "02_sampling_comparison.png",
+            references=sample_refs,
         )
         print("Saved: 02_sampling_comparison.png")
 
@@ -282,6 +325,7 @@ def main():
             sample_entries,
             "Sampling Time",
             "02b_sampling_time_only.png",
+            references=sample_refs,
         )
         print("Saved: 02b_sampling_time_only.png")
 
