@@ -64,6 +64,37 @@ def _scale_spans_decades(values: list[float], threshold: float = 5.0) -> bool:
     return max(pos) / min(pos) > threshold
 
 
+def _format_time(v: float) -> str:
+    if v < 1e-3:
+        return rf"{v * 1e6:.0f}\,$\mu$s"
+    if v < 1.0:
+        return rf"{v * 1e3:.1f}\,ms"
+    return rf"{v:.2f}\,s"
+
+
+def _format_memory(v_gib: float) -> str:
+    bytes_ = v_gib * (1024**3)
+    if bytes_ < 1024:
+        return rf"{bytes_:.0f}\,B"
+    if bytes_ < 1024**2:
+        return rf"{bytes_ / 1024:.1f}\,KiB"
+    if bytes_ < 1024**3:
+        return rf"{bytes_ / 1024**2:.1f}\,MiB"
+    return rf"{v_gib:.2f}\,GiB"
+
+
+def _format_count(v: float) -> str:
+    return f"{int(round(v))}"
+
+
+def _formatter(metric: str):
+    if metric == "Time (s)":
+        return _format_time
+    if metric == "Memory Estimate (GiB)":
+        return _format_memory
+    return _format_count
+
+
 def plot_grouped_bars(
     entries: list[tuple[pd.DataFrame, str]],
     title: str,
@@ -75,7 +106,7 @@ def plot_grouped_bars(
     Switches a panel to log-y when the values span more than one order of
     magnitude (e.g. when a DDPM reference dwarfs the bars).
     """
-    fig, axs = plt.subplots(1, 3, figsize=(18, 5.5))
+    fig, axs = plt.subplots(1, 3, figsize=(22, 6.5))
     references = references or []
 
     latent_dims = sorted(entries[0][0]["Latent Dim"].unique())
@@ -86,6 +117,7 @@ def plot_grouped_bars(
     for idx, (metric, metric_title) in enumerate(zip(METRICS, METRIC_TITLES)):
         ax = axs[idx]
         all_values: list[float] = []
+        fmt = _formatter(metric)
 
         for m_idx, (df, label) in enumerate(entries):
             offset = (m_idx - (n_models - 1) / 2) * width
@@ -105,7 +137,7 @@ def plot_grouped_bars(
                     df[df["Latent Dim"] == ld]["Time Std (s)"].values[0]
                     for ld in latent_dims
                 ]
-                ax.bar(
+                bars = ax.bar(
                     x + offset,
                     values,
                     width,
@@ -115,7 +147,15 @@ def plot_grouped_bars(
                     **kwargs,
                 )
             else:
-                ax.bar(x + offset, values, width, **kwargs)
+                bars = ax.bar(x + offset, values, width, **kwargs)
+
+            ax.bar_label(
+                bars,
+                labels=[fmt(float(v)) for v in values],
+                padding=4,
+                fontsize=14,
+                rotation=45,
+            )
 
         for df, label in references:
             value = float(df[metric].iloc[0])
@@ -128,16 +168,28 @@ def plot_grouped_bars(
                 alpha=0.9,
                 label=label,
             )
+            ax.text(
+                -0.5,
+                value,
+                rf"{label}: {fmt(value)} ",
+                color=PALETTE[label],
+                fontsize=14,
+                verticalalignment="bottom",
+                horizontalalignment="left",
+            )
 
         if _scale_spans_decades(all_values):
             ax.set_yscale("log")
+            ax.set_ylim(top=ax.get_ylim()[1] * 4.5)
+        else:
+            ax.set_ylim(top=ax.get_ylim()[1] * 1.28)
 
         ax.set_xticks(x)
-        ax.set_xticklabels(latent_dims, fontsize=14)
-        ax.set_xlabel(r"Latent Dim, $Q$", fontsize=16)
-        ax.set_ylabel(metric, fontsize=16)
-        ax.set_title(metric_title, fontsize=17, pad=8)
-        ax.tick_params(axis="both", labelsize=13)
+        ax.set_xticklabels(latent_dims, fontsize=18)
+        ax.set_xlabel(r"Latent Dim, $Q$", fontsize=21)
+        ax.set_ylabel(metric, fontsize=21)
+        ax.set_title(metric_title, fontsize=22, pad=10)
+        ax.tick_params(axis="both", labelsize=17)
         ax.grid(axis="y", alpha=0.3, linestyle="--", linewidth=0.5)
         ax.set_axisbelow(True)
         ax.spines["top"].set_visible(False)
@@ -150,10 +202,10 @@ def plot_grouped_bars(
         loc="upper center",
         bbox_to_anchor=(0.5, 1.02),
         ncol=len(handles),
-        fontsize=15,
+        fontsize=19,
         frameon=False,
     )
-    fig.suptitle(title, fontsize=19, y=1.08)
+    fig.suptitle(title, fontsize=24, y=1.10)
 
     plt.tight_layout()
     plt.savefig(FIGURES_DIR / output_name, dpi=300, bbox_inches="tight")
@@ -174,6 +226,8 @@ def plot_time_only(
     x = np.arange(len(latent_dims))
     all_values: list[float] = []
 
+    fmt = _format_time
+
     for m_idx, (df, label) in enumerate(entries):
         offset = (m_idx - (n_models - 1) / 2) * width
         times = [df[df["Latent Dim"] == ld]["Time (s)"].values[0] for ld in latent_dims]
@@ -181,7 +235,7 @@ def plot_time_only(
             df[df["Latent Dim"] == ld]["Time Std (s)"].values[0] for ld in latent_dims
         ]
         all_values.extend(float(t) for t in times)
-        ax.bar(
+        bars = ax.bar(
             x + offset,
             times,
             width,
@@ -192,6 +246,13 @@ def plot_time_only(
             error_kw={"elinewidth": 1.5, "capthick": 1.5, "alpha": 0.8},
             edgecolor="white",
             linewidth=0.5,
+        )
+        ax.bar_label(
+            bars,
+            labels=[fmt(float(t)) for t in times],
+            padding=4,
+            fontsize=8,
+            rotation=45,
         )
 
     for df, label in references:
@@ -205,9 +266,21 @@ def plot_time_only(
             alpha=0.9,
             label=label,
         )
+        ax.text(
+            -0.5,
+            value,
+            rf"{label}: {fmt(value)} ",
+            color=PALETTE[label],
+            fontsize=10,
+            verticalalignment="bottom",
+            horizontalalignment="left",
+        )
 
     if _scale_spans_decades(all_values):
         ax.set_yscale("log")
+        ax.set_ylim(top=ax.get_ylim()[1] * 3.0)
+    else:
+        ax.set_ylim(top=ax.get_ylim()[1] * 1.18)
 
     ax.set_xticks(x)
     ax.set_xticklabels(latent_dims, fontsize=15)
@@ -233,11 +306,12 @@ def plot_time_only(
 
 
 def plot_temperatures(df: pd.DataFrame, output_name: str):
-    fig, axs = plt.subplots(1, 3, figsize=(18, 5.5))
+    fig, axs = plt.subplots(1, 3, figsize=(22, 6.5))
     color = sns.color_palette("viridis", n_colors=4)[1]
 
     for idx, (metric, metric_title) in enumerate(zip(METRICS, METRIC_TITLES)):
         ax = axs[idx]
+        fmt = _formatter(metric)
         col_map = {
             "Time (s)": "time_mean",
             "Memory Estimate (GiB)": "memory_estimate",
@@ -247,7 +321,7 @@ def plot_temperatures(df: pd.DataFrame, output_name: str):
         x = np.arange(len(df))
 
         if metric == "Time (s)":
-            ax.bar(
+            bars = ax.bar(
                 x,
                 values,
                 yerr=df["time_std"].values,
@@ -258,20 +332,39 @@ def plot_temperatures(df: pd.DataFrame, output_name: str):
                 linewidth=0.5,
             )
         else:
-            ax.bar(x, values, color=color, edgecolor="white", linewidth=0.5)
+            bars = ax.bar(x, values, color=color, edgecolor="white", linewidth=0.5)
+
+        # Drop redundant labels when every bar has the same value (e.g. memory
+        # and allocations are flat across N_t in this benchmark).
+        unique_values = {round(float(v), 12) for v in values}
+        if len(unique_values) == 1:
+            label_strings: list[str] = ["" for _ in values]
+            label_strings[len(values) // 2] = fmt(float(values[0]))
+        else:
+            label_strings = [fmt(float(v)) for v in values]
+
+        ax.bar_label(
+            bars,
+            labels=label_strings,
+            padding=4,
+            fontsize=16,
+            rotation=45,
+        )
+
+        ax.set_ylim(top=ax.get_ylim()[1] * 1.28)
 
         ax.set_xticks(x)
-        ax.set_xticklabels(df["N_t"].values, fontsize=14)
-        ax.set_xlabel(r"$N_t$", fontsize=16)
-        ax.set_ylabel(metric, fontsize=16)
-        ax.set_title(metric_title, fontsize=17, pad=8)
-        ax.tick_params(axis="both", labelsize=13)
+        ax.set_xticklabels(df["N_t"].values, fontsize=18)
+        ax.set_xlabel(r"$N_t$", fontsize=22)
+        ax.set_ylabel(metric, fontsize=22)
+        ax.set_title(metric_title, fontsize=24, pad=10)
+        ax.tick_params(axis="both", labelsize=17)
         ax.grid(axis="y", alpha=0.3, linestyle="--", linewidth=0.5)
         ax.set_axisbelow(True)
         ax.spines["top"].set_visible(False)
         ax.spines["right"].set_visible(False)
 
-    fig.suptitle("Power Posteriors", fontsize=19, y=1.02)
+    fig.suptitle("Power Posteriors", fontsize=26, y=1.02)
     plt.tight_layout()
     plt.savefig(FIGURES_DIR / output_name, dpi=300, bbox_inches="tight")
     plt.close()
