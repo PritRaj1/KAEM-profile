@@ -109,7 +109,8 @@ function sample_loop(
 
     _, x_final, st_final = state
     x_clamped = clamp.(x_final, -1.0f0, 1.0f0)
-    return x_clamped, st_final
+    x_out = (x_clamped .+ 1.0f0) .* 0.5f0
+    return x_out, st_final
 end
 
 end
