@@ -1,6 +1,6 @@
 module EBM_Model
 
-export EbmModel, init_EbmModel
+export EbmModel, init_EbmModel, prior_sampler_kind
 
 using ConfParser,
     Random,
@@ -189,6 +189,10 @@ function init_EbmModel(
         reg,
     )
 end
+
+prior_sampler_kind(prior::EbmModel) = prior.bool_config.ula ? PriorULA() :
+    prior.bool_config.mixture_model ? PriorMixITS() :
+    PriorUnivITS()
 
 function (ebm::EbmModel)(
         ps,

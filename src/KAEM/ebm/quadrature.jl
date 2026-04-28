@@ -75,16 +75,21 @@ function univar_return(nodes, π_nodes, weights)
     return exp_fg
 end
 
+_quad_return(::UnivariateMode, nodes, π_nodes, weights, _component_mask) =
+    univar_return(nodes, π_nodes, weights)
+_quad_return(::MixtureMode, nodes, π_nodes, weights, component_mask) =
+    mix_return(nodes, π_nodes, weights, component_mask)
+
 function (gq::GaussLegendreQuadrature)(
         ebm,
         ps,
         st_kan,
         st_lyrnorm,
         st_quad;
+        mode::AbstractSamplingMode = UnivariateMode(),
         component_mask = negative_one,
-        mix_bool::Bool = false,
     )
-    """Gauss-Legendre quadrature for numerical integration"""
+    """Gauss-Legendre quadrature for numerical integration."""
     nodes, weights = st_quad.nodes, st_quad.weights
     I, O = first(ebm.fcns_qp).in_dim, first(ebm.fcns_qp).out_dim
     Q, P, S = ebm.q_size, ebm.p_size, ebm.N_quad
@@ -100,16 +105,8 @@ function (gq::GaussLegendreQuadrature)(
 
     @reset ebm.s_size = S
 
-    # Energy function of each component
     nodes, st_lyrnorm_new = ebm(ps, st_kan, st_lyrnorm, nodes)
-
-    # Choose component if mixture model else use all
-    result = (
-        mix_bool ?
-            mix_return(nodes, π_nodes, weights, component_mask) :
-            univar_return(nodes, π_nodes, weights)
-    )
-
+    result = _quad_return(mode, nodes, π_nodes, weights, component_mask)
     return result, st_quad.nodes, st_lyrnorm_new
 end
 

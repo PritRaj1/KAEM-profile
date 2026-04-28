@@ -6,6 +6,7 @@ using ConfParser, Lux, Accessors, ComponentArrays, Random, Reactant, Enzyme, Opt
 
 using ..Utils
 using ..KAEM_model
+using ..KAEM_model.EBM_Model: prior_sampler_kind
 using ..KAEM_model.LogPriorFCNs
 using ..KAEM_model.InverseTransformSampling
 using ..KAEM_model.PopulationXchange
@@ -30,6 +31,59 @@ function maybe_compile(loss, MLIR, opt_state, ps, st_kan, st_lux, x, st_rng)
     return MLIR ? Reactant.@compile(loss(opt_state, ps, st_kan, st_lux, x, 1, st_rng)) : loss
 end
 
+### Prior sampler dispatch
+function setup_prior_sampler(::PriorULA, model, conf, x)
+    num_steps_prior = parse(Int, retrieve(conf, "PRIOR_LANGEVIN", "iters"))
+    step_size_prior = parse(Float32, retrieve(conf, "PRIOR_LANGEVIN", "step_size"))
+    prior_sampler = initialize_pCNL_sampler(
+        model; δ = step_size_prior, N = num_steps_prior, prior_sampling_bool = true,
+    )
+    @reset model.log_prior = LogPriorULA(model.ε)
+    @reset model.sample_prior = (m, p, sk, sl, r) ->
+    (out = prior_sampler(p, sk, Lux.trainmode(sl), x, r); (out[1], out[2]))
+    println("Prior sampler: pCNL")
+    return model
+end
+
+function setup_prior_sampler(::PriorMixITS, model, conf, x)
+    @reset model.sample_prior = (m, p, sk, sl, r) ->
+    sample_mixture(m.prior, p.ebm, sk.ebm, Lux.testmode(sl.ebm), sk.quad, r)
+    @reset model.log_prior =
+        LogPriorMix(model.ε, !model.prior.bool_config.contrastive_div)
+    println("Prior sampler: Mix ITS")
+    return model
+end
+
+function setup_prior_sampler(::PriorUnivITS, model, conf, x)
+    @reset model.sample_prior = (m, p, sk, sl, r) ->
+    sample_univariate(m.prior, p.ebm, sk.ebm, Lux.testmode(sl.ebm), sk.quad, r)
+    @reset model.log_prior =
+        LogPriorUnivariate(model.ε, !model.prior.bool_config.contrastive_div)
+    println("Prior sampler: Univar ITS")
+    return model
+end
+
+### Posterior sampler dispatch
+function setup_posterior_sampler(::PosteriorPCNL, model, conf, num_steps, η, exchange_type)
+    δ = parse(Float32, retrieve(conf, "POST_LANGEVIN", "pcnl_delta"))
+    @reset model.posterior_sampler = initialize_pCNL_sampler(
+        model; δ = δ, N = num_steps, exchange_type = exchange_type,
+    )
+    return model
+end
+
+function setup_posterior_sampler(::PosteriorULA, model, conf, num_steps, η, exchange_type)
+    @reset model.posterior_sampler = initialize_ULA_sampler(
+        model; η = η, N = num_steps, exchange_type = exchange_type,
+    )
+    return model
+end
+
+function setup_posterior_sampler(::PosteriorImportance, model, conf, num_steps, η, exchange_type)
+    @reset model.posterior_sampler = initialize_pCNL_sampler(model; N = num_steps)
+    return model
+end
+
 function setup_training(
         opt_state,
         ps::ComponentArray{T},
@@ -49,52 +103,13 @@ function setup_training(
     max_samples = max(model.batch_size, batch_size)
     x = zeros(T, model.lkhood.x_shape..., max_samples) |> pu
 
-    # Prior sampling setup
-    if model.prior.bool_config.ula
-        num_steps_prior = parse(Int, retrieve(conf, "PRIOR_LANGEVIN", "iters"))
-        step_size_prior = parse(Float32, retrieve(conf, "PRIOR_LANGEVIN", "step_size"))
+    model = setup_prior_sampler(prior_sampler_kind(model.prior), model, conf, x)
 
-        prior_sampler = initialize_pCNL_sampler(
-            model;
-            δ = step_size_prior,
-            N = num_steps_prior,
-            prior_sampling_bool = true,
-        )
-        @reset model.log_prior = LogPriorULA(model.ε)
-        @reset model.sample_prior =
-            (m, p, sk, sl, r) -> (out = prior_sampler(p, sk, Lux.trainmode(sl), x, r); (out[1], out[2]))
-
-        println("Prior sampler: pCNL")
-    elseif model.prior.bool_config.mixture_model
-        @reset model.sample_prior =
-            (m, p, sk, sl, r) ->
-        sample_mixture(m.prior, p.ebm, sk.ebm, Lux.testmode(sl.ebm), sk.quad, r)
-        @reset model.log_prior =
-            LogPriorMix(model.ε, !model.prior.bool_config.contrastive_div)
-        println("Prior sampler: Mix ITS")
-    else
-        @reset model.sample_prior =
-            (m, p, sk, sl, r) ->
-        sample_univariate(m.prior, p.ebm, sk.ebm, Lux.testmode(sl.ebm), sk.quad, r)
-        @reset model.log_prior =
-            LogPriorUnivariate(model.ε, !model.prior.bool_config.contrastive_div)
-        println("Prior sampler: Univar ITS")
-    end
-
-    # Posterior sampler setup
     exchange_type = retrieve(conf, "THERMODYNAMIC_INTEGRATION", "exchange_type")
-    if model.sampler_type == "pcnl"
-        δ = parse(Float32, retrieve(conf, "POST_LANGEVIN", "pcnl_delta"))
-        @reset model.posterior_sampler = initialize_pCNL_sampler(
-            model; δ = δ, N = num_steps, exchange_type = exchange_type,
-        )
-    elseif model.sampler_type == "ula"
-        @reset model.posterior_sampler = initialize_ULA_sampler(
-            model; η = η, N = num_steps, exchange_type = exchange_type,
-        )
-    else
-        @reset model.posterior_sampler = initialize_pCNL_sampler(model; N = num_steps)
-    end
+    model = setup_posterior_sampler(
+        posterior_sampler_kind(model.sampler_type),
+        model, conf, num_steps, η, exchange_type,
+    )
 
     st_rng = seed_rand(model; rng = rng)
 

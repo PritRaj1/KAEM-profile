@@ -14,6 +14,18 @@ export pu,
     AbstractQuadrature,
     AbstractBoolConfig,
     AbstractResampler,
+    AbstractSamplingMode,
+    UnivariateMode,
+    MixtureMode,
+    AbstractPriorSamplerKind,
+    PriorULA,
+    PriorMixITS,
+    PriorUnivITS,
+    AbstractPosteriorSamplerKind,
+    PosteriorPCNL,
+    PosteriorULA,
+    PosteriorImportance,
+    posterior_sampler_kind,
     parse_config_array,
     EMPTY_PARAMS,
     get_q_size,
@@ -168,6 +180,27 @@ abstract type AbstractQuadrature end
 abstract type AbstractBoolConfig end
 
 abstract type AbstractResampler end
+
+# Quadrature / inverse-transform sampling mode
+abstract type AbstractSamplingMode end
+struct UnivariateMode <: AbstractSamplingMode end
+struct MixtureMode <: AbstractSamplingMode end
+
+# Prior sampler kind
+abstract type AbstractPriorSamplerKind end
+struct PriorULA <: AbstractPriorSamplerKind end
+struct PriorMixITS <: AbstractPriorSamplerKind end
+struct PriorUnivITS <: AbstractPriorSamplerKind end
+
+# Posterior sampler kind
+abstract type AbstractPosteriorSamplerKind end
+struct PosteriorPCNL <: AbstractPosteriorSamplerKind end
+struct PosteriorULA <: AbstractPosteriorSamplerKind end
+struct PosteriorImportance <: AbstractPosteriorSamplerKind end
+
+posterior_sampler_kind(s::AbstractString) = s == "pcnl" ? PosteriorPCNL() :
+    s == "ula" ? PosteriorULA() :
+    PosteriorImportance()
 
 function parse_config_array(::Type{T}, raw) where {T}
     return raw isa Vector ? parse.(T, raw) : parse.(T, split(raw, ","))

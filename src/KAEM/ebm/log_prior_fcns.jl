@@ -156,8 +156,8 @@ function (lp::LogPriorMix)(
                     st_kan,
                     st_lyrnorm,
                     st_quad;
+                    mode = MixtureMode(),
                     component_mask = component_mask,
-                    mix_bool = true
                 )
             ), dims = 3
         ), (1, 3, 2)

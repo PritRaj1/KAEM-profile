@@ -9,16 +9,22 @@ using ..Utils
 include("mixture_selection.jl")
 using .MixtureChoice: choose_component
 
-function interpolate_kernel(cdf, grid, rand_vals, G; mix_bool = false)
+_init_rv(::MixtureMode, rand_vals) = rand_vals
+_init_rv(::UnivariateMode, rand_vals) =
+    PermutedDimsArray(view(rand_vals, :, :, :, :), (1, 2, 4, 3))
+
+_final_rv(::MixtureMode, rand_vals) = dropdims(rand_vals; dims = 3)
+_final_rv(::UnivariateMode, rand_vals) = rand_vals
+
+function interpolate_kernel(
+        cdf, grid, rand_vals, G;
+        mode::AbstractSamplingMode = UnivariateMode(),
+    )
     grid_idxs = reshape(1:(G + 1), 1, 1, G + 1, 1)
     grid = cat(grid, view(grid, :, :, G:G); dims = 3) # Repeat end, so G + 1 indexes final
 
     # First index, i, such that cdf[i] >= rand_vals
-    rv = (
-        mix_bool ?
-            rand_vals :
-            PermutedDimsArray(view(rand_vals, :, :, :, :), (1, 2, 4, 3))
-    )
+    rv = _init_rv(mode, rand_vals)
     indices = sum(cdf .< rv; dims = 3) .+ 1
     first_bool = indices .== 1 |> Lux.f32
     mask2 = indices .== grid_idxs |> Lux.f32
@@ -37,7 +43,7 @@ function interpolate_kernel(cdf, grid, rand_vals, G; mix_bool = false)
             sum(mask1 .* cdf; dims = 3); dims = 3
     )
     c2 = dropdims(sum(mask2 .* cdf; dims = 3); dims = 3)
-    rv = mix_bool ? dropdims(rand_vals; dims = 3) : rand_vals
+    rv = _final_rv(mode, rand_vals)
 
     cdf_length = c2 - c1
     return ifelse.(
@@ -124,8 +130,8 @@ function sample_mixture(
         st_kan,
         st_lyrnorm,
         st_quad;
+        mode = MixtureMode(),
         component_mask = mask,
-        mix_bool = true
     )
 
     cdf = cumsum(cdf; dims = 3) # Cumulative trapezium = CDF
@@ -138,8 +144,8 @@ function sample_mixture(
         cdf,
         PermutedDimsArray(view(grid, :, :, :), (1, 3, 2)),
         rand_vals,
-        ebm.N_quad,
-        mix_bool = true
+        ebm.N_quad;
+        mode = MixtureMode(),
     )
     return z, st_lyrnorm_new
 end

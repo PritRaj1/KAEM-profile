@@ -61,7 +61,7 @@ function test_grid_update()
         st_rng,
     )
 
-    st_before = Array(st_kan)
+    st_before = st_kan |> cpu_device()
     ps_before = Array(ps)
     ebm_coef_before = Array(ps.ebm.fcn.a.coef)
     ebm_grid_before = Array(st_kan.ebm.a.grid)
@@ -75,7 +75,7 @@ function test_grid_update()
         st_rng
     )
 
-    grid = Array(st_kan)
+    grid = st_kan |> cpu_device()
     ps_mid = Array(ps)
     ebm_coef_after = Array(ps.ebm.fcn.a.coef)
     ebm_grid_after = Array(st_kan.ebm.a.grid)
@@ -83,8 +83,8 @@ function test_grid_update()
     @test !all(ebm_coef_before .== ebm_coef_after)
     @test !all(ebm_grid_before .== ebm_grid_after)
 
-    @test !all(iszero, grid - st_before)
-    @test !any(isnan, grid)
+    @test !all(iszero, grid.ebm[:a] - st_before.ebm[:a])
+    @test !any(isnan, grid.ebm[:a])
     @test !all(iszero, ps_mid - ps_before)
     @test !any(isnan, ps_mid)
 

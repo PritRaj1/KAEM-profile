@@ -99,6 +99,6 @@ function test_generate()
 end
 
 @testset "Save/Load Tests" begin
-    test_save_load_with_axes()
-    test_save_load_generate()
+    test_axes()
+    test_generate()
 end
