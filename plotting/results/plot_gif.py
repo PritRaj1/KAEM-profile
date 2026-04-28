@@ -25,48 +25,36 @@ plt.rcParams.update(
 )
 
 GIF_CONFIGS = {
-    # "MNIST_ebm_fft": {
-    #     "dataset": "MNIST",
-    #     "prior": "ebm",
-    #     "function": "FFT",
+    # "FMNIST_gaussian_rbf": {
+    #     "dataset": "FMNIST",
+    #     "prior": "gaussian",
+    #     "function": "RBF",
     #     "grid_size": 6,
     #     "cmap": "gray",
     #     "epochs": list(range(1, 11)),
     #     "samples_per_frame": 6,
-    #     "filename": "mnist_ebm_fft_evolution.gif",
+    #     "filename": "fmnist_gaussian_rbf_evolution.gif",
     # },
-    "FMNIST_gaussian_rbf": {
-        "dataset": "FMNIST",
+    "DARCY_FLOW_kl_gaussian_rbf": {
+        "dataset": "DARCY_FLOW",
+        "prior": "kl_gaussian",
+        "function": "RBF",
+        "grid_size": 6,
+        "cmap": "viridis",
+        "epochs": list(range(25, 251, 25)),
+        "samples_per_frame": 6,
+        "filename": "darcy_flow_kl_gaussian_rbf_evolution.gif",
+    },
+    "DARCY_FLOW_gaussian_rbf": {
+        "dataset": "DARCY_FLOW",
         "prior": "gaussian",
         "function": "RBF",
         "grid_size": 6,
-        "cmap": "gray",
-        "epochs": list(range(1, 11)),
+        "cmap": "viridis",
+        "epochs": list(range(25, 251, 25)),
         "samples_per_frame": 6,
-        "filename": "fmnist_gaussian_rbf_evolution.gif",
+        "filename": "darcy_flow_gaussian_rbf_evolution.gif",
     },
-    # "DARCY_FLOW_gaussian_fft": {
-    #     "dataset": "DARCY_FLOW",
-    #     "prior": "gaussian",
-    #     "function": "FFT",
-    #     "grid_size": 6,
-    #     "cmap": "viridis",
-    #     "epochs": [
-    #         0,
-    #         100,
-    #         200,
-    #         300,
-    #         400,
-    #         500,
-    #         600,
-    #         700,
-    #         800,
-    #         900,
-    #         1000,
-    #     ],  # Darcy uses 100-step increments
-    #     "samples_per_frame": 6,
-    #     "filename": "darcy_flow_gaussian_fft_evolution.gif",
-    # },
 }
 
 output_dir = "figures/results/gif_evolution"
@@ -102,6 +90,7 @@ def create_sample_subset_frame(
         "uniform": r"$\mathcal{U}(\bm{z}; \; \bm{0}, \bm{1})$",
         "lognormal": r"$\text{Lognormal}(\bm{z}; \; \bm{0}, \bm{1})$",
         "gaussian": r"$\mathcal{N}(\bm{z}; \; \bm{0}, \bm{1})$",
+        "kl_gaussian": r"$\mathcal{N}(\bm{z}; \; \bm{0}, \mathrm{diag}(\bm{\lambda}))$",
         "ebm": "EBM",
     }
 

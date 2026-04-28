@@ -20,12 +20,12 @@ plt.rcParams.update(
 )
 
 DATASETS = {
-    # "DARCY_FLOW": {"grid_size": 10, "cmap": "viridis"},
-    "MNIST": {"grid_size": 10, "cmap": "gray"},
-    "FMNIST": {"grid_size": 10, "cmap": "gray"},
+    "DARCY_FLOW": {"grid_size": 10, "cmap": "viridis"},
+    # "MNIST": {"grid_size": 10, "cmap": "gray"},
+    # "FMNIST": {"grid_size": 10, "cmap": "gray"},
 }
 
-PRIORS = ["uniform", "lognormal", "gaussian", "ebm"]
+PRIORS = ["gaussian", "kl_gaussian"]
 FUNCTIONS = ["RBF"]
 
 output_dir = "figures/results/individual_plots"
@@ -64,6 +64,7 @@ def plot_prior_function_grid(dataset, prior, function, grid_size, cmap):
             "uniform": r"$\mathcal{U}(\bm{0}, \bm{1})$",
             "lognormal": r"$\text{Lognormal}(\bm{0}, \bm{1})$",
             "gaussian": r"$\mathcal{N}(\bm{0}, \bm{1})$",
+            "kl_gaussian": r"$\mathcal{N}(\bm{0}, \mathrm{diag}(\bm{\lambda}))$",
             "ebm": "EBM",
         }
 

@@ -43,7 +43,7 @@ end
 
 default_act = retrieve(conf, "EbmModel", "base_activation")
 
-prior_type = Dict(1 => "lognormal", 2 => "gaussian", 3 => "uniform", 4 => "ebm")
+prior_type = Dict(1 => "lognormal", 2 => "gaussian", 3 => "uniform", 4 => "ebm", 5 => "kl_gaussian")
 bases = Dict(5 => "RBF", 6 => "Cheby", 7 => "FFT")
 acts = Dict(5 => default_act, 6 => "none", 7 => default_act)
 grid_sizes = Dict(5 => "20", 6 => "1", 7 => "50")
@@ -60,13 +60,9 @@ else
             dataset == "CELEBA"
         t = init_trainer(rng, conf, dataset; img_resize = im_resize)
         train!(t)
-    elseif dataset == "DARCY_FLOW" || dataset == "DARCY_PERM"
-        commit!(conf, "POST_LANGEVIN", "sampler", "importance")
-        t = init_trainer(rng, conf, dataset)
-        train!(t)
     else
         commit!(conf, "POST_LANGEVIN", "sampler", "importance")
-        for prior_idx in [4, 2, 3, 1]
+        for prior_idx in [5, 2]
             commit!(conf, "EbmModel", "π_0", prior_type[prior_idx])
             for base_idx in [5]
                 commit!(conf, "EbmModel", "spline_function", bases[base_idx])

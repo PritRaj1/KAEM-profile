@@ -13,6 +13,7 @@
 # MNIST tune
 # MNIST vanilla
 # FMNIST vanilla
+DARCY_FLOW vanilla
 
 # SVHN
 # SVHN tune
@@ -24,29 +25,28 @@
 # CELEBA variational
 
 # CIFAR
-# SVHN vanilla
-# CELEBA vanilla
-# CELEBA thermo
-# SVHN thermo
-# CIFAR10 vanilla
-# CIFAR10 thermo
-# DARCY_FLOW vanilla
+SVHN vanilla
+CELEBA vanilla
+CELEBA thermo
+SVHN thermo
+CIFAR10 vanilla
+CIFAR10 thermo
 
 # ==================== Baseline Jobs ====================
 # CIFAR-10 baselines
-# CIFAR10 baseline-vae
+CIFAR10 baseline-vae
 # CIFAR10 baseline-gan
-CIFAR10 baseline-ddpm
-CIFAR10 baseline-pang
+# CIFAR10 baseline-ddpm
+# CIFAR10 baseline-pang
 
 # CelebA baselines
-# CELEBA baseline-vae
+CELEBA baseline-vae
 # CELEBA baseline-gan
-CELEBA baseline-ddpm
-CELEBA baseline-pang
+# CELEBA baseline-ddpm
+# CELEBA baseline-pang
 
 # SVHN baselines
-# SVHN baseline-vae
+SVHN baseline-vae
 # SVHN baseline-gan
-SVHN baseline-ddpm
-SVHN baseline-pang
+# SVHN baseline-ddpm
+# SVHN baseline-pang

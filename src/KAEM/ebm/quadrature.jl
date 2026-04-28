@@ -89,8 +89,10 @@ function (gq::GaussLegendreQuadrature)(
     I, O = first(ebm.fcns_qp).in_dim, first(ebm.fcns_qp).out_dim
     Q, P, S = ebm.q_size, ebm.p_size, ebm.N_quad
 
-    π_nodes = ebm.π_pdf(nodes, ps.dist.π_μ, ps.dist.π_σ)
-    π_nodes = ebm.prior_type == "learnable_gaussian" ? π_nodes' : π_nodes
+    transpose_bool = ebm.prior_type ∈ ("learnable_gaussian", "kl_gaussian")
+    nodes_in = transpose_bool ? nodes' : nodes
+    π_nodes = ebm.π_pdf(nodes_in, ps.dist.π_μ, ps.dist.π_σ)
+    π_nodes = transpose_bool ? π_nodes' : π_nodes
 
     for i in 1:ebm.depth
         @reset ebm.fcns_qp[i].basis_function.S = S

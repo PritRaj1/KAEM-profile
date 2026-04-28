@@ -136,6 +136,60 @@ function test_ebm_prior()
     return @test !any(isnan, Array(log_p))
 end
 
+function test_kl_gaussian_prior()
+    commit!(conf, "EbmModel", "π_0", "kl_gaussian")
+    commit!(conf, "PCA", "use_pca", "true")
+    commit!(conf, "PCA", "pca_components", string(p_size))
+
+    kl_dataset = randn(rng, Float32, 32, 32, 1, b_size * 10)
+    kl_model = init_KAEM(kl_dataset, conf, (32, 32, 1))
+    x_kl = first(kl_model.train_loader) |> pu
+    kl_opt = create_opt(conf)
+    kl_model, _, kl_ps, kl_st_kan, kl_st_lux, kl_st_rng =
+        prep_model(kl_model, x_kl, kl_opt; MLIR = false)
+
+    @test kl_model.prior.prior_type == "kl_gaussian"
+    σ_host = Array(kl_model.prior.π_pdf.σ)
+    @test length(σ_host) == p_size
+    @test all(σ_host .> 0)
+
+    compiled_sample = Reactant.@compile kl_model.sample_prior(
+        kl_model, kl_ps, kl_st_kan, kl_st_lux, kl_st_rng,
+    )
+    z_test = first(
+        compiled_sample(kl_model, kl_ps, kl_st_kan, kl_st_lux, kl_st_rng),
+    )
+
+    if kl_model.prior.bool_config.mixture_model || kl_model.prior.bool_config.ula
+        @test size(z_test) == (q_size, 1, b_size)
+    else
+        @test size(z_test) == (q_size, p_size, b_size)
+    end
+    @test !any(isnan, Array(z_test))
+
+    compiled_log_prior = Reactant.@compile kl_model.log_prior(
+        z_test,
+        kl_model.prior,
+        kl_ps.ebm,
+        kl_st_kan.ebm,
+        kl_st_lux.ebm,
+        kl_st_kan.quad,
+    )
+    log_p = first(
+        compiled_log_prior(
+            z_test,
+            kl_model.prior,
+            kl_ps.ebm,
+            kl_st_kan.ebm,
+            kl_st_lux.ebm,
+            kl_st_kan.quad,
+        ),
+    )
+
+    @test size(log_p) == (b_size,)
+    return @test !any(isnan, Array(log_p))
+end
+
 @testset "Mixture Prior Tests" begin
     test_shapes()
     test_uniform_prior()
@@ -143,4 +197,5 @@ end
     test_lognormal_prior()
     test_learnable_gaussian_prior()
     test_ebm_prior()
+    test_kl_gaussian_prior()
 end

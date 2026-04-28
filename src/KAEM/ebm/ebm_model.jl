@@ -78,10 +78,9 @@ function init_EbmModel(
     kl_σ = nothing
     if prior_type == "kl_gaussian"
         isnothing(pca_model) && error("π_0 = kl_gaussian requires use_pca = true")
-        kl_σ = sqrt.(Float32.(principalvars(pca_model)))
-        length(kl_σ) == Q || error("π_0 = kl_gaussian: PCA gave $(length(kl_σ)) components, need pca_components = $Q.")
-        σ_max = maximum(kl_σ)
-        prior_domain = [-3.0f0 * σ_max, 3.0f0 * σ_max]
+        σ_p = first(sqrt.(Float32.(principalvars(pca_model))), P)
+        prior_domain = [-3.0f0, 3.0f0] .* maximum(σ_p)
+        kl_σ = mixture_model ? σ_p : σ_p'
     else
         prior_domain = Dict(
             "ebm" => grid_range,
@@ -156,10 +155,10 @@ function init_EbmModel(
     quad_fcn = GaussLegendreQuadrature()
     N_quad = parse(Int, retrieve(conf, "EbmModel", "GaussQuad_nodes"))
 
-    ref_pdf =
-        prior_type == "kl_gaussian" ?
+    ref_pdf = prior_type == "kl_gaussian" ?
         KLGaussianPrior(eps, kl_σ) :
         get(prior_map, prior_type, prior_map["uniform"])(eps)
+
     use_attention_kernel =
         parse(Bool, retrieve(conf, "MixtureModel", "use_attention_kernel"))
     train_props = parse(Bool, retrieve(conf, "MixtureModel", "train_proportions"))
