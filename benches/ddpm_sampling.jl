@@ -101,8 +101,10 @@ results = DataFrame(
 # DDPM operates in pixel space and has no latent dimension.
 println("Benchmarking DDPM sampling...")
 
-(unet, ps, st, st_rng, timesteps, alphas, alphas_cumprod,
-    betas, noise_masks, step_masks, num_steps) = setup_ddpm_model()
+(
+    unet, ps, st, st_rng, timesteps, alphas, alphas_cumprod,
+    betas, noise_masks, step_masks, num_steps,
+) = setup_ddpm_model()
 
 b = @benchmark begin
     result = f(

@@ -10,6 +10,7 @@ using ConfParser,
     Statistics,
     LinearAlgebra,
     ComponentArrays
+using MultivariateStats: PCA, principalvars
 
 using ..Utils
 using ..UnivariateFunctions
@@ -42,7 +43,11 @@ struct EbmModel{T <: Float32} <: Lux.AbstractLuxLayer
     λ::T
 end
 
-function init_EbmModel(conf::ConfParse; rng::AbstractRNG = Random.default_rng())
+function init_EbmModel(
+        conf::ConfParse,
+        pca_model::Union{Nothing, PCA} = nothing;
+        rng::AbstractRNG = Random.default_rng(),
+    )
     widths = parse_config_array(Int, retrieve(conf, "EbmModel", "layer_widths"))
     spline_degree = parse(Int, retrieve(conf, "EbmModel", "spline_degree"))
     layernorm_bool = parse(Bool, retrieve(conf, "EbmModel", "layernorm"))
@@ -70,13 +75,22 @@ function init_EbmModel(conf::ConfParse; rng::AbstractRNG = Random.default_rng())
 
     wavelet = retrieve(conf, "EbmModel", "wavelet_type")
 
-    prior_domain = Dict(
-        "ebm" => grid_range,
-        "learnable_gaussian" => grid_range,
-        "lognormal" => [0.0f0, 4.0f0],
-        "gaussian" => [-1.5f0, 1.5f0],
-        "uniform" => [0.0f0, 1.0f0],
-    )[prior_type]
+    kl_σ = nothing
+    if prior_type == "kl_gaussian"
+        isnothing(pca_model) && error("π_0 = kl_gaussian requires use_pca = true")
+        kl_σ = sqrt.(Float32.(principalvars(pca_model)))
+        length(kl_σ) == Q || error("π_0 = kl_gaussian: PCA gave $(length(kl_σ)) components, need pca_components = $Q.")
+        σ_max = maximum(kl_σ)
+        prior_domain = [-3.0f0 * σ_max, 3.0f0 * σ_max]
+    else
+        prior_domain = Dict(
+            "ebm" => grid_range,
+            "learnable_gaussian" => grid_range,
+            "lognormal" => [0.0f0, 4.0f0],
+            "gaussian" => [-1.5f0, 1.5f0],
+            "uniform" => [0.0f0, 1.0f0],
+        )[prior_type]
+    end
 
     eps = parse(Float32, retrieve(conf, "TRAINING", "eps"))
     ula = length(widths) > 2
@@ -142,7 +156,10 @@ function init_EbmModel(conf::ConfParse; rng::AbstractRNG = Random.default_rng())
     quad_fcn = GaussLegendreQuadrature()
     N_quad = parse(Int, retrieve(conf, "EbmModel", "GaussQuad_nodes"))
 
-    ref_initializer = get(prior_map, prior_type, prior_map["uniform"])
+    ref_pdf =
+        prior_type == "kl_gaussian" ?
+        KLGaussianPrior(eps, kl_σ) :
+        get(prior_map, prior_type, prior_map["uniform"])(eps)
     use_attention_kernel =
         parse(Bool, retrieve(conf, "MixtureModel", "use_attention_kernel"))
     train_props = parse(Bool, retrieve(conf, "MixtureModel", "train_proportions"))
@@ -164,7 +181,7 @@ function init_EbmModel(conf::ConfParse; rng::AbstractRNG = Random.default_rng())
         ),
         length(widths) - 1,
         prior_type,
-        ref_initializer(eps),
+        ref_pdf,
         P,
         Q,
         sample_size,

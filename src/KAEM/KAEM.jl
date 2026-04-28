@@ -125,7 +125,7 @@ function init_KAEM(
         update_llhood_grid = false
     end
 
-    prior_model = init_EbmModel(conf; rng = rng)
+    prior_model = init_EbmModel(conf, M; rng = rng)
     lkhood_model = init_GenModel(conf, x_shape; rng = rng)
 
     variational = parse(Bool, retrieve(conf, "VARIATIONAL", "use_variational"))

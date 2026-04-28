@@ -60,6 +60,10 @@ else
             dataset == "CELEBA"
         t = init_trainer(rng, conf, dataset; img_resize = im_resize)
         train!(t)
+    elseif dataset == "DARCY_FLOW" || dataset == "DARCY_PERM"
+        commit!(conf, "POST_LANGEVIN", "sampler", "importance")
+        t = init_trainer(rng, conf, dataset)
+        train!(t)
     else
         commit!(conf, "POST_LANGEVIN", "sampler", "importance")
         for prior_idx in [4, 2, 3, 1]

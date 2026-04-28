@@ -1,7 +1,8 @@
 module RefPriors
 
 export prior_map,
-    UniformPrior, GaussianPrior, LogNormalPrior, LearnableGaussianPrior, EbmPrior
+    UniformPrior, GaussianPrior, LogNormalPrior, LearnableGaussianPrior, EbmPrior,
+    KLGaussianPrior
 
 using ..Utils
 
@@ -19,6 +20,11 @@ struct LearnableGaussianPrior{T <: Float32} <: AbstractPrior
 end
 struct EbmPrior{T <: Float32} <: AbstractPrior
     ε::T
+end
+# Per-Q-dimension Gaussian with σ vector fixed at construction (e.g. from KL eigenvalues).
+struct KLGaussianPrior{T <: Float32, V <: AbstractVector{T}} <: AbstractPrior
+    ε::T
+    σ::V
 end
 
 function stable_log(pdf, ε)
@@ -82,6 +88,19 @@ function (prior::EbmPrior)(
     log_pdf = zero(z)
     log_pdf = log_bool ? log_pdf .- 1.0f0 : log_pdf
     return log_pdf .+ 1.0f0
+end
+
+function (prior::KLGaussianPrior)(
+        z,
+        π_μ,
+        π_σ;
+        log_bool = false,
+    )
+    sqrt_2π = Float32(sqrt(2π))
+    σ = prior.σ
+    pdf = exp.(-(z .^ 2) ./ (2 .* σ .^ 2 .+ prior.ε)) ./
+        (σ .* sqrt_2π .+ prior.ε)
+    return log_bool ? stable_log(pdf, prior.ε) : pdf
 end
 
 const prior_map = Dict(

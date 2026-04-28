@@ -214,7 +214,9 @@ def plot_grouped_bars(
         ref_values = [float(df[metric].iloc[0]) for df, _ in references]
         bar_max = max(bar_values) if bar_values else 0.0
         ref_max = max(ref_values, default=0.0)
-        needs_break = bool(ref_values) and bar_max > 0 and ref_max > _BREAK_RATIO * bar_max
+        needs_break = (
+            bool(ref_values) and bar_max > 0 and ref_max > _BREAK_RATIO * bar_max
+        )
 
         if needs_break:
             sub = outer_gs[0, idx].subgridspec(
@@ -241,9 +243,7 @@ def plot_grouped_bars(
 
             ax_bot.spines["top"].set_visible(False)
             ax_top.spines["bottom"].set_visible(False)
-            ax_top.tick_params(
-                axis="x", which="both", bottom=False, labelbottom=False
-            )
+            ax_top.tick_params(axis="x", which="both", bottom=False, labelbottom=False)
             ax_top.set_xticks([])
             _draw_break_marks(ax_top, ax_bot)
 
