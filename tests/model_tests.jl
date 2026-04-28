@@ -83,8 +83,8 @@ function test_grid_update()
     @test !all(ebm_coef_before .== ebm_coef_after)
     @test !all(ebm_grid_before .== ebm_grid_after)
 
-    @test !all(iszero, grid.ebm[:a] - st_before.ebm[:a])
-    @test !any(isnan, grid.ebm[:a])
+    @test !all(iszero, grid.ebm[:a].grid - st_before.ebm[:a].grid)
+    @test !any(isnan, grid.ebm[:a].grid)
     @test !all(iszero, ps_mid - ps_before)
     @test !any(isnan, ps_mid)
 
