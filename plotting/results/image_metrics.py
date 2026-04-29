@@ -180,13 +180,13 @@ def discover_generated_samples(logs_dir: str = "logs") -> list[tuple[str, str]]:
                     file_paths.append((gen_path, real_path))
 
         # Baseline models
-        for model in ["VAE", "GAN", "DDPM", "PANG"]:
+        for model in ["VAE", "GAN", "VAE", "PANG"]:
             gen_path = f"{logs_dir}/Baseline/{dataset}/{model}/generated_images.h5"
             if os.path.exists(gen_path):
                 file_paths.append((gen_path, real_path))
 
         # Pretrained models
-        for model in ["DDPM"]:
+        for model in ["VAE"]:
             gen_path = f"{logs_dir}/Pretrained/{dataset}/{model}/generated_images.h5"
             if os.path.exists(gen_path):
                 file_paths.append((gen_path, real_path))
@@ -216,65 +216,65 @@ if __name__ == "__main__":
             file_paths = [(g, r) for g, r in file_paths if args.dataset.upper() in g]
     else:
         file_paths = [
-            # # KAEM - CIFAR10
-            # (
-            #     "logs/Vanilla/CIFAR10/ULA/mixture/generated_images.h5",
-            #     get_real_samples_path("CIFAR10"),
-            # ),
-            # (
-            #     "logs/Thermodynamic/CIFAR10/ULA/mixture/generated_images.h5",
-            #     get_real_samples_path("CIFAR10"),
-            # ),
-            # # KAEM - CELEBA
-            # (
-            #     "logs/Vanilla/CELEBA/ULA/mixture/generated_images.h5",
-            #     get_real_samples_path("CELEBA"),
-            # ),
-            # (
-            #     "logs/Thermodynamic/CELEBA/ULA/mixture/generated_images.h5",
-            #     get_real_samples_path("CELEBA"),
-            # ),
-            # # KAEM - SVHN
-            # (
-            #     "logs/Vanilla/SVHN/ULA/mixture/generated_images.h5",
-            #     get_real_samples_path("SVHN"),
-            # ),
-            # (
-            #     "logs/Thermodynamic/SVHN/ULA/mixture/generated_images.h5",
-            #     get_real_samples_path("SVHN"),
-            # ),
-            # Baselines - DDPM and PANG (re-evaluated at unified 2e-4 LR)
+            # KAEM - CIFAR10
             (
-                "logs/Baseline/CIFAR10/DDPM/generated_images.h5",
+                "logs/Vanilla/CIFAR10/ULA/mixture/generated_images.h5",
                 get_real_samples_path("CIFAR10"),
             ),
             (
-                "logs/Baseline/CELEBA/DDPM/generated_images.h5",
+                "logs/Thermodynamic/CIFAR10/ULA/mixture/generated_images.h5",
+                get_real_samples_path("CIFAR10"),
+            ),
+            # KAEM - CELEBA
+            (
+                "logs/Vanilla/CELEBA/ULA/mixture/generated_images.h5",
                 get_real_samples_path("CELEBA"),
             ),
             (
-                "logs/Baseline/SVHN/DDPM/generated_images.h5",
+                "logs/Thermodynamic/CELEBA/ULA/mixture/generated_images.h5",
+                get_real_samples_path("CELEBA"),
+            ),
+            # KAEM - SVHN
+            (
+                "logs/Vanilla/SVHN/ULA/mixture/generated_images.h5",
                 get_real_samples_path("SVHN"),
             ),
             (
-                "logs/Baseline/CIFAR10/PANG/generated_images.h5",
+                "logs/Thermodynamic/SVHN/ULA/mixture/generated_images.h5",
+                get_real_samples_path("SVHN"),
+            ),
+            # Baselines
+            (
+                "logs/Baseline/CIFAR10/VAE/generated_images.h5",
                 get_real_samples_path("CIFAR10"),
             ),
             (
-                "logs/Baseline/CELEBA/PANG/generated_images.h5",
+                "logs/Baseline/CELEBA/VAE/generated_images.h5",
                 get_real_samples_path("CELEBA"),
             ),
             (
-                "logs/Baseline/SVHN/PANG/generated_images.h5",
+                "logs/Baseline/SVHN/VAE/generated_images.h5",
                 get_real_samples_path("SVHN"),
             ),
+            # (
+            #     "logs/Baseline/CIFAR10/PANG/generated_images.h5",
+            #     get_real_samples_path("CIFAR10"),
+            # ),
+            # (
+            #     "logs/Baseline/CELEBA/PANG/generated_images.h5",
+            #     get_real_samples_path("CELEBA"),
+            # ),
+            # (
+            #     "logs/Baseline/SVHN/PANG/generated_images.h5",
+            #     get_real_samples_path("SVHN"),
+            # ),
             # (
             #     "logs/Baseline/CIFAR10/GAN/generated_images.h5",
             #     get_real_samples_path("CIFAR10"),
             # ),
             # # Pretrained - CIFAR10
             # (
-            #     "logs/Pretrained/CIFAR10/DDPM/generated_images.h5",
+            #     "logs/Pretrained/CIFAR10/VAE/generated_images.h5",
             #     get_real_samples_path("CIFAR10"),
             # ),
         ]
