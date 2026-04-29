@@ -40,9 +40,13 @@ function get_vision_dataset(
     """Load and optionally resize a vision dataset. Returns (data, img_shape, save_subset)."""
     dataset = begin
         if dataset_name == "DARCY_PERM" || dataset_name == "DARCY_FLOW"
-            data = h5open("PDE_data/darcy_32/darcy_train_32.h5", "r") do file
-                read(file, "y")
+            # PDEBench layout: "tensor" (solution u) is 4D with a singleton time
+            # axis; "nu" (coefficient a) is 3D. Drop the time axis when present.
+            field = dataset_name == "DARCY_PERM" ? "nu" : "tensor"
+            data = h5open("PDE_data/darcy_flow.h5", "r") do file
+                read(file, field)
             end
+            data = ndims(data) == 4 ? dropdims(data; dims = 3) : data
             data = data[:, :, 1:(N_train + N_test)]
             data = (data .- minimum(data)) ./ (maximum(data) - minimum(data))
             data = isnothing(img_resize) ? data : imresize(data, img_resize)
