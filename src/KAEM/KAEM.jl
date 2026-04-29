@@ -98,13 +98,13 @@ function init_KAEM(
     if !cnn && !seq && use_pca
         train_data = reshape(train_data, :, size(train_data)[end])
         test_data = reshape(test_data, :, size(test_data)[end])
-        M = fit(PCA, train_data; maxoutdim = pca_components)
+        M = fit(PCA, train_data; maxoutdim = pca_components, pratio = 1.0)
 
         train_data = transform(M, train_data)
         test_data = transform(M, test_data)
         x_shape = (size(train_data, 1),)
 
-        println("PCA model: num components = $pca_components")
+        println("PCA model: num components = $(size(train_data, 1))")
     end
 
 
