@@ -40,22 +40,16 @@ function seed_rand(
             [0.0f0]
     )
 
-    # ITS mcmc (init)
-    posterior_its = (
-        model.prior.bool_config.mixture_model ?
-            rand(rng, T, model.prior.q_size, 1, 1, model.batch_size * num_temps) :
-            rand(rng, T, 1, model.prior.p_size, model.batch_size * num_temps)
-    )
-
-    posterior_its = (
-        num_temps > 1 || model.sampler_type != "importance" ?
-            posterior_its :
-            (
-                model.prior.prior_type == "uniform" ?
-                rand(rng, T, P, 1, model.batch_size) :
-                randn(rng, T, P, 1, model.batch_size)
-            )
-    )
+    B = model.batch_size * num_temps
+    posterior_its = if model.prior.bool_config.ula
+        model.prior.prior_type == "uniform" ?
+            rand(rng, T, model.prior.p_size, 1, B) :
+            randn(rng, T, model.prior.p_size, 1, B)
+    elseif model.prior.bool_config.mixture_model
+        rand(rng, T, model.prior.q_size, 1, 1, B)
+    else
+        rand(rng, T, 1, model.prior.p_size, B)
+    end
 
     # Lkhood noise
     train_noise = (
