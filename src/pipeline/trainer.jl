@@ -39,13 +39,13 @@ mutable struct KAEM_trainer{T <: Float32}
     opt_state::Any
     schedule::Any
     dataset_name::AbstractString
-    ps::ComponentArray{T}
-    st_kan::NamedTuple
-    st_lux::NamedTuple
-    st_rng::NamedTuple
+    ps::Any
+    st_kan::Any
+    st_lux::Any
+    st_rng::Any
     N_epochs::Int
     train_loader_state::Tuple{Any, Int}
-    x::AbstractArray{T}
+    x::Any
     num_generated_samples::Int
     last_grid_update::Int
     save_model::Bool
