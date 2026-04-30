@@ -64,7 +64,7 @@ else
         commit!(conf, "POST_LANGEVIN", "sampler", "importance")
         for prior_idx in [5, 2]
             commit!(conf, "EbmModel", "π_0", prior_type[prior_idx])
-            for base_idx in [5]
+            for base_idx in [7]
                 commit!(conf, "EbmModel", "spline_function", bases[base_idx])
                 commit!(conf, "GeneratorModel", "spline_function", bases[base_idx])
                 commit!(conf, "GeneratorModel", "base_activation", acts[base_idx])
