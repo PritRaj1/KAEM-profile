@@ -80,7 +80,7 @@ function init_EbmModel(
         isnothing(pca_model) && error("π_0 = kl_gaussian requires use_pca = true")
         σ_p = first(sqrt.(Float32.(principalvars(pca_model))), P)
         prior_domain = [-3.0f0, 3.0f0] .* maximum(σ_p)
-        kl_σ = mixture_model ? σ_p : σ_p'
+        kl_σ = mixture_model ? σ_p : reshape(σ_p, 1, :)
     else
         prior_domain = Dict(
             "ebm" => grid_range,

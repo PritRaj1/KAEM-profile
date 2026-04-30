@@ -95,9 +95,9 @@ function (gq::GaussLegendreQuadrature)(
     Q, P, S = ebm.q_size, ebm.p_size, ebm.N_quad
 
     transpose_bool = ebm.prior_type ∈ ("learnable_gaussian", "kl_gaussian")
-    nodes_in = transpose_bool ? nodes' : nodes
+    nodes_in = transpose_bool ? PermutedDimsArray(nodes, (2, 1)) : nodes
     π_nodes = ebm.π_pdf(nodes_in, ps.dist.π_μ, ps.dist.π_σ)
-    π_nodes = transpose_bool ? π_nodes' : π_nodes
+    π_nodes = transpose_bool ? PermutedDimsArray(π_nodes, (2, 1)) : π_nodes
 
     for i in 1:ebm.depth
         @reset ebm.fcns_qp[i].basis_function.S = S
