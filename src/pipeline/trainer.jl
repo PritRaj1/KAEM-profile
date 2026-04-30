@@ -437,12 +437,10 @@ function train!(t::KAEM_trainer; train_idx::Int = 1, trial = nothing)
 
             if !t.model.lkhood.SEQ && !t.model.lkhood.CNN && t.model.use_pca
                 gen_data = reconstruct(t.model.PCA_model, gen_data)
-                gen_data = (
-                    reshape(
-                        gen_data,
-                        t.model.original_data_size...,
-                        size(gen_data)[end],
-                    ),
+                gen_data = reshape(
+                    gen_data,
+                    t.model.original_data_size...,
+                    size(gen_data)[end],
                 )
             end
 
