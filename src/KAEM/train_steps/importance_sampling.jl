@@ -39,7 +39,7 @@ function sample_importance(
         st_rng
     )
     # Prior is proposal for importance sampling
-    z_posterior, st_lux_ebm = m.sample_prior(m, ps, st_kan, st_lux, st_rng)
+    z_posterior, st_lux_ebm = m.sample_prior(ps, st_kan, st_lux, st_rng)
     noise = st_rng.train_noise
     logllhood, st_lux_gen = log_likelihood_IS(
         z_posterior,
@@ -59,7 +59,7 @@ function sample_importance(
     resampled_mask = resampled_indices .== reshape(1:N, 1, 1, N) |> Lux.f32
 
     # Works better with more samples
-    z_prior, st_lux_ebm = m.sample_prior(m, ps, st_kan, st_lux, st_rng)
+    z_prior, st_lux_ebm = m.sample_prior(ps, st_kan, st_lux, st_rng)
 
     # Get component mask for mixture model normalization
     Q, P, S = m.prior.q_size, m.prior.p_size, m.batch_size

@@ -109,7 +109,7 @@ function (gu::GridUpdater)(
                 end,
             ]
         else
-            z = first(model.sample_prior(model, ps, st_kan, st_lux, st_rng)) .* 1.0f0
+            z = first(model.sample_prior(ps, st_kan, st_lux, st_rng))
         end
 
         # Must update domain for inverse transform sampling
@@ -227,7 +227,7 @@ function (gu::GridUpdater)(
                 end,
             ]
         else
-            z = first(model.sample_prior(model, ps, st_kan, st_lux, st_rng)) .* 1.0f0
+            z = first(model.sample_prior(ps, st_kan, st_lux, st_rng))
         end
 
         z = dropdims(sum(z; dims = 2); dims = 2)

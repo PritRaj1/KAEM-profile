@@ -1,6 +1,6 @@
 module ModelSetup
 
-export prep_model
+export prep_model, ULAPriorSampler
 
 using ConfParser, Lux, Accessors, ComponentArrays, Random, Reactant, Enzyme, Optimisers
 
@@ -26,28 +26,30 @@ using .ULA_sampling
 using .pCNL_sampling
 using .HLOrng
 
-# Compile or return raw loss function
 function maybe_compile(loss, MLIR, opt_state, ps, st_kan, st_lux, x, st_rng)
     return MLIR ? Reactant.@compile(loss(opt_state, ps, st_kan, st_lux, x, 1, st_rng)) : loss
 end
 
+struct ULAPriorSampler{S, X}
+    ula::S
+    x_proxy::X
+end
+(s::ULAPriorSampler)(ps, st_kan, st_lux, st_rng) =
+    s.ula(ps, st_kan, Lux.trainmode(st_lux), s.x_proxy, st_rng)
+
 ### Prior sampler dispatch
 function setup_prior_sampler(::PriorULA, model, conf, x)
-    num_steps_prior = parse(Int, retrieve(conf, "PRIOR_LANGEVIN", "iters"))
-    step_size_prior = parse(Float32, retrieve(conf, "PRIOR_LANGEVIN", "step_size"))
-    prior_sampler = initialize_pCNL_sampler(
-        model; δ = step_size_prior, N = num_steps_prior, prior_sampling_bool = true,
-    )
+    N = parse(Int, retrieve(conf, "PRIOR_LANGEVIN", "iters"))
+    η = parse(Float32, retrieve(conf, "PRIOR_LANGEVIN", "step_size"))
+    ula = initialize_ULA_sampler(model; η = η, N = N, prior_sampling_bool = true)
     @reset model.log_prior = LogPriorULA(model.ε)
-    @reset model.sample_prior = (m, p, sk, sl, r) ->
-    (out = prior_sampler(p, sk, Lux.trainmode(sl), x, r); (out[1], out[2]))
-    println("Prior sampler: pCNL")
+    @reset model.sample_prior = ULAPriorSampler(ula, x)
+    println("Prior sampler: ULA")
     return model
 end
 
 function setup_prior_sampler(::PriorMixITS, model, conf, x)
-    @reset model.sample_prior = (m, p, sk, sl, r) ->
-    sample_mixture(m.prior, p.ebm, sk.ebm, Lux.testmode(sl.ebm), sk.quad, r)
+    @reset model.sample_prior = MixITSSampler(model.prior)
     @reset model.log_prior =
         LogPriorMix(model.ε, !model.prior.bool_config.contrastive_div)
     println("Prior sampler: Mix ITS")
@@ -55,8 +57,7 @@ function setup_prior_sampler(::PriorMixITS, model, conf, x)
 end
 
 function setup_prior_sampler(::PriorUnivITS, model, conf, x)
-    @reset model.sample_prior = (m, p, sk, sl, r) ->
-    sample_univariate(m.prior, p.ebm, sk.ebm, Lux.testmode(sl.ebm), sk.quad, r)
+    @reset model.sample_prior = UnivITSSampler(model.prior)
     @reset model.log_prior =
         LogPriorUnivariate(model.ε, !model.prior.bool_config.contrastive_div)
     println("Prior sampler: Univar ITS")

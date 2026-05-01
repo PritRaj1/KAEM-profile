@@ -1,6 +1,6 @@
 module InverseTransformSampling
 
-export sample_univariate, sample_mixture
+export UnivITSSampler, MixITSSampler
 
 using LinearAlgebra, ComponentArrays, Lux
 
@@ -53,31 +53,6 @@ function interpolate_kernel(
     )
 end
 
-function sample_univariate(
-        ebm,
-        ps,
-        st_kan,
-        st_lyrnorm,
-        st_quad,
-        st_rng;
-        ula_init = false
-    )
-
-    cdf, grid, st_lyrnorm_new = ebm.quad(ebm, ps, st_kan, st_lyrnorm, st_quad)
-    cdf = cumsum(cdf; dims = 3) # Cumulative trapezium = CDF
-    cdf = cat(view(zero(cdf), :, :, 1:1), cdf; dims = 3) # Prepend 0
-
-    rv = ula_init ? st_rng.posterior_its : st_rng.prior_its
-    rand_vals = rv .* cdf[:, :, end]
-    z = interpolate_kernel(
-        cdf,
-        PermutedDimsArray(view(grid, :, :, :), (3, 1, 2)),
-        rand_vals,
-        ebm.N_quad,
-    )
-    return z, st_lyrnorm_new
-end
-
 function dotprod_attn(
         Q,
         K,
@@ -92,28 +67,47 @@ function dotprod_attn(
     return dropdims(sum((Q .* z) .* (K .* z); dims = 3); dims = 3) ./ scale
 end
 
-function sample_mixture(
-        ebm,
-        ps,
-        st_kan,
-        st_lyrnorm,
-        st_quad,
-        st_rng;
-        ula_init = false
+struct UnivITSSampler{E}
+    ebm::E
+end
+
+function (s::UnivITSSampler)(ps, st_kan, st_lux, st_rng; ula_init = false)
+    ebm = s.ebm
+    cdf, grid, st_lyrnorm_new = ebm.quad(
+        ebm, ps.ebm, st_kan.ebm, Lux.testmode(st_lux.ebm), st_kan.quad,
     )
-    """Component-wise inverse transform sampling. Returns z ~ prior, shape (num_samples, q)."""
-    alpha = ps.dist.α .* 1.0f0
+    cdf = cumsum(cdf; dims = 3)
+    cdf = cat(view(zero(cdf), :, :, 1:1), cdf; dims = 3)
+
+    rv = ula_init ? st_rng.posterior_its : st_rng.prior_its
+    rand_vals = rv .* cdf[:, :, end]
+    z = interpolate_kernel(
+        cdf,
+        PermutedDimsArray(view(grid, :, :, :), (3, 1, 2)),
+        rand_vals,
+        ebm.N_quad,
+    )
+    return z, st_lyrnorm_new
+end
+
+struct MixITSSampler{E}
+    ebm::E
+end
+
+function (s::MixITSSampler)(ps, st_kan, st_lux, st_rng; ula_init = false)
+    ebm = s.ebm
+    alpha = ps.ebm.dist.α .* 1.0f0
     if ebm.bool_config.use_attention_kernel
         scale = sqrt(Float32(ebm.s_size))
         alpha = dotprod_attn(
-            ps.attention.Q,
-            ps.attention.K,
+            ps.ebm.attention.Q,
+            ps.ebm.attention.K,
             st_rng.attn_rand,
             scale,
-            st_kan[:a].min,
-            st_kan[:a].max,
+            st_kan.ebm[:a].min,
+            st_kan.ebm[:a].max,
             ebm.q_size,
-            ebm.s_size
+            ebm.s_size,
         )
     end
     mask = choose_component(
@@ -122,21 +116,17 @@ function sample_mixture(
         ebm.q_size,
         ebm.p_size,
         st_rng;
-        ula_init = ula_init
+        ula_init = ula_init,
     )
     cdf, grid, st_lyrnorm_new = ebm.quad(
-        ebm,
-        ps,
-        st_kan,
-        st_lyrnorm,
-        st_quad;
+        ebm, ps.ebm, st_kan.ebm, Lux.testmode(st_lux.ebm), st_kan.quad;
         mode = MixtureMode(),
         component_mask = mask,
     )
 
-    cdf = cumsum(cdf; dims = 3) # Cumulative trapezium = CDF
+    cdf = cumsum(cdf; dims = 3)
     cdf = PermutedDimsArray(view(cdf, :, :, :, :), (1, 4, 3, 2))
-    cdf = cat(view(zero(cdf), :, :, 1:1, :), cdf; dims = 3) # Prepend 0
+    cdf = cat(view(zero(cdf), :, :, 1:1, :), cdf; dims = 3)
 
     rv = ula_init ? st_rng.posterior_its : st_rng.prior_its
     rand_vals = rv .* cdf[:, :, end:end, :]

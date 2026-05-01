@@ -88,19 +88,9 @@ function (sampler::ULA_sampler)(
                 @reset model_copy.prior.fcns_qp[i].basis_function.S = S * num_temps
             end
 
-            z_init, _ = begin
-                if model.prior.bool_config.mixture_model
-                    sample_mixture(
-                        model_copy.prior, ps.ebm, st_kan.ebm, st_lux.ebm,
-                        st_kan.quad, st_rng; ula_init = true,
-                    )
-                else
-                    sample_univariate(
-                        model_copy.prior, ps.ebm, st_kan.ebm, st_lux.ebm,
-                        st_kan.quad, st_rng; ula_init = true,
-                    )
-                end
-            end
+            its = model.prior.bool_config.mixture_model ?
+                MixITSSampler(model_copy.prior) : UnivITSSampler(model_copy.prior)
+            z_init, _ = its(ps, st_kan, st_lux, st_rng; ula_init = true)
             z_init
         end
     end

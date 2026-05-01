@@ -50,7 +50,7 @@ struct KAEM{T <: Float32} <: Lux.AbstractLuxLayer
     batch_size::Int
     verbose::Bool
     N_t::Int
-    sample_prior::Function
+    sample_prior::Any
     posterior_sampler::Any
     train_step::Any
     ε::T
@@ -142,10 +142,6 @@ function init_KAEM(
     p_end = parse(Float32, retrieve(conf, "THERMODYNAMIC_INTEGRATION", "p_end"))
     p_num_cycles = parse(Int, retrieve(conf, "THERMODYNAMIC_INTEGRATION", "num_cycles"))
 
-    sample_prior =
-        (m, n, p, sk, sl, r) ->
-    sample_univariate(m.prior, n, p.ebm, sk.ebm, sl.ebm, sk.quad, r)
-
     verbose && println("Using $(Threads.nthreads()) threads.")
 
     num_param_updates = N_epochs * length(train_loader)
@@ -159,7 +155,7 @@ function init_KAEM(
         batch_size,
         verbose,
         N_t,
-        sample_prior,
+        identity,
         nothing,
         nothing,
         eps,
@@ -236,7 +232,7 @@ function (model::KAEM{T})(
         st_rng,
     ) where {T <: Float32}
     """Generate a batch of samples: prior -> decoder -> output activation."""
-    z, st_ebm = model.sample_prior(model, ps, st_kan, st_lux, st_rng)
+    z, st_ebm = model.sample_prior(ps, st_kan, st_lux, st_rng)
     x̂, st_gen = model.lkhood.generator(ps.gen, st_kan.gen, st_lux.gen, z)
     return model.lkhood.output_activation(x̂), st_ebm, st_gen
 end

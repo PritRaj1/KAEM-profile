@@ -106,8 +106,7 @@ function (l::LangevinLoss)(
     z_posterior, st_new, noise, component_mask =
         sample_langevin(ps, st_kan, st_lux, l.model, x, st_rng)
     st_lux_ebm, st_lux_gen = st_new.ebm, st_new.gen
-    z_prior, st_lux_ebm =
-        l.model.sample_prior(l.model, ps, st_kan, st_lux, st_rng)
+    z_prior, st_lux_ebm = l.model.sample_prior(ps, st_kan, st_lux, st_rng)
 
     dps = Enzyme.make_zero(ps)
     _, (loss, st_lux_ebm, st_lux_gen) = Enzyme.autodiff(

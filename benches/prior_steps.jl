@@ -50,7 +50,7 @@
 # end
 #
 # function benchmark_prior(model, ps, st_kan, st_lux, st_rng)
-#     return first(model.sample_prior(model, ps, st_kan, st_lux, st_rng))
+#     return first(model.sample_prior(ps, st_kan, st_lux, st_rng))
 # end
 #
 #
