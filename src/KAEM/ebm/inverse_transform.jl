@@ -28,7 +28,7 @@ function interpolate_kernel(
     indices = sum(cdf .< rv; dims = 3) .+ 1
     first_bool = indices .== 1 |> Lux.f32
     mask2 = indices .== grid_idxs |> Lux.f32
-    mask1 = mask2 .- 1.0f0
+    mask1 = (indices .- 1) .== grid_idxs |> Lux.f32
 
     z1 = dropdims(
         (first_bool .* grid[:, :, 1]) .+

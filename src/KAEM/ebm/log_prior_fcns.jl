@@ -8,6 +8,9 @@ using LinearAlgebra, Accessors, ComponentArrays, Lux
 using ..Utils
 using ..EBM_Model
 
+include("mixture_selection.jl")
+using .MixtureChoice: choose_component
+
 function log_norm(norm, ε)
     norm = sum(norm; dims = 3)
     log_norm = log.(norm .+ ε)
@@ -46,7 +49,8 @@ function (lp::LogPriorULA)(
         ebm,
         ps,
         st_kan,
-        st_lyrnorm,
+        st_lyrnorm;
+        st_rng = nothing,
     )
     log_π0 = dropdims(
         sum(ebm.π_pdf(z, ps.dist.π_μ, ps.dist.π_σ; log_bool = true); dims = 1),
@@ -70,6 +74,7 @@ function (lp::LogPriorUnivariate)(
         st_quad;
         ula = false,
         component_mask = nothing,
+        st_rng = nothing,
     )
     """Log-prior: ∑_q [ ∑_p f_{q,p}(z_qp) ]"""
     Q, P, S = ebm.q_size, ebm.p_size, ebm.s_size
@@ -134,9 +139,14 @@ function (lp::LogPriorMix)(
         st_quad;
         ula = false,
         component_mask = nothing,
+        st_rng = nothing,
     )
     """Log-prior (mixture): ∑_q [ log ( ∑_p α_p exp(f_{q,p}(z_q)) π_0(z_q) ) ]"""
     Q, P, S = ebm.q_size, ebm.p_size, ebm.s_size
+    if component_mask === nothing
+        component_mask = choose_component(ps.dist.α, S, Q, P, st_rng; ula_init = ula)
+    end
+
     alpha =
         ebm.bool_config.use_attention_kernel ?
         dotprod_attn(ps.attention.Q, ps.attention.K, z, S) :
