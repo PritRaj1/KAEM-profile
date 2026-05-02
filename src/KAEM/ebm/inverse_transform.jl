@@ -71,9 +71,9 @@ function (s::UnivITSSampler)(ps, st_kan, st_lux, st_rng; ula_init = false)
     rv = ula_init ? st_rng.posterior_its : st_rng.prior_its
     rand_vals = rv .* cdf[:, :, end]
 
-    cdf_4d = reshape(cdf, Q, P, G + 1, 1)
-    grid_4d = reshape(grid, 1, P, G + 1, 1)
-    rv_4d = reshape(rand_vals, Q, P, 1, B)
+    cdf_4d = reshape(cdf, Q, P, G + 1, 1) .* 1.0f0
+    grid_4d = reshape(grid, 1, P, G + 1, 1) .* 1.0f0
+    rv_4d = reshape(rand_vals, Q, P, 1, B) .* 1.0f0
 
     return _its_step(cdf_4d, grid_4d, rv_4d, Q, P, B, false), st_lyrnorm_new
 end
@@ -107,10 +107,11 @@ function (s::MixITSSampler)(ps, st_kan, st_lux, st_rng; ula_init = false)
     grid = cat(reshape(zmin, Q, 1, 1), grid; dims = 3)
 
     rv = ula_init ? st_rng.posterior_its : st_rng.prior_its
-    rand_vals = rv .* cdf[:, :, end:end, :]
-    grid_4d = reshape(grid, Q, 1, G + 1, 1)
+    rand_vals = rv .* cdf[:, :, end:end, :] .* 1.0f0
+    cdf_4d = cdf .* 1.0f0
+    grid_4d = reshape(grid, Q, 1, G + 1, 1) .* 1.0f0
 
-    return _its_step(cdf, grid_4d, rand_vals, Q, 1, B, true), st_lyrnorm_new
+    return _its_step(cdf_4d, grid_4d, rand_vals, Q, 1, B, true), st_lyrnorm_new
 end
 
 end
