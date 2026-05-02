@@ -18,11 +18,7 @@ end
 function _lerp(z1, z2, c1, c2, rv)
     len = c2 .- c1
     safe = ifelse.(len .== 0, 1.0f0, len)
-    return ifelse.(
-        len .== 0,
-        z1,
-        z1 .+ (z2 .- z1) .* ((rv .- c1) ./ safe),
-    )
+    return z1 .+ (z2 .- z1) .* ((rv .- c1) ./ safe)
 end
 
 function _its_step(cdf, grid, rv, Q, M, B, mixture::Bool)
