@@ -64,7 +64,7 @@ function GridUpdater(model, conf::ConfParse)
         model,
         grid_update_frequency,
         grid_update_decay,
-        update_prior_grid,
+        update_prior_grid && !nogrid_prior,
         update_llhood_grid && !model.lkhood.CNN && !model.lkhood.SEQ && !nogrid_gen,
         nogrid_prior,
     )
