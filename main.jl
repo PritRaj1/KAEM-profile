@@ -46,7 +46,7 @@ default_act = retrieve(conf, "EbmModel", "base_activation")
 prior_type = Dict(1 => "lognormal", 2 => "gaussian", 3 => "uniform", 4 => "kl_gaussian")
 bases = Dict(5 => "RBF", 6 => "Cheby", 7 => "FFT")
 acts = Dict(5 => default_act, 6 => "none", 7 => default_act)
-grid_sizes = Dict(5 => "20", 6 => "1", 7 => "50")
+grid_sizes = Dict(5 => "10", 6 => "1", 7 => "50")
 
 rng = Random.MersenneTwister(1)
 im_resize = dataset == "CELEBA" ? (64, 64) : (32, 32)
