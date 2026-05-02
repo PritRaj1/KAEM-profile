@@ -20,8 +20,7 @@ function sample_z(model, ps, st_kan, st_lux, x, st_rng, train_idx)
     elseif model.prior.bool_config.ula || model.sampler_type != "importance"
         return first(model.posterior_sampler(ps, st_kan, st_lux, x, st_rng))[:, :, :, end]
     end
-    z = first(model.sample_prior(ps, st_kan, st_lux, st_rng))
-    return first(Reactant.Ops.optimization_barrier(z))
+    return first(model.sample_prior(ps, st_kan, st_lux, st_rng))
 end
 
 function rbf_scale(fcn, st_layer, new_grid)
@@ -98,11 +97,11 @@ function (gu::GridUpdater)(
     """Update KAN grids using prior samples."""
 
     model = gu.model
+    z = gu.update_prior_grid || gu.update_llhood_grid ? sample_z(model, ps, st_kan, st_lux, x, st_rng, train_idx) : nothing
     if gu.update_prior_grid
-        z = sample_z(model, ps, st_kan, st_lux, x, st_rng, train_idx)
+        ula_bool = model.prior.bool_config.ula || model.sampler_type != "importance" || model.N_t > 1
 
         # Must update domain for inverse transform sampling
-        ula_bool = model.prior.bool_config.ula || model.sampler_type != "importance" || model.N_t > 1
         if (ula_bool && gu.nogrid_prior)
             red_dim = model.prior.bool_config.mixture_model ? (2, 3) : (1, 3)
             min_z = dropdims(minimum(z; dims = red_dim); dims = red_dim)
@@ -189,7 +188,6 @@ function (gu::GridUpdater)(
 
     # Only update if KAN-type generator requires
     if gu.update_llhood_grid
-        z = sample_z(model, ps, st_kan, st_lux, x, st_rng, train_idx)
         z = dropdims(sum(z; dims = 2); dims = 2)
 
         for i in 1:model.lkhood.generator.depth
