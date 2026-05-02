@@ -97,9 +97,10 @@ function (gu::GridUpdater)(
     """Update KAN grids using prior samples."""
 
     model = gu.model
+    init_z = gu.update_prior_grid || gu.update_llhood_grid ? sample_z(model, ps, st_kan, st_lux, x, st_rng, train_idx) : nothing
     if gu.update_prior_grid
         ula_bool = model.prior.bool_config.ula || model.sampler_type != "importance" || model.N_t > 1
-        sample_z(model, ps, st_kan, st_lux, x, st_rng, train_idx)
+        z = init_z .* 1.0f0
 
         # Must update domain for inverse transform sampling
         if (ula_bool && gu.nogrid_prior)
@@ -188,8 +189,7 @@ function (gu::GridUpdater)(
 
     # Only update if KAN-type generator requires
     if gu.update_llhood_grid
-        sample_z(model, ps, st_kan, st_lux, x, st_rng, train_idx)
-        z = dropdims(sum(z; dims = 2); dims = 2)
+        z = dropdims(sum(init_z .* 1.0f0; dims = 2); dims = 2)
 
         for i in 1:model.lkhood.generator.depth
             if model.lkhood.generator.bool_config.layernorm
