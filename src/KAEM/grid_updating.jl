@@ -17,10 +17,8 @@ function sample_z(model, ps, st_kan, st_lux, x, st_rng, train_idx)
     if model.N_t > 1
         temps = collect(Float32, [(k / model.N_t)^compute_p(model, train_idx) for k in 1:model.N_t])
         return first(model.posterior_sampler(ps, st_kan, st_lux, x, st_rng; temps = temps))[:, :, :, end]
-    elseif model.prior.bool_config.ula || model.sampler_type != "importance"
-        return first(model.posterior_sampler(ps, st_kan, st_lux, x, st_rng))[:, :, :, end]
     end
-    return first(model.sample_prior(ps, st_kan, st_lux, st_rng))
+    return first(model.posterior_sampler(ps, st_kan, st_lux, x, st_rng))[:, :, :, end]
 end
 
 function rbf_scale(fcn, st_layer, new_grid)
