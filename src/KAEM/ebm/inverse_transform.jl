@@ -15,13 +15,13 @@ function dotprod_attn(Q, K, z, scale, min_z, max_z, q_size, s_size)
 end
 
 # Linear interp z(rv) on bin (z1,c1)->(z2,c2)
-function _lerp(z1, z2, c1, c2, rv)
+function _lerp(z1, z2, c1, c2, rv, ε)
     len = c2 .- c1
-    safe = ifelse.(len .== 0, 1.0f0, len)
+    safe = ifelse.(len .< ε, 1.0f0, len)
     return z1 .+ (z2 .- z1) .* ((rv .- c1) ./ safe)
 end
 
-function _its_step(cdf, grid, rv, Q, M, B, mixture::Bool)
+function _its_step(cdf, grid, rv, ε, Q, M, B, mixture::Bool)
     jh = Reactant.Ops.findfirst(cdf .>= rv; dimension = 3)
     jl = max.(jh .- Int64(1), Int64(1))
 
@@ -43,7 +43,7 @@ function _its_step(cdf, grid, rv, Q, M, B, mixture::Bool)
     c2 = gather(cdf, hcat(qcol, mcol, jhc, cdf_b))
     c1 = gather(cdf, hcat(qcol, mcol, jlc, cdf_b))
 
-    return _lerp(z1, z2, c1, c2, dropdims(rv; dims = 3))
+    return _lerp(z1, z2, c1, c2, dropdims(rv; dims = 3), ε)
 end
 
 struct UnivITSSampler{E}
@@ -71,7 +71,7 @@ function (s::UnivITSSampler)(ps, st_kan, st_lux, st_rng; ula_init = false)
     grid_4d = reshape(grid, 1, P, G + 1, 1) .* 1.0f0
     rv_4d = reshape(rand_vals, Q, P, 1, B) .* 1.0f0
 
-    return _its_step(cdf_4d, grid_4d, rv_4d, Q, P, B, false), st_lyrnorm_new
+    return _its_step(cdf_4d, grid_4d, rv_4d, ebm.π_pdf.ε, Q, P, B, false), st_lyrnorm_new
 end
 
 struct MixITSSampler{E}
@@ -107,7 +107,7 @@ function (s::MixITSSampler)(ps, st_kan, st_lux, st_rng; ula_init = false)
     cdf_4d = cdf .* 1.0f0
     grid_4d = reshape(grid, Q, 1, G + 1, 1) .* 1.0f0
 
-    return _its_step(cdf_4d, grid_4d, rand_vals, Q, 1, B, true), st_lyrnorm_new
+    return _its_step(cdf_4d, grid_4d, rand_vals, ebm.π_pdf.ε, Q, 1, B, true), st_lyrnorm_new
 end
 
 end
