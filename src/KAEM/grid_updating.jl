@@ -2,7 +2,7 @@ module ModelGridUpdating
 
 export GridUpdater
 
-using Accessors, Lux, ComponentArrays, ConfParser
+using Accessors, Lux, ComponentArrays, ConfParser, Reactant
 
 using ..Utils
 using ..KAEM_model
@@ -20,7 +20,8 @@ function sample_z(model, ps, st_kan, st_lux, x, st_rng, train_idx)
     elseif model.prior.bool_config.ula || model.sampler_type != "importance"
         return first(model.posterior_sampler(ps, st_kan, st_lux, x, st_rng))[:, :, :, end]
     end
-    return first(model.sample_prior(ps, st_kan, st_lux, st_rng))
+    z = first(model.sample_prior(ps, st_kan, st_lux, st_rng))
+    return first(Reactant.Ops.optimization_barrier(z))
 end
 
 function rbf_scale(fcn, st_layer, new_grid)
