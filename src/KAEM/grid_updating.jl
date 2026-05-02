@@ -13,6 +13,22 @@ using ..KAEM_model.Quadrature: get_gausslegendre
 include("kan/grid_updating.jl")
 using .GridUpdating
 
+function sample_z(model, ps, st_kan, st_lux, x, st_rng, train_idx)
+    if model.N_t > 1
+        temps = collect(Float32, [(k / model.N_t)^compute_p(model, train_idx) for k in 1:model.N_t])
+        return first(model.posterior_sampler(ps, st_kan, st_lux, x, st_rng; temps = temps))[:, :, :, end]
+    elseif model.prior.bool_config.ula || model.sampler_type != "importance"
+        return first(model.posterior_sampler(ps, st_kan, st_lux, x, st_rng))[:, :, :, end]
+    end
+    return first(model.sample_prior(ps, st_kan, st_lux, st_rng))
+end
+
+function rbf_scale(fcn, st_layer, new_grid)
+    fcn.spline_string == "RBF" || return st_layer.scale
+    scale = (maximum(new_grid) - minimum(new_grid)) / (size(new_grid, 2) - 1) |> Lux.f32
+    return scale .+ zero(st_layer.scale)
+end
+
 function replace_leaf(ps, old_leaf, new_leaf)
     data = getdata(ps)
     axes = getaxes(ps)
@@ -81,36 +97,8 @@ function (gu::GridUpdater)(
     """Update KAN grids using prior samples."""
 
     model = gu.model
-    z = nothing
     if gu.update_prior_grid
-
-        if model.N_t > 1
-            temps = collect(Float32, [(k / model.N_t)^compute_p(model, train_idx) for k in 1:model.N_t])
-            z = first(
-                model.posterior_sampler(
-                    ps,
-                    st_kan,
-                    st_lux,
-                    x,
-                    st_rng;
-                    temps = temps,
-                ),
-            )[
-                :,
-                :,
-                :,
-                end,
-            ]
-        elseif model.prior.bool_config.ula || model.sampler_type != "importance"
-            z = first(model.posterior_sampler(ps, st_kan, st_lux, x, st_rng))[
-                :,
-                :,
-                :,
-                end,
-            ]
-        else
-            z = first(model.sample_prior(ps, st_kan, st_lux, st_rng))
-        end
+        z = sample_z(model, ps, st_kan, st_lux, x, st_rng, train_idx)
 
         # Must update domain for inverse transform sampling
         ula_bool = model.prior.bool_config.ula || model.sampler_type != "importance" || model.N_t > 1
@@ -170,13 +158,11 @@ function (gu::GridUpdater)(
                 ps = replace_leaf(ps, ps.ebm.fcn[symbol_map[i]].coef, vec(new_coef))
                 @reset st_kan.ebm[symbol_map[i]].grid = new_grid
 
-                if prior_copy.fcns_qp[i].spline_string == "RBF"
-                    scale = (maximum(new_grid) - minimum(new_grid)) /
-                        (size(new_grid, 2) - 1) |> Lux.f32
-
-                    new_scale = scale .+ zero(st_kan.ebm[symbol_map[i]].scale)
-                    @reset st_kan.ebm[symbol_map[i]].scale = new_scale
-                end
+                @reset st_kan.ebm[symbol_map[i]].scale = rbf_scale(
+                    prior_copy.fcns_qp[i],
+                    st_kan.ebm[symbol_map[i]],
+                    new_grid
+                )
 
                 z = Lux.apply(
                     prior_copy.fcns_qp[i],
@@ -202,34 +188,7 @@ function (gu::GridUpdater)(
 
     # Only update if KAN-type generator requires
     if gu.update_llhood_grid
-        if model.N_t > 1
-            temps = collect(Float32, [(k / model.N_t)^compute_p(model, train_idx) for k in 1:model.N_t])
-            z = first(
-                model.posterior_sampler(
-                    ps,
-                    st_kan,
-                    st_lux,
-                    x,
-                    st_rng;
-                    temps = temps,
-                ),
-            )[
-                :,
-                :,
-                :,
-                end,
-            ]
-        elseif model.prior.bool_config.ula || model.sampler_type != "importance"
-            z = first(model.posterior_sampler(ps, st_kan, st_lux, x, st_rng))[
-                :,
-                :,
-                :,
-                end,
-            ]
-        else
-            z = first(model.sample_prior(ps, st_kan, st_lux, st_rng))
-        end
-
+        z = sample_z(model, ps, st_kan, st_lux, x, st_rng, train_idx)
         z = dropdims(sum(z; dims = 2); dims = 2)
 
         for i in 1:model.lkhood.generator.depth
@@ -256,13 +215,11 @@ function (gu::GridUpdater)(
                 ps = replace_leaf(ps, ps.gen.fcn[symbol_map[i]].coef, vec(new_coef))
                 @reset st_kan.gen[symbol_map[i]].grid = new_grid
 
-                if model.lkhood.generator.Φ_fcns[i].spline_string == "RBF"
-                    scale = (maximum(new_grid) - minimum(new_grid)) /
-                        (size(new_grid, 2) - 1) |> Lux.f32
-
-                    new_scale = scale .+ zero(st_kan.gen[symbol_map[i]].scale)
-                    @reset st_kan.gen[symbol_map[i]].scale = new_scale
-                end
+                @reset st_kan.gen[symbol_map[i]].scale = rbf_scale(
+                    model.lkhood.generator.Φ_fcns[i],
+                    st_kan.gen[symbol_map[i]],
+                    new_grid
+                )
             end
 
             z = Lux.apply(
