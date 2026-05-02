@@ -25,6 +25,7 @@ function (k::UlaKernel)(
         st_kan,
         st_lux,
         noise,
+        _log_u_mh,
         log_u_swap,
         mask_swap_1,
         mask_swap_2,

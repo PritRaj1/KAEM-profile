@@ -1,6 +1,6 @@
-module pCNL_sampling
+module LangevinSampling
 
-export initialize_pCNL_sampler, pCNL_sampler
+export initialize_pCNL_sampler, initialize_ULA_sampler, LangevinSampler
 
 using Reactant: @trace
 using LinearAlgebra,
@@ -20,10 +20,13 @@ using .LangevinUpdates
 include("pcnl_step.jl")
 using .pCNL_Step
 
+include("ula_step.jl")
+using .ULA_Step
+
 include("../ebm/mixture_selection.jl")
 using .MixtureChoice: choose_component
 
-struct pCNL_sampler
+struct LangevinSampler
     prior_sampling_bool
     N
     model
@@ -35,6 +38,18 @@ struct pCNL_sampler
     kernel
 end
 
+function _dims(model, prior_sampling_bool)
+    Q, S = model.prior.q_size, model.batch_size
+    P = model.prior.bool_config.mixture_model ? 1 : model.prior.p_size
+    num_temps = (model.N_t > 1 && !prior_sampling_bool) ? model.N_t : 1
+    return Q, P, S, num_temps, num_temps > 1
+end
+
+function _xchange(exchange_type, thermo_bool, Q, P, S, num_temps)
+    return exchange_type != "none" && thermo_bool ?
+        ReplicaXchange(Q, P, S, num_temps) : NoExchange()
+end
+
 function initialize_pCNL_sampler(
         model::KAEM{T};
         δ::T = 0.01f0,
@@ -44,11 +59,7 @@ function initialize_pCNL_sampler(
     ) where {T}
 
     @assert 0.0f0 < δ < 2.0f0 "pCNL δ must be in (0, 2), got $δ"
-
-    Q, S = model.prior.q_size, model.batch_size
-    P = model.prior.bool_config.mixture_model ? 1 : model.prior.p_size
-    num_temps = (model.N_t > 1 && !prior_sampling_bool) ? model.N_t : 1
-    thermo_bool = num_temps > 1
+    Q, P, S, num_temps, thermo_bool = _dims(model, prior_sampling_bool)
 
     # pCNL coefficients: https://arxiv.org/abs/2408.14325 eq. 8
     denom = 2.0f0 + δ
@@ -58,18 +69,35 @@ function initialize_pCNL_sampler(
 
     log_dist = prior_sampling_bool ? unadjusted_logprior : unadjusted_logpos
     eval_dist = prior_sampling_bool ? per_sample_logprior : per_sample_logpos
-    xchange = (
-        exchange_type != "none" && thermo_bool ?
-            ReplicaXchange(Q, P, S, num_temps) : NoExchange()
+    kernel = PcnlKernel(
+        Q, P, S, num_temps, z_c, nc, inv_2σ2, log_dist, eval_dist,
+        _xchange(exchange_type, thermo_bool, Q, P, S, num_temps),
     )
-    kernel = PcnlKernel(Q, P, S, num_temps, z_c, nc, inv_2σ2, log_dist, eval_dist, xchange)
-
-    return pCNL_sampler(
+    return LangevinSampler(
         prior_sampling_bool, N, model, Q, P, S, num_temps, thermo_bool, kernel,
     )
 end
 
-function (sampler::pCNL_sampler)(
+function initialize_ULA_sampler(
+        model::KAEM{T};
+        η::T = 1.0f-3,
+        N::Int = 20,
+        prior_sampling_bool::Bool = false,
+        exchange_type::String = "none",
+    ) where {T}
+
+    Q, P, S, num_temps, thermo_bool = _dims(model, prior_sampling_bool)
+    log_dist = prior_sampling_bool ? unadjusted_logprior : unadjusted_logpos
+    kernel = UlaKernel(
+        η, sqrt(2 * η), log_dist,
+        _xchange(exchange_type, thermo_bool, Q, P, S, num_temps),
+    )
+    return LangevinSampler(
+        prior_sampling_bool, N, model, Q, P, S, num_temps, thermo_bool, kernel,
+    )
+end
+
+function (sampler::LangevinSampler)(
         ps,
         st_kan,
         st_lux,
@@ -77,29 +105,24 @@ function (sampler::pCNL_sampler)(
         st_rng;
         temps = [1.0f0],
     )
-    """pCNL sampler (https://arxiv.org/abs/2408.14325)."""
+    """Langevin posterior sampler. Returns z ~ p(z|x) (or prior if prior_sampling_bool)."""
     model = sampler.model
     Q, P, S, num_temps = sampler.Q, sampler.P, sampler.S, sampler.num_temps
     prior_sampling_bool = sampler.prior_sampling_bool
 
-    # Initialize from prior
-    z_flat = begin
-        if model.prior.bool_config.ula && prior_sampling_bool
-            rv = st_rng.posterior_its
-            model.prior.prior_type == "lognormal" ? exp.(rv) : rv
-        else
-            model_copy = model
-            @reset model_copy.batch_size = S * num_temps
-            @reset model_copy.prior.s_size = S * num_temps
-            for i in 1:model_copy.prior.depth
-                @reset model_copy.prior.fcns_qp[i].basis_function.S = S * num_temps
-            end
-
-            its = model.prior.bool_config.mixture_model ?
-                MixITSSampler(model_copy.prior) : UnivITSSampler(model_copy.prior)
-            z_init, _ = its(ps, st_kan, st_lux, st_rng; ula_init = true)
-            z_init
+    z_flat = if model.prior.bool_config.ula && prior_sampling_bool
+        rv = st_rng.posterior_its
+        model.prior.prior_type == "lognormal" ? exp.(rv) : rv
+    else
+        model_copy = model
+        @reset model_copy.batch_size = S * num_temps
+        @reset model_copy.prior.s_size = S * num_temps
+        for i in 1:model_copy.prior.depth
+            @reset model_copy.prior.fcns_qp[i].basis_function.S = S * num_temps
         end
+        its = model.prior.bool_config.mixture_model ?
+            MixITSSampler(model_copy.prior) : UnivITSSampler(model_copy.prior)
+        first(its(ps, st_kan, st_lux, st_rng; ula_init = true))
     end
 
     for i in 1:model.prior.depth
@@ -122,7 +145,6 @@ function (sampler::pCNL_sampler)(
     @reset model.lkhood.generator.s_size = S * num_temps
     temps_gpu = repeat(temps, S)
 
-    N_steps = sampler.N
     x_t = !prior_sampling_bool ? (
             model.lkhood.SEQ ? repeat(x, 1, 1, num_temps) :
             (model.use_pca ? repeat(x, 1, num_temps) : repeat(x, 1, 1, 1, num_temps))
@@ -133,8 +155,9 @@ function (sampler::pCNL_sampler)(
     log_u_swap = st_rng.log_swap
     mask_swap_1 = num_temps > 1 ? st_rng.swap_mask_1 : nothing
     mask_swap_2 = num_temps > 1 ? st_rng.swap_mask_2 : nothing
-    kernel = sampler.kernel
 
+    N_steps = sampler.N
+    kernel = sampler.kernel
     state = (1, z_flat)
     @trace while first(state) <= N_steps
         i, z_acc = state
@@ -153,13 +176,12 @@ function (sampler::pCNL_sampler)(
             mask_swap_1,
             mask_swap_2,
             component_mask,
-            temps,
+            temps
         )
         state = (i + 1, z_new)
     end
 
     z = reshape(last(state), Q, P, S, num_temps)
-
     if prior_sampling_bool
         st_lux = st_lux.ebm
         z = dropdims(z; dims = 4)

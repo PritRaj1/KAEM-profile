@@ -15,15 +15,13 @@ include("train_steps/langevin_mle.jl")
 include("train_steps/importance_sampling.jl")
 include("train_steps/thermodynamic.jl")
 include("train_steps/variational.jl")
-include("posterior_sampling/ula.jl")
-include("posterior_sampling/pcnl.jl")
+include("posterior_sampling/langevin.jl")
 include("rng.jl")
 using .ImportanceSampling
 using .LangevinMLE
 using .ThermodynamicIntegration
 using .VariationalTraining
-using .ULA_sampling
-using .pCNL_sampling
+using .LangevinSampling
 using .HLOrng
 
 function maybe_compile(loss, MLIR, opt_state, ps, st_kan, st_lux, x, st_rng)
