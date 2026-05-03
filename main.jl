@@ -44,7 +44,7 @@ end
 default_act = retrieve(conf, "EbmModel", "base_activation")
 
 prior_type = Dict(1 => "lognormal", 2 => "gaussian", 3 => "uniform", 4 => "kl_gaussian")
-bases = Dict(5 => "RBF", 6 => "Cheby", 7 => "FFT")
+bases = Dict(5 => "RBF", 6 => "Wavelet", 7 => "FFT")
 acts = Dict(5 => default_act, 6 => "none", 7 => default_act)
 grid_sizes = Dict(5 => "10", 6 => "1", 7 => "50")
 
@@ -64,19 +64,19 @@ else
         commit!(conf, "POST_LANGEVIN", "sampler", "importance")
         for prior_idx in [4, 2]
             commit!(conf, "EbmModel", "π_0", prior_type[prior_idx])
-            for base_idx in [5]
+            if prior_idx == 4
+                commit!(conf, "PCA", "use_pca", "true")
+            else
+                commit!(conf, "PCA", "use_pca", "false")
+            end
+
+            for base_idx in [6]
                 commit!(conf, "EbmModel", "spline_function", bases[base_idx])
                 commit!(conf, "GeneratorModel", "spline_function", bases[base_idx])
                 commit!(conf, "GeneratorModel", "base_activation", acts[base_idx])
                 commit!(conf, "EbmModel", "base_activation", acts[base_idx])
                 commit!(conf, "GeneratorModel", "grid_size", grid_sizes[base_idx])
                 commit!(conf, "EbmModel", "grid_size", grid_sizes[base_idx])
-                if base_idx == 6
-                    commit!(conf, "EbmModel", "τ_trainable", "false")
-                    commit!(conf, "EbmModel", "init_τ", "1.001")
-                    commit!(conf, "GeneratorModel", "τ_trainable", "false")
-                    commit!(conf, "GeneratorModel", "init_τ", "1.001")
-                end
                 t = init_trainer(rng, conf, dataset)
                 train!(t)
 
