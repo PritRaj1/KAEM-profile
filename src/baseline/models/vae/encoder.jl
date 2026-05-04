@@ -45,7 +45,7 @@ function init_encoder(
             ),
         )
         if bool_config.batchnorm
-            push!(enc_batchnorms, Lux.BatchNorm(c, NNlib.leakyrelu))
+            push!(enc_batchnorms, Lux.BatchNorm(c, NNlib.relu))
         end
         prev_c = c
         spatial = div(spatial - kernels[i] + 2 * paddings[i], strides[i]) + 1
@@ -127,7 +127,7 @@ function (enc::VAEEncoder)(x, ps, st)
             )
             @reset st_new.batchnorm[symbol_map[i]] = st_bn
         else
-            h = NNlib.leakyrelu(h)
+            h = NNlib.relu(h)
         end
     end
 
