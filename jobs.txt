@@ -26,12 +26,12 @@
 # CELEBA variational
 
 # CIFAR
-CELEBA vanilla
-SVHN vanilla
-SVHN thermo
-CELEBA thermo
-CIFAR10 vanilla
-CIFAR10 thermo
+# CELEBA vanilla
+# SVHN vanilla
+# SVHN thermo
+# CELEBA thermo
+# CIFAR10 vanilla
+# CIFAR10 thermo
 
 # ==================== Baseline Jobs ====================
 # CIFAR-10 baselines

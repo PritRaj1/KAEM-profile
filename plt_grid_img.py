@@ -2,8 +2,8 @@ import h5py
 import matplotlib.pyplot as plt
 import numpy as np
 
-file_path_real = "logs/Baseline/CELEBA/DDPM/generated_images_epoch_90.h5"
-file_path_generated = "logs/Baseline/CELEBA/DDPM/generated_images_epoch_90.h5"
+file_path_real = "logs/Vanilla/CIFAR10/ULA/mixture/generated_images_epoch_90.h5"
+file_path_generated = "logs/Thermodynamic/CIFAR10/ULA/mixture/generated_images_epoch_90.h5"
 
 with h5py.File(file_path_real, "r") as h5_file:
     real_data = h5_file["samples"][()]
