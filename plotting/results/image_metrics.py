@@ -180,7 +180,7 @@ def discover_generated_samples(logs_dir: str = "logs") -> list[tuple[str, str]]:
                     file_paths.append((gen_path, real_path))
 
         # Baseline models
-        for model in ["VAE", "GAN", "VAE", "PANG"]:
+        for model in ["VAE", "PANG", "DDPM"]:
             gen_path = f"{logs_dir}/Baseline/{dataset}/{model}/generated_images.h5"
             if os.path.exists(gen_path):
                 file_paths.append((gen_path, real_path))
