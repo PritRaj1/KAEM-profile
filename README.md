@@ -3,6 +3,7 @@
 > 🚧 WORK IN PROGRESS 🚧
 
 Paper: [arxiv.org/abs/2506.14167](https://www.arxiv.org/abs/2506.14167)
+Summary: [pritraj1.github.io/kaem.html](https://pritraj1.github.io/kaem.html)
 
 ## Setup
 
