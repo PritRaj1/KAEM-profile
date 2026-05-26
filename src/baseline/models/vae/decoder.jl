@@ -30,7 +30,7 @@ function init_decoder(
     dec_conv_layers = Vector{Lux.ConvTranspose}()
     dec_batchnorms = Vector{Lux.BatchNorm}()
 
-    project = Lux.Dense(latent_dim, init_channels * init_spatial * init_spatial, NNlib.relu)
+    project = Lux.Dense(latent_dim, init_channels * init_spatial * init_spatial, NNlib.leakyrelu)
 
     prev_c = init_channels
     for (i, c) in enumerate(dec_channels)
@@ -46,7 +46,7 @@ function init_decoder(
             ),
         )
         if bool_config.batchnorm && !is_last
-            push!(dec_batchnorms, Lux.BatchNorm(out_c, NNlib.relu))
+            push!(dec_batchnorms, Lux.BatchNorm(out_c, NNlib.leakyrelu))
         end
         prev_c = c
     end
@@ -116,7 +116,7 @@ function (dec::VAEDecoder)(z, ps, st)
             )
             @reset st_new.batchnorm[symbol_map[i]] = st_bn
         elseif !is_last
-            h = NNlib.relu(h)
+            h = NNlib.leakyrelu(h)
         else
             h = NNlib.sigmoid(h)
         end

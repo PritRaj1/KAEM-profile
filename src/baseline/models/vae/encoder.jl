@@ -45,14 +45,14 @@ function init_encoder(
             ),
         )
         if bool_config.batchnorm
-            push!(enc_batchnorms, Lux.BatchNorm(c, NNlib.relu))
+            push!(enc_batchnorms, Lux.BatchNorm(c, NNlib.leakyrelu))
         end
         prev_c = c
         spatial = div(spatial - kernels[i] + 2 * paddings[i], strides[i]) + 1
     end
 
     flatten_dim = prev_c * spatial * spatial
-    flatten_dense = Lux.Dense(flatten_dim, 256, NNlib.relu)
+    flatten_dense = Lux.Dense(flatten_dim, 256, NNlib.leakyrelu)
     mu_head = Lux.Dense(256, latent_dim)
     logvar_head = Lux.Dense(256, latent_dim)
 
@@ -127,7 +127,7 @@ function (enc::VAEEncoder)(x, ps, st)
             )
             @reset st_new.batchnorm[symbol_map[i]] = st_bn
         else
-            h = NNlib.relu(h)
+            h = NNlib.leakyrelu(h)
         end
     end
 

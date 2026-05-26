@@ -31,7 +31,7 @@ function init_pang_generator(
     project = Lux.Dense(
         latent_dim,
         init_channels * init_spatial * init_spatial,
-        NNlib.relu
+        NNlib.leakyrelu
     )
 
     gen_conv_layers = Vector{Lux.ConvTranspose}()
@@ -102,7 +102,7 @@ function (gen::PangGenerator)(z, ps, st)
         if is_last
             h = NNlib.sigmoid(h)
         else
-            h = NNlib.relu(h)
+            h = NNlib.leakyrelu(h)
         end
     end
 
