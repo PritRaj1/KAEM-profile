@@ -140,9 +140,12 @@ function call_train_step_pang(
         st,
         batch_args
     )
+    # opt_state_disc slot holds the energy-net optimizer state for PANG
     x, st_rng = batch_args
-    loss, ps, opt_state, st = train_step(opt_state, ps, Lux.trainmode(st), x, st_rng)
-    return (loss, ps, opt_state, opt_state, opt_state, st)
+    loss, ps, opt_state_gen, opt_state_disc, st = train_step(
+        opt_state_gen, opt_state_disc, ps, Lux.trainmode(st), x, st_rng
+    )
+    return (loss, ps, opt_state, opt_state_gen, opt_state_disc, st)
 end
 
 function generate_batch_vae(
@@ -393,12 +396,15 @@ function init_trainer(
     elseif model_type == :pang
         model = init_PangEBM(conf, x_shape; rng = rng)
         α_cd = parse(Float32, retrieve(conf, "PANG", "alpha_cd"))
-        lr_pang = parse(Float32, retrieve(conf, "PANG", "learning_rate"))
-        opt_pang = ManualAdam(lr_pang)
-        model, train_step, opt_state, ps, st = prep_pang(
+        lr_gen = parse(Float32, retrieve(conf, "PANG", "learning_rate"))
+        lr_ebm = parse(Float32, retrieve(conf, "PANG", "ebm_learning_rate"))
+        opt_gen = ManualAdam(lr_gen)
+        opt_ebm = ManualAdam(lr_ebm)
+        model, train_step, opt_state_gen, opt_state_disc, ps, st = prep_pang(
             model,
             x_sample,
-            opt_pang;
+            opt_gen,
+            opt_ebm;
             rng = rng,
             MLIR = MLIR,
             α_cd = α_cd

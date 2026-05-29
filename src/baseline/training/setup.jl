@@ -115,7 +115,8 @@ end
 function prep_pang(
         model::PangEBM{T},
         x::AbstractArray{T},
-        optimizer;
+        optimizer_gen,
+        optimizer_ebm;
         rng::AbstractRNG = Random.MersenneTwister(1),
         MLIR::Bool = true,
         α_cd::Float32 = 1.0f0,
@@ -124,7 +125,8 @@ function prep_pang(
     ps = Lux.initialparameters(rng, model)
     st = Lux.initialstates(rng, model)
     ps, st = ps |> ComponentArray |> Lux.f32 |> pu, st |> Lux.f32 |> pu
-    opt_state = Optimisers.setup(optimizer, ps)
+    opt_state_gen = Optimisers.setup(optimizer_gen, ps.gen)
+    opt_state_ebm = Optimisers.setup(optimizer_ebm, ps.ebm)
 
     st_rng = seed_rng(model; rng = rng, batch_size = model.batch_size)
     train_step = PangTrainStep(model, α_cd)
@@ -132,13 +134,13 @@ function prep_pang(
     println("  Compiling Pang train step...")
     st_train = Lux.trainmode(st)
     compiled_step = if MLIR
-        Reactant.@compile train_step(opt_state, ps, st_train, x, st_rng)
+        Reactant.@compile train_step(opt_state_gen, opt_state_ebm, ps, st_train, x, st_rng)
     else
         train_step
     end
     println("  Pang train step compiled.")
 
-    return model, compiled_step, opt_state, ps, st_train
+    return model, compiled_step, opt_state_gen, opt_state_ebm, ps, st_train
 end
 
 end
