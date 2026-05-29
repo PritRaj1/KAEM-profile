@@ -2,7 +2,7 @@ import h5py
 import matplotlib.pyplot as plt
 import numpy as np
 
-file_path_real = "logs/Vanilla/CIFAR10/ULA/mixture/generated_images_epoch_80.h5"
+file_path_real = "logs/Vanilla/CIFAR10/ULA/mixture/generated_images.h5"
 file_path_generated = "logs/Thermodynamic/CIFAR10/ULA/mixture/generated_images_epoch_80.h5"
 
 with h5py.File(file_path_real, "r") as h5_file:
