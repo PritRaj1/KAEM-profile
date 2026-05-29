@@ -21,12 +21,7 @@ function denoise_step(
         ps,
         st
     )
-    # Predict x_0 from the noise estimate, clamp to the trained data range
-    # [-1, 1], then form the posterior mean q(x_{t-1} | x_t, x_0). Clamping
-    # the x_0 prediction at every step (rather than only at the end) is the
-    # reference DDPM "static thresholding" stabilization used by HF diffusers
-    # and OpenAI improved-diffusion; without it, prediction error compounds
-    # and channels saturate independently.
+    # predict x_0, clamp [-1, 1], posterior mean
     noise_pred, st_new = unet(x, t_float, ps, st)
 
     sqrt_alpha_cumprod = sqrt.(alpha_cumprod)

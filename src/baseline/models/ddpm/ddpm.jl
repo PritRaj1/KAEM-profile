@@ -83,10 +83,9 @@ function init_DDPM(
         respaced_alphas[i] = respaced_alphas_cumprod[i] / prev_cumprod
     end
     respaced_betas = 1.0f0 .- respaced_alphas
-    # True posterior variance β̃_t = β_t (1 - ᾱ_{t-1}) / (1 - ᾱ_t). Numerically
-    # stable proxy used here matches HF diffusers / OpenAI improved-diffusion.
+    # Posterior variance β̃_t = β_t (1 - ᾱ_{t-1}) / (1 - ᾱ_t)
     respaced_posterior_variance = respaced_betas .* (1.0f0 .- respaced_alphas_cumprod_prev) ./
-                                  (1.0f0 .- respaced_alphas_cumprod)
+        (1.0f0 .- respaced_alphas_cumprod)
 
     ndims_x = length(x_shape) + 1  # (H, W, C, batch)
     broadcast_shape = (ones(Int, ndims_x)..., sampling_num_steps)

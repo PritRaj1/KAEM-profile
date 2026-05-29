@@ -13,9 +13,7 @@ function pang_total_loss(ps, x, z_prior, z_post, model, st, α_cd)
     # Contrastive divergence: E[E(z_post)] - E[E(z_prior)]
     cd_loss = mean(E_post) - mean(E_prior)
 
-    # Gaussian negative log-likelihood with fixed variance σ², matching
-    # log_likelihood in pang_ebm.jl and Pang et al. (2020): per-sample sum
-    # over pixels divided by 2σ², averaged over the batch.
+    # Gaussian NLL with fixed σ², matches log_likelihood and Pang et al. (2020)
     x_recon, _ = model.generator(z_post, ps.gen, st.gen)
     σ² = model.likelihood_variance
     batch_size = Float32(size(x, ndims(x)))
