@@ -165,20 +165,28 @@ mode_counts = [length(d.modes) for d in dim_dists]
 multimodal_dims = findall(>(1), mode_counts)
 println("Identified $(length(multimodal_dims)) multimodal dimensions out of $q_size.")
 
-# Two distinct modes per multimodal dim; unimodal dims hold
-function sample_mode_pair(rng_pair, dim_dists, mode_counts, q_size)
-    z_a = zeros(Float32, q_size)
-    z_b = zeros(Float32, q_size)
-    for q in 1:q_size
+num_flip_dims = 5
+
+# Flip a small subset of multimodal dims between modes, all else at typical set anchor (avoid decoder mean output)
+function sample_mode_pair(rng_pair, dim_dists, mode_counts, q_size, z_all, n_flip)
+    n_samples = size(z_all, 3)
+    anchor = vec(z_all[:, 1, rand(rng_pair, 1:n_samples)])
+    z_a = copy(anchor)
+    z_b = copy(anchor)
+
+    multimodal = findall(>=(2), mode_counts)
+    isempty(multimodal) && return z_a, z_b
+
+    k = min(n_flip, length(multimodal))
+    flip_dims = multimodal[randperm(rng_pair, length(multimodal))[1:k]]
+
+    for q in flip_dims
         modes_q = dim_dists[q].modes
-        if mode_counts[q] >= 2
-            ia, ib = randperm(rng_pair, length(modes_q))[1:2]
-            z_a[q] = modes_q[ia]
-            z_b[q] = modes_q[ib]
-        else
-            z_a[q] = modes_q[1]
-            z_b[q] = modes_q[1]
-        end
+        cur = argmin(abs.(anchor[q] .- modes_q))
+        others = [i for i in 1:length(modes_q) if i != cur]
+        nxt = others[rand(rng_pair, 1:length(others))]
+        z_a[q] = modes_q[cur]
+        z_b[q] = modes_q[nxt]
     end
     return z_a, z_b
 end
@@ -188,7 +196,7 @@ ts = collect(range(0.0f0, 1.0f0; length = num_cols))
 
 for pair_idx in 1:num_pairs
     rng_pair = Random.MersenneTwister(pair_idx * 31 + 7)
-    z_a, z_b = sample_mode_pair(rng_pair, dim_dists, mode_counts, q_size)
+    z_a, z_b = sample_mode_pair(rng_pair, dim_dists, mode_counts, q_size, z_all, num_flip_dims)
 
     u_a = Float32[ecdf_value(dim_dists[q], z_a[q]) for q in 1:q_size]
     u_b = Float32[ecdf_value(dim_dists[q], z_b[q]) for q in 1:q_size]

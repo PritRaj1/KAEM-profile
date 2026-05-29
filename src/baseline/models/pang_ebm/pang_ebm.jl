@@ -85,8 +85,6 @@ function Lux.initialstates(rng::AbstractRNG, model::PangEBM)
 end
 
 function log_likelihood(model::PangEBM, x, z, ps, st)
-    # Same per-sample scaling as the training recon term: -||x - g(z)||^2 / batch_size,
-    # matching the autograd path used for posterior Langevin in bpucla/latent-space-EBM-prior.
     x_gen, st_gen = model.generator(z, ps.gen, st.gen)
     batch_size = Float32(size(x, ndims(x)))
     ll = -sum((x .- x_gen) .^ 2, dims = (1, 2, 3)) ./ batch_size
