@@ -85,9 +85,9 @@ function Lux.initialstates(rng::AbstractRNG, model::PangEBM)
 end
 
 function log_likelihood(model::PangEBM, x, z, ps, st)
+    σ² = model.likelihood_variance^2
     x_gen, st_gen = model.generator(z, ps.gen, st.gen)
-    batch_size = Float32(size(x, ndims(x)))
-    ll = -sum((x .- x_gen) .^ 2, dims = (1, 2, 3)) ./ batch_size
+    ll = -sum((x .- x_gen) .^ 2, dims = (1, 2, 3)) ./ (2.0f0 * σ²)
     return dropdims(ll; dims = (1, 2, 3)), st_gen
 end
 
