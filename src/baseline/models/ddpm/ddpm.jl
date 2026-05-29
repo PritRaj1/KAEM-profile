@@ -28,6 +28,8 @@ struct DDPM{T <: Float32} <: Lux.AbstractLuxLayer
     sampling_timesteps::AbstractArray{T}
     sampling_alphas::AbstractArray{T}
     sampling_alphas_cumprod::AbstractArray{T}
+    sampling_alphas_cumprod_prev::AbstractArray{T}
+    sampling_posterior_variance::AbstractArray{T}
     sampling_betas::AbstractArray{T}
     sampling_noise_masks::AbstractArray{T}
     sampling_step_masks::AbstractArray{T}
@@ -73,12 +75,18 @@ function init_DDPM(
     timesteps_idx = [max(num_timesteps - (i - 1) * sampling_stride, 1) for i in 1:sampling_num_steps]
 
     respaced_alphas_cumprod = alphas_cumprod[timesteps_idx]
+    respaced_alphas_cumprod_prev = Vector{Float32}(undef, sampling_num_steps)
     respaced_alphas = Vector{Float32}(undef, sampling_num_steps)
     for i in 1:sampling_num_steps
         prev_cumprod = i < sampling_num_steps ? alphas_cumprod[timesteps_idx[i + 1]] : 1.0f0
+        respaced_alphas_cumprod_prev[i] = prev_cumprod
         respaced_alphas[i] = respaced_alphas_cumprod[i] / prev_cumprod
     end
     respaced_betas = 1.0f0 .- respaced_alphas
+    # True posterior variance β̃_t = β_t (1 - ᾱ_{t-1}) / (1 - ᾱ_t). Numerically
+    # stable proxy used here matches HF diffusers / OpenAI improved-diffusion.
+    respaced_posterior_variance = respaced_betas .* (1.0f0 .- respaced_alphas_cumprod_prev) ./
+                                  (1.0f0 .- respaced_alphas_cumprod)
 
     ndims_x = length(x_shape) + 1  # (H, W, C, batch)
     broadcast_shape = (ones(Int, ndims_x)..., sampling_num_steps)
@@ -86,6 +94,8 @@ function init_DDPM(
     sampling_timesteps = repeat(Float32.(timesteps_idx)', batch_size, 1)
     sampling_alphas = reshape(respaced_alphas, broadcast_shape...)
     sampling_alphas_cumprod = reshape(respaced_alphas_cumprod, broadcast_shape...)
+    sampling_alphas_cumprod_prev = reshape(respaced_alphas_cumprod_prev, broadcast_shape...)
+    sampling_posterior_variance = reshape(respaced_posterior_variance, broadcast_shape...)
     sampling_betas = reshape(respaced_betas, broadcast_shape...)
     sampling_noise_masks = reshape(vcat(ones(Float32, sampling_num_steps - 1), 0.0f0), broadcast_shape...)
     sampling_step_masks = Matrix{Float32}(I, sampling_num_steps, sampling_num_steps)
@@ -111,6 +121,8 @@ function init_DDPM(
         sampling_timesteps,
         sampling_alphas,
         sampling_alphas_cumprod,
+        sampling_alphas_cumprod_prev,
+        sampling_posterior_variance,
         sampling_betas,
         sampling_noise_masks,
         sampling_step_masks,

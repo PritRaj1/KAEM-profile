@@ -13,18 +13,34 @@ function denoise_step(
         t_float,
         alpha,
         alpha_cumprod,
-        beta,
+        alpha_cumprod_prev,
+        posterior_variance,
         noise,
         noise_mask,
         unet,
         ps,
         st
     )
+    # Predict x_0 from the noise estimate, clamp to the trained data range
+    # [-1, 1], then form the posterior mean q(x_{t-1} | x_t, x_0). Clamping
+    # the x_0 prediction at every step (rather than only at the end) is the
+    # reference DDPM "static thresholding" stabilization used by HF diffusers
+    # and OpenAI improved-diffusion; without it, prediction error compounds
+    # and channels saturate independently.
     noise_pred, st_new = unet(x, t_float, ps, st)
-    coef1 = 1.0f0 ./ sqrt.(alpha)
-    coef2 = beta ./ sqrt.(1.0f0 .- alpha_cumprod)
-    mean = coef1 .* (x .- coef2 .* noise_pred)
-    sigma = sqrt.(beta)
+
+    sqrt_alpha_cumprod = sqrt.(alpha_cumprod)
+    sqrt_one_minus_alpha_cumprod = sqrt.(1.0f0 .- alpha_cumprod)
+    x0_pred = (x .- sqrt_one_minus_alpha_cumprod .* noise_pred) ./ sqrt_alpha_cumprod
+    x0_pred = clamp.(x0_pred, -1.0f0, 1.0f0)
+
+    one_minus_alpha_cumprod = 1.0f0 .- alpha_cumprod
+    beta = 1.0f0 .- alpha
+    coef_x0 = sqrt.(alpha_cumprod_prev) .* beta ./ one_minus_alpha_cumprod
+    coef_xt = sqrt.(alpha) .* (1.0f0 .- alpha_cumprod_prev) ./ one_minus_alpha_cumprod
+    mean = coef_x0 .* x0_pred .+ coef_xt .* x
+
+    sigma = sqrt.(posterior_variance)
     x_prev = mean .+ sigma .* noise .* noise_mask
     return x_prev, st_new
 end
@@ -39,7 +55,8 @@ function ddpm_step(
         timesteps,
         alphas,
         alphas_cumprod,
-        betas,
+        alphas_cumprod_prev,
+        posterior_variances,
         noise_masks,
         step_masks,
     )
@@ -51,7 +68,8 @@ function ddpm_step(
     sched_mask = reshape(mask, 1, 1, 1, 1, num_steps)
     alpha = dropdims(sum(alphas .* sched_mask; dims = 5); dims = 5)
     alpha_cumprod_i = dropdims(sum(alphas_cumprod .* sched_mask; dims = 5); dims = 5)
-    beta = dropdims(sum(betas .* sched_mask; dims = 5); dims = 5)
+    alpha_cumprod_prev_i = dropdims(sum(alphas_cumprod_prev .* sched_mask; dims = 5); dims = 5)
+    posterior_variance = dropdims(sum(posterior_variances .* sched_mask; dims = 5); dims = 5)
     noise_mask = dropdims(sum(noise_masks .* sched_mask; dims = 5); dims = 5)
 
     noise = step_noise[:, :, :, :, i]
@@ -61,7 +79,8 @@ function ddpm_step(
         t_float,
         alpha,
         alpha_cumprod_i,
-        beta,
+        alpha_cumprod_prev_i,
+        posterior_variance,
         noise,
         noise_mask,
         unet,
@@ -79,6 +98,8 @@ function sample_loop(
         timesteps,
         alphas,
         alphas_cumprod,
+        alphas_cumprod_prev,
+        posterior_variances,
         betas,
         noise_masks,
         step_masks,
@@ -100,7 +121,8 @@ function sample_loop(
             timesteps,
             alphas,
             alphas_cumprod,
-            betas,
+            alphas_cumprod_prev,
+            posterior_variances,
             noise_masks,
             step_masks,
         )

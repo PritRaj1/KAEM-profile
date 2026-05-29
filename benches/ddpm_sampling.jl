@@ -40,6 +40,8 @@ function setup_ddpm_model()
     timesteps = model.sampling_timesteps |> pu
     alphas = model.sampling_alphas |> pu
     alphas_cumprod = model.sampling_alphas_cumprod |> pu
+    alphas_cumprod_prev = model.sampling_alphas_cumprod_prev |> pu
+    posterior_variances = model.sampling_posterior_variance |> pu
     betas = model.sampling_betas |> pu
     noise_masks = model.sampling_noise_masks |> pu
     step_masks = model.sampling_step_masks |> pu
@@ -52,6 +54,8 @@ function setup_ddpm_model()
         timesteps,
         alphas,
         alphas_cumprod,
+        alphas_cumprod_prev,
+        posterior_variances,
         betas,
         noise_masks,
         step_masks,
@@ -67,6 +71,8 @@ function benchmark_ddpm_sample(
         timesteps,
         alphas,
         alphas_cumprod,
+        alphas_cumprod_prev,
+        posterior_variances,
         betas,
         noise_masks,
         step_masks,
@@ -81,6 +87,8 @@ function benchmark_ddpm_sample(
             timesteps,
             alphas,
             alphas_cumprod,
+            alphas_cumprod_prev,
+            posterior_variances,
             betas,
             noise_masks,
             step_masks,
@@ -103,6 +111,7 @@ println("Benchmarking DDPM sampling...")
 
 (
     unet, ps, st, st_rng, timesteps, alphas, alphas_cumprod,
+    alphas_cumprod_prev, posterior_variances,
     betas, noise_masks, step_masks, num_steps,
 ) = setup_ddpm_model()
 
@@ -115,6 +124,8 @@ b = @benchmark begin
         $timesteps,
         $alphas,
         $alphas_cumprod,
+        $alphas_cumprod_prev,
+        $posterior_variances,
         $betas,
         $noise_masks,
         $step_masks,
@@ -130,6 +141,8 @@ end setup = (
         $timesteps,
         $alphas,
         $alphas_cumprod,
+        $alphas_cumprod_prev,
+        $posterior_variances,
         $betas,
         $noise_masks,
         $step_masks,

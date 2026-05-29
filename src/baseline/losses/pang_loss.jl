@@ -3,7 +3,6 @@ module PangLoss
 export PangTrainStep
 
 using Enzyme, Optimisers, Lux, Statistics
-using Flux: mse
 
 using ..PangEBMSampling: langevin_prior, langevin_posterior
 
@@ -14,10 +13,15 @@ function pang_total_loss(ps, x, z_prior, z_post, model, st, α_cd)
     # Contrastive divergence: E[E(z_post)] - E[E(z_prior)]
     cd_loss = mean(E_post) - mean(E_prior)
 
-    # Reconstruction loss from posterior samples
+    # Gaussian negative log-likelihood with fixed variance σ², matching
+    # log_likelihood in pang_ebm.jl and Pang et al. (2020): per-sample sum
+    # over pixels divided by 2σ², averaged over the batch.
     x_recon, _ = model.generator(z_post, ps.gen, st.gen)
-    recon_loss = mse(x_recon, x)
-    loss = recon_loss + α_cd * cd_loss
+    σ² = model.likelihood_variance
+    batch_size = Float32(size(x, ndims(x)))
+    nll = sum((x_recon .- x) .^ 2) / (2.0f0 * σ² * batch_size)
+
+    loss = nll + α_cd * cd_loss
     return (loss, st)
 end
 
