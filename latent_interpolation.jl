@@ -167,18 +167,55 @@ println("Identified $(length(multimodal_dims)) multimodal dimensions out of $q_s
 
 num_flip_dims = 5
 
-# Flip a small subset of multimodal dims between modes, all else at typical set anchor (avoid decoder mean output)
+function decode_many(zs::AbstractMatrix{Float32})
+    n = size(zs, 2)
+    out = nothing
+    for start in 1:batch_size:n
+        stop = min(start + batch_size - 1, n)
+        z_pad = zeros(Float32, q_size, 1, batch_size)
+        z_pad[:, 1, 1:(stop - start + 1)] .= zs[:, start:stop]
+        x = Array(decode_compiled(ps.gen, st_kan.gen, st_lux.gen, pu(z_pad)))
+        chunk = x[:, :, :, 1:(stop - start + 1)]
+        out = out === nothing ? chunk : cat(out, chunk; dims = 4)
+    end
+    return out
+end
+
+# Rank multimodal dims by L2 change in decoded image
+function decoder_sensitivities(anchor, dim_dists, mode_counts, q_size)
+    multimodal = findall(>=(2), mode_counts)
+    n = length(multimodal)
+    n == 0 && return Int[], Float32[]
+
+    z_test = zeros(Float32, q_size, n + 1)
+    z_test[:, 1] .= anchor
+    for (i, q) in enumerate(multimodal)
+        modes_q = dim_dists[q].modes
+        cur = argmin(abs.(anchor[q] .- modes_q))
+        nxt = cur == 1 ? 2 : 1
+        z_test[:, i + 1] .= anchor
+        z_test[q, i + 1] = modes_q[nxt]
+    end
+
+    imgs = decode_many(z_test)
+    base = imgs[:, :, :, 1]
+    sens = Float32[
+        sqrt(sum((imgs[:, :, :, i + 1] .- base) .^ 2)) for i in 1:n
+    ]
+    return multimodal, sens
+end
+
 function sample_mode_pair(rng_pair, dim_dists, mode_counts, q_size, z_all, n_flip)
     n_samples = size(z_all, 3)
     anchor = vec(z_all[:, 1, rand(rng_pair, 1:n_samples)])
     z_a = copy(anchor)
     z_b = copy(anchor)
 
-    multimodal = findall(>=(2), mode_counts)
+    multimodal, sens = decoder_sensitivities(anchor, dim_dists, mode_counts, q_size)
     isempty(multimodal) && return z_a, z_b
 
     k = min(n_flip, length(multimodal))
-    flip_dims = multimodal[randperm(rng_pair, length(multimodal))[1:k]]
+    flip_dims = multimodal[sortperm(sens; rev = true)[1:k]]
 
     for q in flip_dims
         modes_q = dim_dists[q].modes
