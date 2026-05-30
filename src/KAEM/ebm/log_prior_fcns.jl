@@ -147,12 +147,19 @@ function (lp::LogPriorMix)(
         component_mask = choose_component(ps.dist.α, S, Q, P, st_rng; ula_init = ula)
     end
 
-    alpha =
+    alpha_logits =
         ebm.bool_config.use_attention_kernel ?
         dotprod_attn(ps.attention.Q, ps.attention.K, z, S) :
         (ebm.bool_config.train_props ? ps.dist.α : zero(ps.dist.α) .+ 1.0f0)
 
-    alpha = softmax(alpha; dims = 2)
+    # L1 on pre-softmax logits pulls them toward 0, so softmax(0,...,0) = uniform.
+    reg = (
+        ebm.λ > 0 ?
+            ebm.λ * sum(abs.(alpha_logits)) :
+            0.0f0
+    )
+
+    alpha = softmax(alpha_logits; dims = 2)
     π_0 = ebm.π_pdf(z, ps.dist.π_μ, ps.dist.π_σ; log_bool = false)
 
     # Energy functions of each component, q -> p
@@ -171,12 +178,6 @@ function (lp::LogPriorMix)(
                 )
             ), dims = 3
         ), (1, 3, 2)
-    )
-
-    reg = (
-        ebm.λ > 0 ?
-            ebm.λ * sum(abs.(alpha)) :
-            0.0f0
     )
 
     log_p = log_mix_pdf(f, alpha, π_0, Z, lp.ε)

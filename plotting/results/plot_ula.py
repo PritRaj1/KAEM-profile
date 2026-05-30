@@ -27,22 +27,22 @@ DATASETS = {
     "CIFAR10": {"grid_size": 10, "cmap": None},
 }
 
-# Rerun pass: only baseline PANG and DDPM after fixing PANG loss scaling
-# and adding per-step x0 clamping to DDPM sampling. KAEM and VAE outputs
-# are unchanged and remain commented out below.
+# Rerun pass: only KAEM (Vanilla + Thermo) on SVHN/CIFAR10/CelebA after
+# switching the EBM prior to RBF basis with grid updating; baselines
+# unchanged and remain commented out below.
 METHOD_CONFIGS = {
-    # "vanilla_ULA_mixture": {
-    #     "method_type": "Vanilla",
-    #     "sampler": "ULA",
-    #     "model_type": "mixture",
-    #     "is_baseline": False,
-    # },
-    # "thermo_ULA_mixture": {
-    #     "method_type": "Thermodynamic",
-    #     "sampler": "ULA",
-    #     "model_type": "mixture",
-    #     "is_baseline": False,
-    # },
+    "vanilla_ULA_mixture": {
+        "method_type": "Vanilla",
+        "sampler": "ULA",
+        "model_type": "mixture",
+        "is_baseline": False,
+    },
+    "thermo_ULA_mixture": {
+        "method_type": "Thermodynamic",
+        "sampler": "ULA",
+        "model_type": "mixture",
+        "is_baseline": False,
+    },
     # "baseline_vae": {
     #     "method_type": "Baseline",
     #     "model_type": "VAE",
@@ -53,16 +53,16 @@ METHOD_CONFIGS = {
     #     "model_type": "GAN",
     #     "is_baseline": True,
     # },
-    "baseline_pang": {
-        "method_type": "Baseline",
-        "model_type": "PANG",
-        "is_baseline": True,
-    },
-    "baseline_ddpm": {
-        "method_type": "Baseline",
-        "model_type": "DDPM",
-        "is_baseline": True,
-    },
+    # "baseline_pang": {
+    #     "method_type": "Baseline",
+    #     "model_type": "PANG",
+    #     "is_baseline": True,
+    # },
+    # "baseline_ddpm": {
+    #     "method_type": "Baseline",
+    #     "model_type": "DDPM",
+    #     "is_baseline": True,
+    # },
 }
 
 output_dir = "figures/results/individual_plots"

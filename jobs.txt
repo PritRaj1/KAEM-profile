@@ -25,31 +25,30 @@
 # CELEBA tune
 # CELEBA variational
 
-# CIFAR
-# CELEBA vanilla
-# SVHN vanilla
-# SVHN thermo
-# CELEBA thermo
-# CIFAR10 vanilla
-# CIFAR10 thermo
+# Rerun KAEM on the image datasets with RBF basis + grid updating;
+# baselines are unchanged and remain commented out below.
+SVHN vanilla
+SVHN thermo
+CIFAR10 vanilla
+CIFAR10 thermo
+CELEBA vanilla
+CELEBA thermo
 
 # ==================== Baseline Jobs ====================
-# Rerun only PANG and DDPM baselines after the loss-scaling and
-# per-step x0-clamping fixes; VAE results unchanged.
 # CIFAR-10 baselines
 # CIFAR10 baseline-vae
 # CIFAR10 baseline-gan
-CIFAR10 baseline-ddpm
-CIFAR10 baseline-pang
+# CIFAR10 baseline-ddpm
+# CIFAR10 baseline-pang
 
 # CelebA baselines
 # CELEBA baseline-vae
 # CELEBA baseline-gan
-CELEBA baseline-ddpm
-CELEBA baseline-pang
+# CELEBA baseline-ddpm
+# CELEBA baseline-pang
 
 # SVHN baselines
 # SVHN baseline-vae
 # SVHN baseline-gan
-SVHN baseline-ddpm
-SVHN baseline-pang
+# SVHN baseline-ddpm
+# SVHN baseline-pang
