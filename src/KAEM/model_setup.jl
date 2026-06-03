@@ -207,12 +207,11 @@ function prep_model(
     ps, st_kan, st_lux =
         ps |> ComponentArray |> Lux.f32 |> pu, st_kan |> Lux.f32 |> pu, st_lux |> Lux.f32 |> pu
 
-    # Two-rate: one Optimisers.Leaf per ComponentArray view
-    fields = propertynames(ps)
-    opt_state = NamedTuple{fields}(
-        map(f -> Optimisers.setup(optimizer.rule(), getproperty(ps, f)), fields),
-    )
-    Optimisers.adjust!(opt_state.ebm, lr_ebm)
+    opt_state_gen = Optimisers.setup(optimizer.rule(), ps.gen)
+    opt_state_ebm = Optimisers.setup(optimizer.rule(), ps.ebm)
+    opt_state_enc = Optimisers.setup(optimizer.rule(), ps.enc)
+    Optimisers.adjust!(opt_state_ebm, lr_ebm)
+    opt_state = (gen = opt_state_gen, ebm = opt_state_ebm, enc = opt_state_enc)
     model, st_lux, st_rng = setup_training(
         opt_state,
         ps,
