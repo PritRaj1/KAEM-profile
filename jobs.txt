@@ -25,14 +25,12 @@
 # CELEBA tune
 # CELEBA variational
 
-# Rerun KAEM on the image datasets with RBF basis + grid updating;
-# baselines are unchanged and remain commented out below.
 SVHN vanilla
+CELEBA vanilla
 SVHN thermo
+CELEBA thermo
 CIFAR10 vanilla
 CIFAR10 thermo
-CELEBA vanilla
-CELEBA thermo
 
 # ==================== Baseline Jobs ====================
 # CIFAR-10 baselines

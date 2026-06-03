@@ -2,8 +2,9 @@ import h5py
 import matplotlib.pyplot as plt
 import numpy as np
 
-file_path_real = "logs/Baseline/CIFAR10/DDPM/generated_images.h5"
-file_path_generated = "logs/Baseline/CIFAR10/PANG/generated_images_epoch_!0.h5"
+file_path_real = "logs/Vanilla/CIFAR10/ULA/mixture/generated_images.h5"
+file_path_generated = "logs/Thermodynamic/CIFAR10/ULA/mixture/generated_images_epoch_60.h5"
+
 with h5py.File(file_path_real, "r") as h5_file:
     real_data = h5_file["samples"][()]
 
@@ -28,5 +29,5 @@ for i in range(grid_size[0] * grid_size[1]):
     ax.imshow(img)
     ax.axis("off")
 
-plt.savefig("garbage/grid.png", bbox_inches="tight", pad_inches=0.2, dpi=800)
+plt.savefig("garbage/grid.png", bbox_inches="tight", pad_inches=0.2, dpi=400)
 plt.show()
