@@ -27,12 +27,13 @@ commit!(conf, "THERMODYNAMIC_INTEGRATION", "num_temps", "-1")
 commit!(conf, "VARIATIONAL", "use_variational", "false")
 
 optimizer = create_opt(conf)
+lr_ebm = parse(Float32, retrieve(conf, "OPTIMIZER", "ebm_learning_rate"))
 rng = Random.MersenneTwister(1)
 
 dataset = randn(rng, Float32, 32, 32, 1, 500)
 model = init_KAEM(dataset, conf, (32, 32, 1))
 x_test = first(model.train_loader) |> pu
-model, opt_state, ps, st_kan, st_lux, st_rng = prep_model(model, x_test, optimizer; rng = rng)
+model, opt_state, ps, st_kan, st_lux, st_rng = prep_model(model, x_test, optimizer; rng = rng, lr_ebm = lr_ebm)
 
 result = model.train_step(opt_state, ps, st_kan, st_lux, x_test, 1, st_rng)
 ps = result[2]

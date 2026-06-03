@@ -26,13 +26,14 @@ commit!(conf, "THERMODYNAMIC_INTEGRATION", "num_temps", "-1")
 commit!(conf, "VARIATIONAL", "use_variational", "false")
 
 optimizer = create_opt(conf)
+lr_ebm = parse(Float32, retrieve(conf, "OPTIMIZER", "ebm_learning_rate"))
 rng = Random.MersenneTwister(1)
 
 function test_ps_derivative()
     dataset = randn(rng, Float32, 32, 32, 1, 500)
     model = init_KAEM(dataset, conf, (32, 32, 1))
     x_test = first(model.train_loader) |> pu
-    model, opt_state, ps, st_kan, st_lux, st_rng = prep_model(model, x_test, optimizer; rng = rng)
+    model, opt_state, ps, st_kan, st_lux, st_rng = prep_model(model, x_test, optimizer; rng = rng, lr_ebm = lr_ebm)
 
     ps_before = Array(ps)
     result = model.train_step(opt_state, ps, st_kan, st_lux, x_test, 1, st_rng)
@@ -47,7 +48,7 @@ function test_grid_update()
     dataset = randn(rng, Float32, 32, 32, 1, 500)
     model = init_KAEM(dataset, conf, (32, 32, 1))
     x_test = first(model.train_loader) |> pu
-    model, opt_state, ps, st_kan, st_lux, st_rng = prep_model(model, x_test, optimizer; rng = rng)
+    model, opt_state, ps, st_kan, st_lux, st_rng = prep_model(model, x_test, optimizer; rng = rng, lr_ebm = lr_ebm)
 
     x = first(model.train_loader) |> pu
 
@@ -102,7 +103,7 @@ function test_pca()
     commit!(conf, "PCA", "pca_components", "10")
     model = init_KAEM(dataset, conf, (32, 32, 1))
     x_test = first(model.train_loader)
-    model, opt_state, ps, st_kan, st_lux, st_rng = prep_model(model, x_test, optimizer; rng = rng)
+    model, opt_state, ps, st_kan, st_lux, st_rng = prep_model(model, x_test, optimizer; rng = rng, lr_ebm = lr_ebm)
 
     @test size(x_test, 1) == 10
 
@@ -117,7 +118,7 @@ function test_mala_loss()
     commit!(conf, "POST_LANGEVIN", "sampler", "pcnl")
     model = init_KAEM(dataset, conf, (32, 32, 1))
     x_test = first(model.train_loader) |> pu
-    model, opt_state, ps, st_kan, st_lux, st_rng = prep_model(model, x_test, optimizer; rng = rng)
+    model, opt_state, ps, st_kan, st_lux, st_rng = prep_model(model, x_test, optimizer; rng = rng, lr_ebm = lr_ebm)
 
     ps_before = Array(ps)
     result = model.train_step(opt_state, ps, st_kan, st_lux, x_test, 1, st_rng)
@@ -135,7 +136,7 @@ function test_cnn_loss()
     commit!(conf, "PCA", "use_pca", "false")
     model = init_KAEM(dataset, conf, (32, 32, 3))
     x_test = first(model.train_loader) |> pu
-    model, opt_state, ps, st_kan, st_lux, st_rng = prep_model(model, x_test, optimizer; rng = rng)
+    model, opt_state, ps, st_kan, st_lux, st_rng = prep_model(model, x_test, optimizer; rng = rng, lr_ebm = lr_ebm)
 
     ps_before = Array(ps)
     result = model.train_step(opt_state, ps, st_kan, st_lux, x_test, 1, st_rng)
@@ -153,7 +154,7 @@ function test_cnn_residual_loss()
     commit!(conf, "CNN", "latent_concat", "true")
     model = init_KAEM(dataset, conf, (32, 32, 3))
     x_test = first(model.train_loader) |> pu
-    model, opt_state, ps, st_kan, st_lux, st_rng = prep_model(model, x_test, optimizer; rng = rng)
+    model, opt_state, ps, st_kan, st_lux, st_rng = prep_model(model, x_test, optimizer; rng = rng, lr_ebm = lr_ebm)
 
     ps_before = Array(ps)
     result = model.train_step(opt_state, ps, st_kan, st_lux, x_test, 1, st_rng)
@@ -171,7 +172,7 @@ function test_seq_loss()
     commit!(conf, "SEQ", "vocab_size", "50")
     model = init_KAEM(dataset, conf, (50, 10))
     x_test = first(model.train_loader) |> pu
-    model, opt_state, ps, st_kan, st_lux, st_rng = prep_model(model, x_test, optimizer; rng = rng)
+    model, opt_state, ps, st_kan, st_lux, st_rng = prep_model(model, x_test, optimizer; rng = rng, lr_ebm = lr_ebm)
 
     ps_before = Array(ps)
     result = model.train_step(opt_state, ps, st_kan, st_lux, x_test, 1, st_rng)

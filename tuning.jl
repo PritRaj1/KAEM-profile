@@ -48,7 +48,7 @@ function objective(trial)
     ) = trial
 
     commit!(conf, "OPTIMIZER", "type", opt_type)
-    commit!(conf, "OPTIMIZER", "learning_rate", string(learning_rate))
+    commit!(conf, "OPTIMIZER", "gen_learning_rate", string(learning_rate))
     commit!(conf, "LR_SCHEDULE", "decay", string(decay))
     commit!(conf, "OPTIMIZER", "decay", string(opt_decay))
     commit!(conf, "EbmModel", "π_0", prior_type)
@@ -118,7 +118,7 @@ display(top_parameters(space))
 ) = space
 
 commit!(conf, "OPTIMIZER", "type", opt_type)
-commit!(conf, "OPTIMIZER", "learning_rate", string(learning_rate))
+commit!(conf, "OPTIMIZER", "gen_learning_rate", string(learning_rate))
 commit!(conf, "LR_SCHEDULE", "decay", string(decay))
 commit!(conf, "OPTIMIZER", "decay", string(opt_decay))
 commit!(conf, "EbmModel", "π_0", prior_type)
@@ -144,7 +144,7 @@ else
 end
 
 commit!(conf, "OPTIMIZER", "type", opt_type)
-commit!(conf, "OPTIMIZER", "learning_rate", string(learning_rate))
+commit!(conf, "OPTIMIZER", "gen_learning_rate", string(learning_rate))
 commit!(conf, "LR_SCHEDULE", "decay", string(decay))
 commit!(conf, "OPTIMIZER", "decay", string(opt_decay))
 commit!(conf, "EbmModel", "π_0", prior_type)

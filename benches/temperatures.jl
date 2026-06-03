@@ -20,6 +20,7 @@ using .optimization
 conf = ConfParse("config/svhn_config.ini")
 parse_conf!(conf)
 optimizer = create_opt(conf)
+lr_ebm = parse(Float32, retrieve(conf, "OPTIMIZER", "ebm_learning_rate"))
 
 rng = Random.MersenneTwister(1)
 
@@ -42,7 +43,7 @@ function setup_model(N_t)
     model = init_KAEM(dataset, conf, img_size; rng = rng)
     x_test, loader_state = iterate(model.train_loader)
     x_test = pu(x_test)
-    model, opt_state, ps, st_kan, st_lux, st_rng = prep_model(model, x_test, optimizer; rng = rng, MLIR = false)
+    model, opt_state, ps, st_kan, st_lux, st_rng = prep_model(model, x_test, optimizer; rng = rng, MLIR = false, lr_ebm = lr_ebm)
     swap_replica_idxs = rand(1:(model.N_t - 1), model.posterior_sampler.N)
 
     return model, opt_state, ps, st_kan, st_lux, st_rng, x_test, swap_replica_idxs

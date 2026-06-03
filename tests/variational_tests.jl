@@ -24,6 +24,7 @@ commit!(conf, "POST_LANGEVIN", "sampler", "importance")
 commit!(conf, "VARIATIONAL", "use_variational", "true")
 
 optimizer = create_opt(conf)
+lr_ebm = parse(Float32, retrieve(conf, "OPTIMIZER", "ebm_learning_rate"))
 rng = Random.MersenneTwister(42)
 
 function test_diagonal_loss()
@@ -36,6 +37,7 @@ function test_diagonal_loss()
         x_test,
         optimizer;
         rng = rng,
+        lr_ebm = lr_ebm,
     )
 
     ps_before = Array(ps)
@@ -57,6 +59,7 @@ function test_cnn_loss()
         x_test,
         optimizer;
         rng = rng,
+        lr_ebm = lr_ebm,
     )
 
     ps_before = Array(ps)
@@ -79,6 +82,7 @@ function test_mixture_loss()
         x_test,
         optimizer;
         rng = rng,
+        lr_ebm = lr_ebm,
     )
 
     @test model.prior.bool_config.mixture_model == true

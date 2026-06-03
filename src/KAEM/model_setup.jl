@@ -200,12 +200,16 @@ function prep_model(
         optimizer;
         rng::AbstractRNG = Random.MersenneTwister(1),
         MLIR::Bool = true,
+        lr_ebm::T,
     ) where {T <: Float32}
     ps = Lux.initialparameters(rng, model)
     st_kan, st_lux = Lux.initialstates(rng, model)
     ps, st_kan, st_lux =
         ps |> ComponentArray |> Lux.f32 |> pu, st_kan |> Lux.f32 |> pu, st_lux |> Lux.f32 |> pu
     opt_state = Optimisers.setup(optimizer.rule(), ps)
+    # Two-rate optimization for CD (Pang et al., 2020): independent learning rate
+    # for the EBM subtree. Matches lr_ebm == lr_gen ⇒ effective single-rate.
+    Optimisers.adjust!(opt_state.ebm, lr_ebm)
     model, st_lux, st_rng = setup_training(
         opt_state,
         ps,

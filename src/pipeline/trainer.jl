@@ -140,7 +140,9 @@ function init_trainer(
     x = pu(x)
     optimizer = create_opt(conf)
 
-    model, opt_state, params, st_kan, st_lux, st_rng = prep_model(model, x, optimizer; rng = rng)
+    lr_ebm = parse(Float32, retrieve(conf, "OPTIMIZER", "ebm_learning_rate"))
+    model, opt_state, params, st_kan, st_lux, st_rng =
+        prep_model(model, x, optimizer; rng = rng, lr_ebm = lr_ebm)
 
     N_epochs = parse(Int, retrieve(conf, "TRAINING", "N_epochs"))
     checkpoint_every = parse(Int, retrieve(conf, "TRAINING", "checkpoint_every"))

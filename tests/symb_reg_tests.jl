@@ -363,11 +363,13 @@ function test_symbolic_transfer()
     Random.seed!(42)
     rng = Random.MersenneTwister(1)
     optimizer = create_opt(conf)
+    lr_ebm = parse(Float32, retrieve(conf, "OPTIMIZER", "ebm_learning_rate"))
 
     dataset = randn(rng, Float32, 32, 32, 1, 500)
     model = init_KAEM(dataset, conf, (32, 32, 1))
     x_test = first(model.train_loader) |> pu
-    model, opt_state, ps, st_kan, st_lux, st_rng = prep_model(model, x_test, optimizer; rng = rng, MLIR = false)
+    model, opt_state, ps, st_kan, st_lux, st_rng =
+        prep_model(model, x_test, optimizer; rng = rng, MLIR = false, lr_ebm = lr_ebm)
     st = SymbolicTransfer(
         conf,
         model.lkhood.SEQ,
@@ -389,13 +391,14 @@ function test_plot()
     Random.seed!(42)
     rng = Random.MersenneTwister(1)
     optimizer = create_opt(conf)
+    lr_ebm = parse(Float32, retrieve(conf, "OPTIMIZER", "ebm_learning_rate"))
 
     dataset = randn(rng, Float32, 10, 1, 1, 500)
     model = init_KAEM(dataset, conf, (10, 1, 1))
     x_test = first(model.train_loader) |> pu
     model, opt_state, ps, st_kan, st_lux, st_rng = prep_model(
         model, x_test, optimizer;
-        rng = rng, MLIR = false
+        rng = rng, MLIR = false, lr_ebm = lr_ebm,
     )
 
     sf = FitSymbolic.SymFitter(conf; symbolic_lib = test_symb_lib)

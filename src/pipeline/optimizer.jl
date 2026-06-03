@@ -23,7 +23,7 @@ function create_opt(conf::ConfParse)
         opt: opt object, which initializes the optimizer when called
     """
 
-    LR = parse(Float32, retrieve(conf, "OPTIMIZER", "learning_rate"))
+    LR = parse(Float32, retrieve(conf, "OPTIMIZER", "gen_learning_rate"))
     β = parse.(Float32, retrieve(conf, "OPTIMIZER", "betas")) |> Tuple
     decay = parse(Float32, retrieve(conf, "OPTIMIZER", "decay"))
     ρ = parse(Float32, retrieve(conf, "OPTIMIZER", "ρ"))

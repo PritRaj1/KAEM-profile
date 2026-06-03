@@ -25,6 +25,7 @@ z_dim = last(parse.(Int, retrieve(conf, "EbmModel", "layer_widths")))
 
 rng = Random.MersenneTwister(1)
 optimizer = create_opt(conf)
+lr_ebm = parse(Float32, retrieve(conf, "OPTIMIZER", "ebm_learning_rate"))
 
 function test_generate()
     Random.seed!(42)
@@ -32,7 +33,7 @@ function test_generate()
     dataset = randn(rng, Float32, 32, 32, 1, 500)
     model = init_KAEM(dataset, conf, (32, 32, 1))
     x_test = first(model.train_loader) |> pu
-    model, _, ps, st_kan, st_lux, st_rng = prep_model(model, x_test, optimizer; MLIR = false, rng = rng)
+    model, _, ps, st_kan, st_lux, st_rng = prep_model(model, x_test, optimizer; MLIR = false, rng = rng, lr_ebm = lr_ebm)
 
     compiled_sample_prior = Reactant.@compile model.sample_prior(ps, st_kan, st_lux, st_rng)
     z = first(compiled_sample_prior(ps, st_kan, st_lux, st_rng))
@@ -47,7 +48,7 @@ function test_logllhood()
     dataset = randn(rng, Float32, 32, 32, 1, 500)
     model = init_KAEM(dataset, conf, (32, 32, 1))
     x_test = first(model.train_loader) |> pu
-    model, _, ps, st_kan, st_lux, st_rng = prep_model(model, x_test, optimizer; MLIR = false, rng = rng)
+    model, _, ps, st_kan, st_lux, st_rng = prep_model(model, x_test, optimizer; MLIR = false, rng = rng, lr_ebm = lr_ebm)
 
     x = randn(rng, Float32, 32, 32, 1, b_size) |> pu
     compiled_sample_prior = Reactant.@compile model.sample_prior(ps, st_kan, st_lux, st_rng)
@@ -65,7 +66,7 @@ function test_cnn_generate()
     dataset = randn(rng, Float32, 32, 32, out_dim, 500)
     model = init_KAEM(dataset, conf, (32, 32, out_dim))
     x_test = first(model.train_loader) |> pu
-    model, _, ps, st_kan, st_lux, st_rng = prep_model(model, x_test, optimizer; MLIR = false, rng = rng)
+    model, _, ps, st_kan, st_lux, st_rng = prep_model(model, x_test, optimizer; MLIR = false, rng = rng, lr_ebm = lr_ebm)
 
     compiled_sample_prior = Reactant.@compile model.sample_prior(ps, st_kan, st_lux, st_rng)
     z = first(compiled_sample_prior(ps, st_kan, st_lux, st_rng))
@@ -83,7 +84,7 @@ function test_seq_generate()
     dataset = randn(rng, Float32, out_dim, 8, 500)
     model = init_KAEM(dataset, conf, (out_dim, 8))
     x_test = first(model.train_loader) |> pu
-    model, _, ps, st_kan, st_lux, st_rng = prep_model(model, x_test, optimizer; MLIR = false, rng = rng)
+    model, _, ps, st_kan, st_lux, st_rng = prep_model(model, x_test, optimizer; MLIR = false, rng = rng, lr_ebm = lr_ebm)
 
     compiled_sample_prior = Reactant.@compile model.sample_prior(ps, st_kan, st_lux, st_rng)
     z = first(compiled_sample_prior(ps, st_kan, st_lux, st_rng))

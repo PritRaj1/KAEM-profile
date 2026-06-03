@@ -25,7 +25,9 @@ dataset = randn(rng, Float32, 32, 32, 1, b_size * 10)
 model = init_KAEM(dataset, conf, (32, 32, 1))
 x_test = first(model.train_loader) |> pu
 optimizer = create_opt(conf)
-model, _, ps, st_kan, st_lux, st_rng = prep_model(model, x_test, optimizer; MLIR = false)
+lr_ebm = parse(Float32, retrieve(conf, "OPTIMIZER", "ebm_learning_rate"))
+model, _, ps, st_kan, st_lux, st_rng =
+    prep_model(model, x_test, optimizer; MLIR = false, lr_ebm = lr_ebm)
 
 function test_shapes()
     @test model.prior.p_size == p_size
@@ -175,8 +177,9 @@ function test_kl_gaussian_prior()
     kl_model = init_KAEM(kl_dataset, conf, (32, 32, 1))
     x_kl = first(kl_model.train_loader) |> pu
     kl_opt = create_opt(conf)
+    kl_lr_ebm = parse(Float32, retrieve(conf, "OPTIMIZER", "ebm_learning_rate"))
     kl_model, _, kl_ps, kl_st_kan, kl_st_lux, kl_st_rng =
-        prep_model(kl_model, x_kl, kl_opt; MLIR = false)
+        prep_model(kl_model, x_kl, kl_opt; MLIR = false, lr_ebm = kl_lr_ebm)
 
     @test kl_model.prior.prior_type == "kl_gaussian"
     σ_host = Array(kl_model.prior.π_pdf.σ)
