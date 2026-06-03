@@ -16,23 +16,24 @@ dataset_configs = Dict(
 haskey(dataset_configs, dataset) || error("Unknown dataset: $dataset. Use one of: $(keys(dataset_configs))")
 ds = dataset_configs[dataset]
 
+conf = ConfParse(ds.config)
+parse_conf!(conf)
+commit!(conf, "THERMODYNAMIC_INTEGRATION", "num_temps", "-1")
+ENV["DEVICE"] = retrieve(conf, "TRAINING", "device")
+ENV["PERCEPTUAL"] = retrieve(conf, "TRAINING", "use_perceptual_loss")
+
+prior_type = parse(Bool, retrieve(conf, "MixtureModel", "use_mixture_prior")) ? "mixture" : "univariate"
 file_loc = (
-    mode == "thermo" ? "logs/Thermodynamic/$(dataset)/ULA/mixture/" :
-        "logs/Vanilla/$(dataset)/ULA/mixture/"
+    mode == "thermo" ? "logs/Thermodynamic/$(dataset)/ULA/$(prior_type)/" :
+        "logs/Vanilla/$(dataset)/ULA/$(prior_type)/"
 )
-save_dir = "figures/interpolations/$(dataset)/$(mode)/"
+save_dir = "figures/interpolations/$(dataset)/$(mode)/$(prior_type)/"
 mkpath(save_dir)
 
 num_interp_steps = 8
 num_pairs = 6
 num_prior_samples = 5000
 num_density_dims = 3
-
-conf = ConfParse(ds.config)
-parse_conf!(conf)
-commit!(conf, "THERMODYNAMIC_INTEGRATION", "num_temps", "-1")
-ENV["DEVICE"] = retrieve(conf, "TRAINING", "device")
-ENV["PERCEPTUAL"] = retrieve(conf, "TRAINING", "use_perceptual_loss")
 
 include("src/utils.jl")
 using .Utils

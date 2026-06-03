@@ -159,37 +159,9 @@ def discover_generated_samples(logs_dir: str = "logs") -> list[tuple[str, str]]:
             print(f"Warning: Real samples not found for {dataset} at {real_path}")
             continue
 
-        # KAEM models - Vanilla
-        for train_type in ["ULA", "importance", "amortized"]:
-            for prior_type in ["mixture", "univariate"]:
-                gen_path = (
-                    f"{logs_dir}/Vanilla/{dataset}"
-                    f"/{train_type}/{prior_type}/generated_images.h5"
-                )
-                if os.path.exists(gen_path):
-                    file_paths.append((gen_path, real_path))
-
-        # KAEM models - Thermodynamic
-        for train_type in ["ULA", "importance", "amortized"]:
-            for prior_type in ["mixture", "univariate"]:
-                gen_path = (
-                    f"{logs_dir}/Thermodynamic/{dataset}"
-                    f"/{train_type}/{prior_type}/generated_images.h5"
-                )
-                if os.path.exists(gen_path):
-                    file_paths.append((gen_path, real_path))
-
-        # Baseline models
-        for model in ["VAE", "PANG", "DDPM"]:
-            gen_path = f"{logs_dir}/Baseline/{dataset}/{model}/generated_images.h5"
-            if os.path.exists(gen_path):
-                file_paths.append((gen_path, real_path))
-
-        # Pretrained models
-        for model in ["VAE"]:
-            gen_path = f"{logs_dir}/Pretrained/{dataset}/{model}/generated_images.h5"
-            if os.path.exists(gen_path):
-                file_paths.append((gen_path, real_path))
+        gen_path = f"{logs_dir}/Vanilla/{dataset}/ULA/univariate/generated_images.h5"
+        if os.path.exists(gen_path):
+            file_paths.append((gen_path, real_path))
 
     return file_paths
 
@@ -215,37 +187,47 @@ if __name__ == "__main__":
         if args.dataset:
             file_paths = [(g, r) for g, r in file_paths if args.dataset.upper() in g]
     else:
-        # Rerun pass: only KAEM (Vanilla + Thermo) on SVHN/CIFAR10/CelebA
-        # after switching the EBM prior to RBF basis with grid updating;
-        # baselines unchanged and remain commented out below.
         file_paths = [
             # KAEM - SVHN
             (
-                "logs/Vanilla/SVHN/ULA/mixture/generated_images.h5",
-                get_real_samples_path("SVHN"),
-            ),
-            (
-                "logs/Thermodynamic/SVHN/ULA/mixture/generated_images.h5",
+                "logs/Vanilla/SVHN/ULA/univariate/generated_images.h5",
                 get_real_samples_path("SVHN"),
             ),
             # KAEM - CIFAR10
             (
-                "logs/Vanilla/CIFAR10/ULA/mixture/generated_images.h5",
-                get_real_samples_path("CIFAR10"),
-            ),
-            (
-                "logs/Thermodynamic/CIFAR10/ULA/mixture/generated_images.h5",
+                "logs/Vanilla/CIFAR10/ULA/univariate/generated_images.h5",
                 get_real_samples_path("CIFAR10"),
             ),
             # KAEM - CELEBA
             (
-                "logs/Vanilla/CELEBA/ULA/mixture/generated_images.h5",
+                "logs/Vanilla/CELEBA/ULA/univariate/generated_images.h5",
                 get_real_samples_path("CELEBA"),
             ),
-            (
-                "logs/Thermodynamic/CELEBA/ULA/mixture/generated_images.h5",
-                get_real_samples_path("CELEBA"),
-            ),
+            # Mixture / Thermodynamic
+            # (
+            #     "logs/Vanilla/SVHN/ULA/mixture/generated_images.h5",
+            #     get_real_samples_path("SVHN"),
+            # ),
+            # (
+            #     "logs/Thermodynamic/SVHN/ULA/mixture/generated_images.h5",
+            #     get_real_samples_path("SVHN"),
+            # ),
+            # (
+            #     "logs/Vanilla/CIFAR10/ULA/mixture/generated_images.h5",
+            #     get_real_samples_path("CIFAR10"),
+            # ),
+            # (
+            #     "logs/Thermodynamic/CIFAR10/ULA/mixture/generated_images.h5",
+            #     get_real_samples_path("CIFAR10"),
+            # ),
+            # (
+            #     "logs/Vanilla/CELEBA/ULA/mixture/generated_images.h5",
+            #     get_real_samples_path("CELEBA"),
+            # ),
+            # (
+            #     "logs/Thermodynamic/CELEBA/ULA/mixture/generated_images.h5",
+            #     get_real_samples_path("CELEBA"),
+            # ),
             # Baselines (unchanged this pass)
             # (
             #     "logs/Baseline/CIFAR10/VAE/generated_images.h5",

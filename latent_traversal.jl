@@ -17,24 +17,25 @@ dataset_configs = Dict(
 haskey(dataset_configs, dataset) || error("Unknown dataset: $dataset. Use one of: $(keys(dataset_configs))")
 ds = dataset_configs[dataset]
 
-file_loc = (
-    mode == "thermo" ? "logs/Thermodynamic/$(dataset)/ULA/mixture/" :
-        "logs/Vanilla/$(dataset)/ULA/mixture/"
-)
-save_dir = "figures/traversals/$(dataset)/$(mode)/"
-mkpath(save_dir)
-
-num_steps = 10
-num_prior_samples = 500
-num_base_samples = 3
-num_top_dims = 10
-
 conf = ConfParse(ds.config)
 parse_conf!(conf)
 commit!(conf, "THERMODYNAMIC_INTEGRATION", "num_temps", "-1")
 
 ENV["DEVICE"] = retrieve(conf, "TRAINING", "device")
 ENV["PERCEPTUAL"] = retrieve(conf, "TRAINING", "use_perceptual_loss")
+
+prior_type = parse(Bool, retrieve(conf, "MixtureModel", "use_mixture_prior")) ? "mixture" : "univariate"
+file_loc = (
+    mode == "thermo" ? "logs/Thermodynamic/$(dataset)/ULA/$(prior_type)/" :
+        "logs/Vanilla/$(dataset)/ULA/$(prior_type)/"
+)
+save_dir = "figures/traversals/$(dataset)/$(mode)/$(prior_type)/"
+mkpath(save_dir)
+
+num_steps = 10
+num_prior_samples = 500
+num_base_samples = 3
+num_top_dims = 10
 
 include("src/utils.jl")
 using .Utils

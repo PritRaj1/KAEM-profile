@@ -27,10 +27,10 @@
 
 SVHN vanilla
 CELEBA vanilla
-SVHN thermo
-CELEBA thermo
+# SVHN thermo
+# CELEBA thermo
 CIFAR10 vanilla
-CIFAR10 thermo
+# CIFAR10 thermo
 
 # ==================== Baseline Jobs ====================
 # CIFAR-10 baselines
