@@ -118,7 +118,13 @@ function (l::VariationalLoss)(
         Const(component_mask),
     )
 
-    opt_state, ps = Optimisers.update(opt_state, ps, dps)
+    opt_state_gen, ps_gen_new = Optimisers.update(opt_state.gen, ps.gen, dps.gen)
+    opt_state_ebm, ps_ebm_new = Optimisers.update(opt_state.ebm, ps.ebm, dps.ebm)
+    opt_state_enc, ps_enc_new = Optimisers.update(opt_state.enc, ps.enc, dps.enc)
+    @views ps[:gen] .= ps_gen_new
+    @views ps[:ebm] .= ps_ebm_new
+    @views ps[:enc] .= ps_enc_new
+    opt_state = (gen = opt_state_gen, ebm = opt_state_ebm, enc = opt_state_enc)
     return loss, ps, opt_state, st_lux_ebm, st_lux_gen
 end
 

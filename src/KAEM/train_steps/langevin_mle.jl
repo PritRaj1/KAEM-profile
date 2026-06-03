@@ -125,7 +125,11 @@ function (l::LangevinLoss)(
         Const(component_mask),
     )
 
-    opt_state, ps = Optimisers.update(opt_state, ps, dps)
+    opt_state_gen, ps_gen_new = Optimisers.update(opt_state.gen, ps.gen, dps.gen)
+    opt_state_ebm, ps_ebm_new = Optimisers.update(opt_state.ebm, ps.ebm, dps.ebm)
+    @views ps[:gen] .= ps_gen_new
+    @views ps[:ebm] .= ps_ebm_new
+    opt_state = (gen = opt_state_gen, ebm = opt_state_ebm)
     return loss, ps, opt_state, st_lux_ebm, st_lux_gen
 end
 

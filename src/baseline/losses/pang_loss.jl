@@ -24,8 +24,6 @@ struct PangTrainStep
     α_cd
 end
 
-# Two-optimizer update matching Pang et al.: separate optimizers for generator
-# and energy net so they can be driven at different learning rates.
 function (l::PangTrainStep)(opt_state_gen, opt_state_ebm, ps, st, x, st_rng)
     z_prior = langevin_prior(l.model, ps, st, st_rng)
     z_post = langevin_posterior(l.model, x, ps, st, st_rng)
@@ -48,7 +46,6 @@ function (l::PangTrainStep)(opt_state_gen, opt_state_ebm, ps, st, x, st_rng)
     opt_state_ebm, ps_ebm_new = Optimisers.update(opt_state_ebm, ps.ebm, dps.ebm)
     @views ps[:gen] .= ps_gen_new
     @views ps[:ebm] .= ps_ebm_new
-
     return loss, ps, opt_state_gen, opt_state_ebm, st_new
 end
 

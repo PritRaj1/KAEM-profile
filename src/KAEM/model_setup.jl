@@ -206,9 +206,12 @@ function prep_model(
     st_kan, st_lux = Lux.initialstates(rng, model)
     ps, st_kan, st_lux =
         ps |> ComponentArray |> Lux.f32 |> pu, st_kan |> Lux.f32 |> pu, st_lux |> Lux.f32 |> pu
-    opt_state = Optimisers.setup(optimizer.rule(), ps)
-    # Two-rate optimization for CD (Pang et al., 2020): independent learning rate
-    # for the EBM subtree. Matches lr_ebm == lr_gen ⇒ effective single-rate.
+
+    # Two-rate: one Optimisers.Leaf per ComponentArray view
+    fields = propertynames(ps)
+    opt_state = NamedTuple{fields}(
+        map(f -> Optimisers.setup(optimizer.rule(), getproperty(ps, f)), fields),
+    )
     Optimisers.adjust!(opt_state.ebm, lr_ebm)
     model, st_lux, st_rng = setup_training(
         opt_state,
