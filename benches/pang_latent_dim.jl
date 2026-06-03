@@ -35,9 +35,10 @@ function setup_pang_model(latent_dim)
     st = Lux.initialstates(rng, model)
     ps, st = ps |> ComponentArray |> Lux.f32 |> pu, st |> Lux.f32 |> pu
 
-    lr = parse(Float32, retrieve(conf, "PANG", "learning_rate"))
-    opt = ManualAdam(lr)
-    opt_state = Optimisers.setup(opt, ps)
+    lr_gen = parse(Float32, retrieve(conf, "PANG", "learning_rate"))
+    lr_ebm = parse(Float32, retrieve(conf, "PANG", "ebm_learning_rate"))
+    opt_state_gen = Optimisers.setup(ManualAdam(lr_gen), ps.gen)
+    opt_state_ebm = Optimisers.setup(ManualAdam(lr_ebm), ps.ebm)
 
     st_rng = seed_rng(model; rng = rng)
     α_cd = parse(Float32, retrieve(conf, "PANG", "alpha_cd"))
@@ -46,7 +47,7 @@ function setup_pang_model(latent_dim)
     x_test, _ = iterate(train_loader)
     x_test = pu(x_test)
 
-    return model, opt_state, ps, st, st_rng, α_cd, x_test
+    return model, opt_state_gen, opt_state_ebm, ps, st, st_rng, α_cd, x_test
 end
 
 results = DataFrame(
@@ -58,21 +59,22 @@ results = DataFrame(
     gc_percent = Float64[],
 )
 
-function benchmark_pang_train(train_step, opt_state, ps, st, x, st_rng)
-    return train_step(opt_state, ps, Lux.trainmode(st), x, st_rng)
+function benchmark_pang_train(train_step, opt_state_gen, opt_state_ebm, ps, st, x, st_rng)
+    return train_step(opt_state_gen, opt_state_ebm, ps, Lux.trainmode(st), x, st_rng)
 end
 
 for latent_dim in [21, 41, 61, 81, 101]
     println("Benchmarking Pang latent_dim = $latent_dim...")
 
-    model, opt_state, ps, st, st_rng, α_cd, x_test = setup_pang_model(latent_dim)
+    model, opt_state_gen, opt_state_ebm, ps, st, st_rng, α_cd, x_test = setup_pang_model(latent_dim)
 
     train_step = PangTrainStep(model, α_cd)
 
     b = @benchmark begin
         result = f(
             $train_step,
-            $opt_state,
+            $opt_state_gen,
+            $opt_state_ebm,
             $ps,
             $st,
             $x_test,
@@ -82,7 +84,8 @@ for latent_dim in [21, 41, 61, 81, 101]
     end setup = (
         f = Reactant.@compile sync = true benchmark_pang_train(
             $train_step,
-            $opt_state,
+            $opt_state_gen,
+            $opt_state_ebm,
             $ps,
             $st,
             $x_test,
