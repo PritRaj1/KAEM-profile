@@ -180,11 +180,7 @@ function Lux.initialparameters(
     else
         ps = (w_base = w_base, w_sp = w_sp, coef = coef)
         l.τ_trainable && (ps = merge(ps, (basis_τ = l.init_τ,)))
-        if l.grid_trainable
-            init_scale = (maximum(l.init_grid) - minimum(l.init_grid)) /
-                (size(l.init_grid, 2) - 1) |> Lux.f32
-            ps = merge(ps, (grid = l.init_grid, scale = [init_scale]))
-        end
+        l.grid_trainable && (ps = merge(ps, (grid = l.init_grid,)))
         return ps
     end
 end
@@ -200,8 +196,8 @@ function Lux.initialstates(
     min_z = repeat([first(l.grid_range)], l.in_dim)
     max_z = repeat([last(l.grid_range)], l.in_dim)
 
-    st = (basis_τ = l.init_τ, min = min_z, max = max_z)
-    l.grid_trainable || (st = merge(st, (grid = grid, scale = [scale])))
+    st = (basis_τ = l.init_τ, min = min_z, max = max_z, scale = [scale])
+    l.grid_trainable || (st = merge(st, (grid = grid,)))
     return st
 end
 
@@ -238,7 +234,7 @@ function (l::univariate_function)(
     l.spline_string == "Wavelet" && return wavMUL(l, ps, x, basis_τ)
 
     grid = l.grid_trainable ? ps.grid : st.grid
-    scale = l.grid_trainable ? ps.scale : st.scale
+    scale = st.scale
 
     y =
         l.spline_string == "FFT" ?
