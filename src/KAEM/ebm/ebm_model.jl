@@ -61,6 +61,7 @@ function init_EbmModel(
     σ_spline = parse(Float32, retrieve(conf, "EbmModel", "σ_spline"))
     init_τ = parse(Float32, retrieve(conf, "EbmModel", "init_τ"))
     τ_trainable = parse(Bool, retrieve(conf, "EbmModel", "τ_trainable"))
+    grid_trainable = parse(Bool, retrieve(conf, "EbmModel", "grid_trainable"))
     batch_size = parse(Int, retrieve(conf, "TRAINING", "batch_size"))
     τ_trainable = spline_function == "B-spline" ? false : τ_trainable
     reg = parse(Float32, retrieve(conf, "MixtureModel", "λ_reg"))
@@ -125,6 +126,7 @@ function init_EbmModel(
             σ_spline = σ_spline,
             init_τ = init_τ,
             τ_trainable = τ_trainable,
+            grid_trainable = grid_trainable,
             ε_ridge = eps,
             sample_size = s_size,
             wavelet = wavelet
@@ -164,7 +166,10 @@ function init_EbmModel(
     train_props = parse(Bool, retrieve(conf, "MixtureModel", "train_proportions"))
 
     A = length(functions) > 0 ? typeof(functions[1].base_activation) : AbstractActivation
-    no_grid = spline_function == "FFT" || spline_function == "Cheby" || spline_function == "Wavelet"
+    no_grid = grid_trainable ||
+        spline_function == "FFT" ||
+        spline_function == "Cheby" ||
+        spline_function == "Wavelet"
 
     return EbmModel{Float32}(
         Tuple(functions),

@@ -70,9 +70,10 @@ function GridUpdater(model, conf::ConfParse)
 
     prior_func = retrieve(conf, "EbmModel", "spline_function")
     gen_func = retrieve(conf, "GeneratorModel", "spline_function")
-
-    nogrid_prior = prior_func == "FFT" || prior_func == "Cheby" || prior_func == "Wavelet"
-    nogrid_gen = gen_func == "FFT" || gen_func == "Cheby" || prior_func == "Wavelet"
+    prior_grid_trainable = parse(Bool, retrieve(conf, "EbmModel", "grid_trainable"))
+    gen_grid_trainable = parse(Bool, retrieve(conf, "GeneratorModel", "grid_trainable"))
+    nogrid_prior = prior_grid_trainable || prior_func == "FFT" || prior_func == "Cheby" || prior_func == "Wavelet"
+    nogrid_gen = gen_grid_trainable || gen_func == "FFT" || gen_func == "Cheby" || gen_func == "Wavelet"
 
     return GridUpdater(
         model,

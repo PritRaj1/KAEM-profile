@@ -49,6 +49,7 @@ function init_KAN_Generator(
     init_τ = parse(Float32, retrieve(conf, "GeneratorModel", "init_τ"))
     τ_trainable = parse(Bool, retrieve(conf, "GeneratorModel", "τ_trainable"))
     τ_trainable = spline_function == "B-spline" ? false : τ_trainable
+    grid_trainable = parse(Bool, retrieve(conf, "GeneratorModel", "grid_trainable"))
     eps = parse(Float32, retrieve(conf, "TRAINING", "eps"))
 
     s_size = parse(Int, retrieve(conf, "TRAINING", "batch_size"))
@@ -72,11 +73,11 @@ function init_KAN_Generator(
         σ_spline = σ_spline,
         init_τ = init_τ,
         τ_trainable = τ_trainable,
+        grid_trainable = grid_trainable,
         ε_ridge = eps,
         sample_size = s_size,
         wavelet = wavelet
     )
-    # Let Julia infer the concrete activation type from the elements we push
     Φ_functions = []
     layernorms = Vector{Lux.LayerNorm}(undef, 0)
 

@@ -44,6 +44,7 @@ struct univariate_function{T <: Float32} <: Lux.AbstractLuxLayer
     σ_spline::T
     init_τ::AbstractArray{T}
     τ_trainable::Bool
+    grid_trainable::Bool
     ε_ridge::T
 end
 
@@ -61,6 +62,7 @@ function init_function(
         σ_spline::T = 1.0f0,
         init_τ::T = 1.0f0,
         τ_trainable::Bool = true,
+        grid_trainable::Bool = false,
         ε_ridge::T = 1.0f-6,
         sample_size::Int = 1,
         wavelet::AbstractString = "Morlet"
@@ -117,6 +119,7 @@ function init_function(
         σ_spline,
         [init_τ],
         τ_trainable,
+        grid_trainable,
         ε_ridge,
     )
 end
@@ -175,9 +178,14 @@ function Lux.initialparameters(
             basis_τ = l.init_τ,
         )
     else
-        return l.τ_trainable ?
-            (w_base = w_base, w_sp = w_sp, coef = coef, basis_τ = l.init_τ) :
-            (w_base = w_base, w_sp = w_sp, coef = coef)
+        ps = (w_base = w_base, w_sp = w_sp, coef = coef)
+        l.τ_trainable && (ps = merge(ps, (basis_τ = l.init_τ,)))
+        if l.grid_trainable
+            init_scale = (maximum(l.init_grid) - minimum(l.init_grid)) /
+                (size(l.init_grid, 2) - 1) |> Lux.f32
+            ps = merge(ps, (grid = l.init_grid, scale = [init_scale]))
+        end
+        return ps
     end
 end
 
@@ -192,14 +200,9 @@ function Lux.initialstates(
     min_z = repeat([first(l.grid_range)], l.in_dim)
     max_z = repeat([last(l.grid_range)], l.in_dim)
 
-    return (
-        grid = grid,
-        basis_τ = l.init_τ,
-        scale = [scale],
-        min = min_z,
-        max = max_z,
-    )
-
+    st = (basis_τ = l.init_τ, min = min_z, max = max_z)
+    l.grid_trainable || (st = merge(st, (grid = grid, scale = [scale])))
+    return st
 end
 
 function SplineMUL(
@@ -232,13 +235,15 @@ function (l::univariate_function)(
         st,
     )
     basis_τ = l.τ_trainable ? ps.basis_τ : st.basis_τ
-    scale = st.scale
     l.spline_string == "Wavelet" && return wavMUL(l, ps, x, basis_τ)
+
+    grid = l.grid_trainable ? ps.grid : st.grid
+    scale = l.grid_trainable ? ps.scale : st.scale
 
     y =
         l.spline_string == "FFT" ?
-        coef2curve_FFT(l.basis_function, x, st.grid, ps.coef, basis_τ) :
-        coef2curve_Spline(l.basis_function, x, st.grid, ps.coef, basis_τ, scale)
+        coef2curve_FFT(l.basis_function, x, grid, ps.coef, basis_τ) :
+        coef2curve_Spline(l.basis_function, x, grid, ps.coef, basis_τ, scale)
     l.spline_string == "Cheby" && return y
     return SplineMUL(l, ps, x, y)
 end
